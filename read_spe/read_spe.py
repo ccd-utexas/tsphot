@@ -19,6 +19,9 @@ class File(object):
 
     def _load_datatype(self):
         self._datatype = N.int64(self.read_at(108, 1, N.int16)[0])
+        
+    def get_datatype(self):
+        return (self._datatype)
 
     def _load_size(self):
         self._xdim = N.int64(self.read_at(42, 1, N.uint16)[0])
