@@ -17,10 +17,13 @@ class File(object):
         self._fid = open(fname, 'rb')
         self._load_size()
 
+    def _load_datatype(self):
+        self._datatype = N.int64(self.read_at(108, 1, N.int16)[0])
+
     def _load_size(self):
         self._xdim = N.int64(self.read_at(42, 1, N.uint16)[0])
         self._ydim = N.int64(self.read_at(656, 1, N.uint16)[0])
-
+        
     def get_size(self):
         return (self._xdim, self._ydim)
         
