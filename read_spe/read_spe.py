@@ -15,6 +15,7 @@ class File(object):
 
     def __init__(self, fname):
         self._fid = open(fname, 'rb')
+        self._load_datatype()
         self._load_size()
 
     def _load_datatype(self):
