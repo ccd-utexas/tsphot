@@ -1,5 +1,13 @@
-# read_spe.py
-# from http://wiki.scipy.org/Cookbook/Reading_SPE_files
+#!/usr/bin/env python
+"""
+Read .SPE file into numpy array.
+
+Adapted from http://wiki.scipy.org/Cookbook/Reading_SPE_files
+For .SPE file specification, see
+ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
+SPE%203.0%20File%20Format%20Specification.pdf
+"""
+
 import numpy as N
 
 
