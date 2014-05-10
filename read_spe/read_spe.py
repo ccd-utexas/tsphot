@@ -22,7 +22,7 @@ class File(object):
         self._load_datatype()
         self._load_xdim()
         self._load_ydim()
-#        self._load_size()
+        self._load_size()
         self._load_NumFrames()
         return None
 
@@ -73,19 +73,31 @@ class File(object):
         """
         return self._datatype
 
-    def _load_size(self):
+    def _load_xdim(self):
         """
-        Load width and height of a frame in pixels.
+        Load width of a frame in pixels.
         """
         self._xdim = np.int64(self.read_at(42, 1, np.uint16)[0])
+        return None
+
+    def get_xdim(self):
+        """
+        Get width of a frame in pixels.
+        """
+        return self._xdim
+
+    def _load_ydim(self):
+        """
+        Load height of a frame in pixels.
+        """
         self._ydim = np.int64(self.read_at(656, 1, np.uint16)[0])
         return None
-        
-    def get_size(self):
+    
+    def get_ydim(self):
         """
-        Get width and height of a frame in pixels.
+        Get height of a frame in pixels.
         """
-        return (self._xdim, self._ydim)
+        return self._ydim
         
     def read_at(self, pos, size, ntype):
         """
