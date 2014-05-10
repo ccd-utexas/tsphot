@@ -22,7 +22,6 @@ class File(object):
         self._load_datatype()
         self._load_xdim()
         self._load_ydim()
-        self._load_size()
         self._load_NumFrames()
         return None
 
@@ -98,6 +97,19 @@ class File(object):
         Get height of a frame in pixels.
         """
         return self._ydim
+
+    def _load_NumFrames(self):
+        """
+        Load number of frames.
+        """
+        self._NumFrames = np.int64(self.read_at(1446, 1, np.int32)[0])
+        return None
+
+    def get_NumFrames(self):
+        """
+        Get number of frames.
+        """
+        return self._NumFrames
         
     def read_at(self, pos, size, ntype):
         """
