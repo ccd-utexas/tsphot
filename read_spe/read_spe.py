@@ -20,7 +20,10 @@ class File(object):
         self._load_file_header_ver()
         self._load_xml_footer_offset()
         self._load_datatype()
-        self._load_size()
+        self._load_xdim()
+        self._load_ydim()
+#        self._load_size()
+        self._load_NumFrames()
         return None
 
     def _load_file_header_ver(self):
