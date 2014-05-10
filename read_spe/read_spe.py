@@ -74,8 +74,8 @@ class File(object):
         """
         Load width and height of a frame in pixels.
         """
-        self._xdim = self.read_at(42, 1, np.uint16)[0]
-        self._ydim = self.read_at(656, 1, np.uint16)[0]
+        self._xdim = np.int64(self.read_at(42, 1, np.uint16)[0])
+        self._ydim = np.int64(self.read_at(656, 1, np.uint16)[0])
         return None
         
     def get_size(self):
