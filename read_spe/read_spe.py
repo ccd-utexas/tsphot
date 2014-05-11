@@ -17,42 +17,70 @@ class File(object):
     
     def __init__(self, fname):
         """
-        Open file and load metadata.
+        Open file and load metadata from header and footer.
+        """
+        # For online analysis, read metadata from binary header.
+        # For final reductions, read more complete metadata from XML footer.
+        self._fid = open(fname, 'rb')
+        self._load_header_metadata(self)
+        self._load_footer_metadata(self)
+        return None
+
+    def _load_header_metadata(self):
+        """
+        Load SPE metadata from binary header as a dict.
+        Use metadata from header for online analysis
+        since XML footer does not yet exist while taking data.
         """
         # file_header_ver and xml_footer_offset are
         # the only required header fields for SPE 3.0.
-        # Other file metadata is loaded from XML footer.
-        self._fid = open(fname, 'rb')
-        self._load_file_header_ver()
-        self._load_xml_footer_offset()
-        self._load_file_metadata()
-        return None
+        # Header information from SPE 3.0 File Specification, Appendix A.
+        # TODO: read data into pandas df
+        # read in csv from appendix a
+        # 
+        
+        pass
+
+    def get_header_metadata(self):
+        """
+        Return SPE metadata from binary header as a dict.
+        Use metadata from header for online analysis
+        since XML footer does not yet exist while taking data.
+        """
+        # file_header_ver and xml_footer_offset are
+        # the only required header fields for SPE 3.0.
+        # TODO: read data into dict
+        pass
+
+    def _load_footer_metadata(self):
+        """
+        Load SPE metadata from XML footer as an lxml object.
+        Use metadata from footer for final reductions
+        since XML footer is more complete.
+        """
+        # TODO: read in as object
+
+    def get_footer_metadata(self):
+        """
+        Return SPE metadata from XML footer as an lxml object.
+        Use metadata from footer for final reductions
+        since XML footer is more complete.
+        """
+        # TODO: return object
+
+    # def _load_file_header_ver(self):
+    #     """
+    #     Load SPE version.
+    #     """
+    #     self._file_header_ver = self.read_at(1992, 1, np.float32)[0]
+    #     return None
     
-    def _load_file_header_ver(self):
-        """
-        Load SPE version.
-        """
-        self._file_header_ver = self.read_at(1992, 1, np.float32)[0]
-        return None
-    
-    def get_file_header_ver(self):
-        """
-        Get SPE version.
-        """
-        return self._file_header_ver
-    
-    def _load_xml_footer_offset(self):
-        """
-        Load offset to the XML footer in bytes.
-        """
-        self._xml_footer_offset = self.read_at(678, 1, np.uint64)[0]
-        return None
-    
-    def get_xml_footer_offset(self):
-        """
-        Get offset to the XML metadata footer in bytes.
-        """
-        return self._xml_footer_offset
+    # def _load_xml_footer_offset(self):
+    #     """
+    #     Load offset to the XML footer in bytes.
+    #     """
+    #     self._xml_footer_offset = self.read_at(678, 1, np.uint64)[0]
+    #     return None
     
     # def _load_datatype(self):
     #     """
