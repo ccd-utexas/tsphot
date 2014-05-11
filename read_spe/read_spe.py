@@ -11,10 +11,10 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 
 from __future__ import print_function
+import os
 import numpy as np
 import pandas as pd
-import os
-import lxml
+from lxml import objectify
 
 class File(object):
     
@@ -34,7 +34,7 @@ class File(object):
         Load SPE metadata from binary header as a pandas dataframe.
         Use metadata from header for online analysis
         since XML footer does not yet exist while taking data.
-        Only the fields required for SPE 3.0 files are loaded. All other fields are NAN.
+        Only the fields required for SPE 3.0 files are loaded. All other fields are numpy NaN.
         ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
         """
         # file_header_ver and xml_footer_offset are
@@ -79,9 +79,8 @@ class File(object):
                 size = (self.header_metadata["Offset"][idx+1]
                         - self.header_metadata["Offset"][idx]
                         - 1)
-            # Except if at last byte
-            # TODO: allow more exceptions else can hide errors.
-            except:
+            # Key error if at last value in the header
+            except KeyError:
                 size = 1
             ntype = binary_ntypes[self.header_metadata["Binary"][idx]]
             values_by_offset[pos] = self.read_at(pos, size, ntype)
@@ -103,8 +102,12 @@ class File(object):
         Use metadata from footer for final reductions
         since XML footer is more complete.
         """
-        # TODO: read in as object
-        pass
+        tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
+        pos = self.header_metadata[tf_mask]["Value"].values[0]
+        self._fid.seek(pos)
+        # All XML footer metadata is contained within one line.
+        self.footer_metadata = objectify.fromstring(self._fid.read())
+        return None
 
     def read_at(self, pos, size, ntype):
         """
@@ -112,20 +115,6 @@ class File(object):
         """
         self._fid.seek(pos)
         return np.fromfile(self._fid, ntype, size)
-
-    # def _load_file_header_ver(self):
-    #     """
-    #     Load SPE version.
-    #     """
-    #     self._file_header_ver = self.read_at(1992, 1, np.float32)[0]
-    #     return None
-    
-    # def _load_xml_footer_offset(self):
-    #     """
-    #     Load offset to the XML footer in bytes.
-    #     """
-    #     self._xml_footer_offset = self.read_at(678, 1, np.uint64)[0]
-    #     return None
     
     # def _load_datatype(self):
     #     """
@@ -142,27 +131,6 @@ class File(object):
     #     key = self.read_at(108, 1, np.int16)[0]
     #     self._datatype = datatypes[key]
     #     return None
-    
-    # def _load_xdim(self):
-    #     """
-    #     Load width of a frame in pixels.
-    #     """
-    #     self._xdim = np.int64(self.read_at(42, 1, np.uint16)[0])
-    #     return None
-    
-    # def _load_ydim(self):
-    #     """
-    #     Load height of a frame in pixels.
-    #     """
-    #     self._ydim = np.int64(self.read_at(656, 1, np.uint16)[0])
-    #     return None
-    
-    # def _load_NumFrames(self):
-    #     """
-    #     Load number of frames.
-    #     """
-    #     self._NumFrames = np.int64(self.read_at(1446, 1, np.int32)[0])
-    #     return None
         
     # def load_img(self):
     #     """
@@ -170,45 +138,7 @@ class File(object):
     #     """
     #     img = self.read_at(4100, self._xdim * self._ydim, np.uint16)
     #     return img.reshape((self._ydim, self._xdim))
-    
-    # def load_metadata(self):
-    #     """
-    #     Load the XML metadata footer.
-    #     """
-    #     # TODO: use xml parser
-    #     self._fid.seek(self._xml_footer_offset)
-    #     # All metadata contained in one line
-    #     return ET.fromstring(self._fid.read())
 
-    # def tag_uri_and_name(elt):
-    #     """
-    #     Extract a URI XML namespace for appending to element tags.
-    #     """
-    #     # from http://stackoverflow.com/questions/1953761/accessing-xmlns-attribute-with-python-elementree
-    #     if elt.tag[0] == "{":
-    #         uri, ignore, tag = elt.tag[1:].partition("}")
-    #     else:
-    #         uri = None
-    #         tag = elt.tag
-    #     return uri, tag
-
-    # def uri_tag(uri, tag):
-    #     """
-    #     Append element tag with XML namespace URI. 
-    #     """
-    #     return '{'+uri+'}'+tag
-
-    # def _load_attribs(self):
-    #     """
-    #     Load file attributes.
-    #     """
-    #     (uri, ns) = tag_uri_and_name(self._metadata)
-    #     dataformat_tag = uri_tag(uri, 'DataFormat')
-    #     datablock_tag = uri_tag(uri, 'DataBlock')
-    #     for elt in metadata.iter():
-    #     if elt.tag == datablock_tag and elt.attrib['type'] == 'Frame':
-    #         frame_attrib = elt.attrib
-    
     def close(self):
         """
         Close file.
