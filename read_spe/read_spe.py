@@ -11,6 +11,8 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 
 import numpy as np
+import pandas as pd
+import os
 import lxml
 
 class File(object):
@@ -22,8 +24,8 @@ class File(object):
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
         self._fid = open(fname, 'rb')
-        self._load_header_metadata(self)
-        self._load_footer_metadata(self)
+        self._load_header_metadata()
+        self._load_footer_metadata()
         return None
 
     def _load_header_metadata(self):
@@ -35,22 +37,36 @@ class File(object):
         # file_header_ver and xml_footer_offset are
         # the only required header fields for SPE 3.0.
         # Header information from SPE 3.0 File Specification, Appendix A.
-        # TODO: read data into pandas df
-        # read in csv from appendix a
-        # 
-        
-        pass
-
-    def get_header_metadata(self):
-        """
-        Return SPE metadata from binary header as a dict.
-        Use metadata from header for online analysis
-        since XML footer does not yet exist while taking data.
-        """
-        # file_header_ver and xml_footer_offset are
-        # the only required header fields for SPE 3.0.
-        # TODO: read data into dict
-        pass
+        # Read in CSV of header format without comments.
+        format_file = 'spe_2x_header_format.csv'
+        format_file_base, ext = os.path.splitext(format_file)
+        format_file_nocmts = format_file_base + '_temp' + ext
+        # TODO: test file exists
+        with open(format_file, 'r') as f_cmts:
+            # Make a temporary file without comments.
+            with open(format_file_nocmts, 'w') as f_nocmts:
+                for line in f_cmts:
+                    if line.startswith('#'):
+                        continue
+                    else:
+                        f_nocmts.write(line)
+        self.header_metadata = pd.read_csv(format_file_nocmts, sep=',')
+        os.remove(format_file_nocmts)
+        binary_types = {"8s": np.int8,
+                        "8u": np.uint8,
+                        "16s": np.int16,
+                        "16u": np.uint16,
+                        "32s": np.int32,
+                        "32u": np.uint32,
+                        "64s": np.int64,
+                        "64u": np.uint64,
+                        "32f": np.float32,
+                        "64f": np.float64}
+        # Efficiently create columns following
+        # http://pandas.pydata.org/pandas-docs/version/0.13.1/cookbook.html
+        for meta in self.header_metadata:
+            self.read_at(
+        return None
 
     def _load_footer_metadata(self):
         """
@@ -59,14 +75,14 @@ class File(object):
         since XML footer is more complete.
         """
         # TODO: read in as object
+        pass
 
-    def get_footer_metadata(self):
+    def read_at(self, pos, size, ntype):
         """
-        Return SPE metadata from XML footer as an lxml object.
-        Use metadata from footer for final reductions
-        since XML footer is more complete.
+        Seek to position then read from file.
         """
-        # TODO: return object
+        self._fid.seek(pos)
+        return np.fromfile(self._fid, ntype, size)
 
     # def _load_file_header_ver(self):
     #     """
@@ -118,29 +134,22 @@ class File(object):
     #     """
     #     self._NumFrames = np.int64(self.read_at(1446, 1, np.int32)[0])
     #     return None
+        
+    # def load_img(self):
+    #     """
+    #     Load the first image in the file.
+    #     """
+    #     img = self.read_at(4100, self._xdim * self._ydim, np.uint16)
+    #     return img.reshape((self._ydim, self._xdim))
     
-    def read_at(self, pos, size, ntype):
-        """
-        Seek to position then read from file.
-        """
-        self._fid.seek(pos)
-        return np.fromfile(self._fid, ntype, size)
-    
-    def load_img(self):
-        """
-        Load the first image in the file.
-        """
-        img = self.read_at(4100, self._xdim * self._ydim, np.uint16)
-        return img.reshape((self._ydim, self._xdim))
-    
-    def load_metadata(self):
-        """
-        Load the XML metadata footer.
-        """
-        # TODO: use xml parser
-        self._fid.seek(self._xml_footer_offset)
-        # All metadata contained in one line
-        return ET.fromstring(self._fid.read())
+    # def load_metadata(self):
+    #     """
+    #     Load the XML metadata footer.
+    #     """
+    #     # TODO: use xml parser
+    #     self._fid.seek(self._xml_footer_offset)
+    #     # All metadata contained in one line
+    #     return ET.fromstring(self._fid.read())
 
     # def tag_uri_and_name(elt):
     #     """
@@ -178,14 +187,14 @@ class File(object):
         self._fid.close()
         return None
     
-def load(fname):
-    fid = File(fname)
-    img = fid.load_img()
-    fid.close()
-    return img
+# def load(fname):
+#     fid = File(fname)
+#     img = fid.load_img()
+#     fid.close()
+#     return img
 
-if __name__ == "__main__":
-    # TODO: use argparse
-    # TODO: check if ver 3.0, warn if not
-    import sys
-    img = load(sys.argv[-1])
+# if __name__ == "__main__":
+#     # TODO: use argparse
+#     # TODO: check if ver 3.0, warn if not
+#     import sys
+#     img = load(sys.argv[-1])
