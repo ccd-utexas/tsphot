@@ -1,6 +1,10 @@
 # SPE 3.0 File Format Specification, Appendix A
 # SPE 2.X header with changes for 3.0
 # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
+# Commented out all values except those highlighted in Appendix A as required for SPE 3.0 header.
+# Note: SPE 3.0 files created by LightField leave non-required header values as 0.
+# Byte offsets of fields required by SPE 3.0: 6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098
+#
 "Binary","Type_Name","Offset","Description"
 "16s","ControllerVersion",0,"Hardware Version"
 "16s","LogicOutput",2,"Definition of Output BNC"
@@ -17,7 +21,7 @@
 "16s","noscan",34,"Old number of scans - should always be -1"
 "32f","DetTemperature",36,"Detector Temperature Set"
 "16s","DetType",40,"CCD/DiodeArray type"
-"16u","xdim",42,"actual # of pixels on x axis"
+"16u","xdim",42,"actual of pixels on x axis"
 "16s","stdiode",44,"trigger diode"
 "32f","DelayTime",46,"Used with Async Mode"
 "16u","ShutterControl",50,"Normal, Disabled Open, Disabled Closed"

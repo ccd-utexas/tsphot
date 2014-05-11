@@ -10,6 +10,7 @@ SPE%203.0%20File%20Format%20Specification.pdf
 Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 
+from __future__ import print_function
 import numpy as np
 import pandas as pd
 import os
@@ -38,7 +39,7 @@ class File(object):
         # the only required header fields for SPE 3.0.
         # Header information from SPE 3.0 File Specification, Appendix A.
         # Read in CSV of header format without comments.
-        format_file = 'spe_2x_header_format.csv'
+        format_file = 'spe_30_header_format.csv'
         format_file_base, ext = os.path.splitext(format_file)
         format_file_nocmts = format_file_base + '_temp' + ext
         # TODO: test file exists
@@ -52,7 +53,7 @@ class File(object):
                         f_nocmts.write(line)
         self.header_metadata = pd.read_csv(format_file_nocmts, sep=',')
         os.remove(format_file_nocmts)
-        binary_types = {"8s": np.int8,
+        binary_ntypes = {"8s": np.int8,
                         "8u": np.uint8,
                         "16s": np.int16,
                         "16u": np.uint16,
@@ -62,10 +63,34 @@ class File(object):
                         "64u": np.uint64,
                         "32f": np.float32,
                         "64f": np.float64}
-        # Efficiently create columns following
+        # TODO: Efficiently read values and create column following
         # http://pandas.pydata.org/pandas-docs/version/0.13.1/cookbook.html
-        for meta in self.header_metadata:
-            self.read_at(
+        # TODO: use zip and map to map read_at over arguments
+        # Index values explicitly to avoid mistaken assignments. Values can be arrays.
+        values = {}
+        for idx in xrange(len(self.header_metadata)):
+            pos = self.header_metadata["Offset"][idx]
+            try:
+                size = (self.header_metadata["Offset"][idx+1]
+                        - self.header_metadata["Offset"][idx]
+                        - 1)
+            # Except if at last byte
+            # TODO: less allow more exceptions. can hide errors.
+            except:
+                size = 1
+            ntype = binary_ntypes[self.header_metadata["Binary"][idx]]
+            values[idx] = self.read_at(pos, size, ntype)
+        # Store only the values for the byte offsets required of SPE 3.0 files.
+        # Read only first element of these values since for files written by LightField,
+        # other elements and values from offets are 0.
+        nan_array = np.empty(len(self.header_metadata))
+        nan_array[:] = np.nan
+        self.header_metadata[["Values"]] = pd.DataFrame(nan_array)
+        spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
+        # required_values = {}
+        # for offset in spe_30_required_offsets:
+        #     required_values[offset] = values[offset][0]
+        # self.header_metadata[["Values"]] = pd.DataFrame.from_dict(required_values, orient='index')
         return None
 
     def _load_footer_metadata(self):
