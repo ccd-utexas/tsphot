@@ -3,9 +3,8 @@
 Read .SPE file into numpy array.
 
 Adapted from http://wiki.scipy.org/Cookbook/Reading_SPE_files
-Offsets and names taken as from .SPE file specification, see
-ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
-SPE%203.0%20File%20Format%20Specification.pdf
+Offsets and names taken as from SPE 3.0 File Format Specification:
+ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
 
 Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
@@ -36,6 +35,7 @@ class File(object):
         Use metadata from header for online analysis
         since XML footer does not yet exist while taking data.
         Only the fields required for SPE 3.0 files are loaded. All other fields are numpy NaN.
+        See SPE 3.0 File Format Specification:
         ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
         """
         # file_header_ver and xml_footer_offset are
@@ -75,7 +75,7 @@ class File(object):
         # Index values by offset byte position.
         values_by_offset = {}
         for idx in xrange(len(self.header_metadata)):
-            pos = self.header_metadata["Offset"][idx]
+            offset = self.header_metadata["Offset"][idx]
             try:
                 size = (self.header_metadata["Offset"][idx+1]
                         - self.header_metadata["Offset"][idx]
@@ -84,7 +84,7 @@ class File(object):
             except KeyError:
                 size = 1
             ntype = binary_ntypes[self.header_metadata["Binary"][idx]]
-            values_by_offset[pos] = self.read_at(pos, size, ntype)
+            values_by_offset[offset] = self.read_at(offset, size, ntype)
         # Store only the values for the byte offsets required of SPE 3.0 files.
         # Read only first element of these values since for files written by LightField,
         # other elements and values from offets are 0.
@@ -104,28 +104,33 @@ class File(object):
         since XML footer is more complete.
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
-        pos = self.header_metadata[tf_mask]["Value"].values[0]
-        if pos == 0:
+        offset = self.header_metadata[tf_mask]["Value"].values[0]
+        if offset == 0:
             print("INFO: XML footer metadata is empty.", file=sys.stderr)
         else:
-            self._fid.seek(pos)
+            self._fid.seek(offset)
             # All XML footer metadata is contained within one line.
             self.footer_metadata = objectify.fromstring(self._fid.read())
         return None
 
-    def read_at(self, pos, size, ntype):
+    def read_at(self, offset, size, ntype):
         """
-        Seek to position then read size number of bytes in ntype format from file.
+        Seek to offset byte position then read size number of bytes in ntype format from file.
         """
-        self._fid.seek(pos)
+        self._fid.seek(offset)
         return np.fromfile(self._fid, ntype, int(size))
             
     def get_frame(self, frame_num=0):
         """
-        Return a frame from the file.
-        frame_num is python indexed: 0 is first frame.
+        Return a frame and per-frame metadata from the file.
+        frame_num argument is python indexed: 0 is first frame.
         """
+        # See SPE 3.0 File Format Specification:
+        # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
+
         # TODO: Create frame class. Object has own frame metadata.
+        # TODO: Catch if using ROIs. Currently only supports one ROI.
+        # TODO: separate into two internal functions
         
         # If XML footer metadata exists (i.e. for final reductions).
         if hasattr(self, 'footer_metadata'):
@@ -133,67 +138,82 @@ class File(object):
             pass
         
         # Else use binary header metadata (i.e. for online analysis).
-        else:
-            # Allow negative indexes
-            # TODO: allow lists
-            tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
-            numframes = self.header_metadata[tf_mask]["Value"].values[0]
-            frame_num = frame_num % numframes
-            # Get byte position of start of frame data
-            tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
-            start = self.header_metadata[tf_mask]["Offset"].values[0] + 2
-            # Get size
-            tf_mask = (self.header_metadata["Type_Name"] == "xdim")
-            xdim = self.header_metadata[tf_mask]["Value"].values[0]
-            tf_mask = (self.header_metadata["Type_Name"] == "ydim")
-            ydim = self.header_metadata[tf_mask]["Value"].values[0]
-            size = xdim * ydim
-            # TODO: infer stride (stride = f_size + f_meta)
-            # TODO: need flags from user if per-frame meta data
-            # print warning if not available
-            # From SPE 3.0 File Format Specification, Ch 3., Accessing Metadata
-            # TimeStampExposureStarted event has 5 attributes.
-            # TimeStampExposureEnded has 5 attributes.
-            # FrameTrackingNumber has 2 attributes.
-            stride = 2*size + 2*12
-            # Compute read position
-            pos = start + (frame_num * stride)
-            print("read pos", pos)
-            # TODO: ASK PRINCETON INSTRUMENTS HOW THEY RECOMMEND TO READ
-            timestampexposurestarted = {"event": self.read_at(pos + 2*size, 1, np.int64),
-                                        "type": self.read_at(pos + 2*size + 2, 1, np.int64),
-                                        "bitdepth": self.read_at(pos + 2*size + 4, 1, np.int64),
-                                        "resolution": self.read_at(pos + 2*size + 6, 1, np.int64),
-                                        "absolutetime": self.read_at(pos + 2*size + 8, 1, np.int64)}
-            print("timestampexposurestarted", timestampexposurestarted)
-            timestampexposureended = {"event": self.read_at(pos + 2*size + 10, 1, np.int64),
-                                      "type": self.read_at(pos + 2*size + 12, 1, np.int64),
-                                      "bitdepth": self.read_at(pos + 2*size + 14, 1, np.int64),
-                                      "resolution": self.read_at(pos + 2*size + 16, 1, np.int64),
-                                      "absolutetime": self.read_at(pos + 2*size + 18, 1, np.int64)}
-            print("timestampexposureended", timestampexposureended)
-            frametrackingnumber = {"type": self.read_at(pos + 2*size + 20, 1, np.int64),
-                                   "bitdepth": self.read_at(pos + 2*size + 22, 1, np.int64)}
-            print("frametrackingnumber", frametrackingnumber)
-            # TODO: check that don't go past eof
-            self._fid.seek(0, 2)
-            eof = self._fid.tell()
-            # Get datatype
-            # datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
-            # From SPE 3.0 File Format Specification, Chapter 1.
-            tf_mask = (self.header_metadata["Type_Name"] == "datatype")
-            datatype = self.header_metadata[tf_mask]["Value"].values[0]
-            ntypes_by_datatype = {6: np.uint8,
-                                  3: np.uint16,
-                                  2: np.int16,
-                                  8: np.uint32,
-                                  1: np.int32,
-                                  0: np.float32,
-                                  5: np.float64}
-            ntype = ntypes_by_datatype[datatype]
-            # Read frame data.
-            frame = self.read_at(pos, size, ntype)
-            return frame.reshape((ydim, xdim))
+        # else:
+        # Allow negative indexes
+        # TODO: allow lists
+        tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
+        numframes = self.header_metadata[tf_mask]["Value"].values[0]
+        frame_num = frame_num % numframes
+        # Get offset byte position of start of all data. Always = 4100.
+        tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
+        start_offset = self.header_metadata[tf_mask]["Offset"].values[0] + 2
+        if start_offset != 4100:
+            print("WARNING: First frame is not located at byte offset 4100.\n"
+                  +"Check that file is being read correctly.", file=sys.stderr)
+        # Get number of pixels per frame.
+        tf_mask = (self.header_metadata["Type_Name"] == "xdim")
+        xdim = self.header_metadata[tf_mask]["Value"].values[0]
+        tf_mask = (self.header_metadata["Type_Name"] == "ydim")
+        ydim = self.header_metadata[tf_mask]["Value"].values[0]
+        pixels_per_frame = xdim * ydim
+        # Get pixel datatype, bit-depth. Assume metadata datatype, bit-depth.
+        # Datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
+        # Assumed metadata datatype 64-bit signed integer
+        # is from XML footer metadata using previous experiments with LightField.
+        tf_mask = (self.header_metadata["Type_Name"] == "datatype")
+        pixel_datatype = self.header_metadata[tf_mask]["Value"].values[0]
+        ntypes_by_datatype = {6: np.uint8,
+                              3: np.uint16,
+                              2: np.int16,
+                              8: np.uint32,
+                              1: np.int32,
+                              0: np.float32,
+                              5: np.float64}
+        pixel_ntype = ntypes_by_datatype[pixel_datatype]
+        metadata_ntype = np.int64
+        bitdepth_by_ntype = {np.int8: 8,
+                             np.uint8: 8,
+                             np.int16: 16,
+                             np.uint16: 16,
+                             np.int32: 32,
+                             np.uint32: 32,
+                             np.int64: 64,
+                             np.uint64: 64,
+                             np.float32: 32,
+                             np.float64: 64}
+        bits_per_pixel = bitdepth_by_ntype[pixel_ntype]
+        bits_per_metadata = bitdepth_by_ntype[metadata_ntype]
+        # Infer frame size, stride, offset. Infer per-frame metadata size, offset. 
+        # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
+        # bytes_per_frame = pixels_per_frame * bits_per_pixel / (8 bits per byte)
+        # bytes_per_metadata = 8 bytes per metadata
+        #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
+        # bytes_per_stride = bytes_per_frame + bytes_per_metadata
+        # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
+        # TODO: need flags from user if per-frame meta data. print warning if not available.
+        # TODO: make num_metadata an arg
+        num_metadata = 3
+        bits_per_byte = 8
+        bytes_per_frame = pixels_per_frame * (bits_per_pixel / bits_per_byte)
+        bytes_per_metadata = bits_per_metadata / bits_per_byte
+        bytes_per_stride = bytes_per_frame + (num_metadata * bytes_per_metadata)
+        frame_offset = start_offset + (frame_num * bytes_per_stride)
+        metadata_offset = frame_offset + bytes_per_frame
+        # Read frame, metadata.
+        # TODO: pop metadata off (default) input list to read.
+        frame = self.read_at(frame_offset, pixels_per_frame, pixel_ntype)
+        frame.reshape((ydim, xdim))
+        tsexpstart_offset = metadata_offset
+        tsexpend_offset = tsexpstart_offset + bytes_per_metadata
+        ftracknum_offset = tsexpend_offset + bytes_per_metadata
+        metadata = {}
+        metadata["time_stamp_exposure_started"] = self.read_at(tsexpstart_offset, 1, metadata_ntype)
+        metadata["time_stamp_exposure_ended"] = self.read_at(tsexpend_offset, 1, metadata_ntype)
+        metadata["frame_tracking_number"] = self.read_at(ftracknum_offset, 1, metadata_ntype)
+        # TODO: check that don't go past end of file offset.
+        self._fid.seek(0, 2)
+        eof_offset = self._fid.tell()
+        return (frame, metadata)
 
     def close(self):
         """
