@@ -120,46 +120,80 @@ class File(object):
         self._fid.seek(pos)
         return np.fromfile(self._fid, ntype, int(size))
             
-    def load_frame(self, frame_num=0):
+    def get_frame(self, frame_num=0):
         """
-        Load a frame from the file.
+        Return a frame from the file.
         frame_num is python indexed: 0 is first frame.
-        Uses header metadata.
         """
-        # Allow negative indexes
-        # TODO: allow lists
-        tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
-        numframes = self.header_metadata[tf_mask]["Value"].values[0]
-        frame_num = frame_num % numframes
-        # Get byte position of start of frame data
-        tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
-        start = self.header_metadata[tf_mask]["Offset"].values[0] + 2
-        # Get size
-        tf_mask = (self.header_metadata["Type_Name"] == "xdim")
-        xdim = self.header_metadata[tf_mask]["Value"].values[0]
-        tf_mask = (self.header_metadata["Type_Name"] == "ydim")
-        ydim = self.header_metadata[tf_mask]["Value"].values[0]
-        size = xdim * ydim
-        # Compute read position
-        # TODO: infer stride
-        pos = start + (frame_num * size)
-        print(pos)
-        # Get datatype
-        # datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
-        # From SPE 3.0 File Format Specification, Chapter 1.
-        tf_mask = (self.header_metadata["Type_Name"] == "datatype")
-        datatype = self.header_metadata[tf_mask]["Value"].values[0]
-        ntypes_by_datatype = {6: np.uint8,
-                              3: np.uint16,
-                              2: np.int16,
-                              8: np.uint32,
-                              1: np.int32,
-                              0: np.float32,
-                              5: np.float64}
-        ntype = ntypes_by_datatype[datatype]
-        # Read frame data.
-        frame = self.read_at(pos, size, ntype)
-        return frame.reshape((ydim, xdim))
+        # TODO: Create frame class. Object has own frame metadata.
+        
+        # If XML footer metadata exists (i.e. for final reductions).
+        if hasattr(self, 'footer_metadata'):
+            # TODO: complete
+            pass
+        
+        # Else use binary header metadata (i.e. for online analysis).
+        else:
+            # Allow negative indexes
+            # TODO: allow lists
+            tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
+            numframes = self.header_metadata[tf_mask]["Value"].values[0]
+            frame_num = frame_num % numframes
+            # Get byte position of start of frame data
+            tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
+            start = self.header_metadata[tf_mask]["Offset"].values[0] + 2
+            # Get size
+            tf_mask = (self.header_metadata["Type_Name"] == "xdim")
+            xdim = self.header_metadata[tf_mask]["Value"].values[0]
+            tf_mask = (self.header_metadata["Type_Name"] == "ydim")
+            ydim = self.header_metadata[tf_mask]["Value"].values[0]
+            size = xdim * ydim
+            # TODO: infer stride (stride = f_size + f_meta)
+            # TODO: need flags from user if per-frame meta data
+            # print warning if not available
+            # From SPE 3.0 File Format Specification, Ch 3., Accessing Metadata
+            # TimeStampExposureStarted event has 5 attributes.
+            # TimeStampExposureEnded has 5 attributes.
+            # FrameTrackingNumber has 2 attributes.
+            stride = 2*size + 2*12
+            # Compute read position
+            pos = start + (frame_num * stride)
+            print("read pos", pos)
+            # TODO: ASK PRINCETON INSTRUMENTS HOW THEY RECOMMEND TO READ
+            timestampexposurestarted = {"event": self.read_at(pos + 2*size, 1, np.int64),
+                                        "type": self.read_at(pos + 2*size + 2, 1, np.int64),
+                                        "bitdepth": self.read_at(pos + 2*size + 4, 1, np.int64),
+                                        "resolution": self.read_at(pos + 2*size + 6, 1, np.int64),
+                                        "absolutetime": self.read_at(pos + 2*size + 8, 1, np.int64)}
+            print("timestampexposurestarted", timestampexposurestarted)
+            timestampexposureended = {"event": self.read_at(pos + 2*size + 10, 1, np.int64),
+                                      "type": self.read_at(pos + 2*size + 12, 1, np.int64),
+                                      "bitdepth": self.read_at(pos + 2*size + 14, 1, np.int64),
+                                      "resolution": self.read_at(pos + 2*size + 16, 1, np.int64),
+                                      "absolutetime": self.read_at(pos + 2*size + 18, 1, np.int64)}
+            print("timestampexposureended", timestampexposureended)
+            frametrackingnumber = {"type": self.read_at(pos + 2*size + 20, 1, np.int64),
+                                   "bitdepth": self.read_at(pos + 2*size + 22, 1, np.int64)}
+            print("frametrackingnumber", frametrackingnumber)
+            # TODO: check that don't go past eof
+            self._fid.seek(0, 2)
+            eof = self._fid.tell()
+            # Get datatype
+            # datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
+            # From SPE 3.0 File Format Specification, Chapter 1.
+            tf_mask = (self.header_metadata["Type_Name"] == "datatype")
+            datatype = self.header_metadata[tf_mask]["Value"].values[0]
+            ntypes_by_datatype = {6: np.uint8,
+                                  3: np.uint16,
+                                  2: np.int16,
+                                  8: np.uint32,
+                                  1: np.int32,
+                                  0: np.float32,
+                                  5: np.float64}
+            ntype = ntypes_by_datatype[datatype]
+            # Read frame data.
+            frame = self.read_at(pos, size, ntype)
+            return frame.reshape((ydim, xdim))
 
     def close(self):
         """
@@ -171,5 +205,6 @@ class File(object):
 # if __name__ == "__main__":
 #     # TODO: use argparse
 #     # TODO: check if ver 3.0, warn if not
+#     # TODO: make test modules with test_yes/no_footer.spe files
 #     import sys
 #     img = load(sys.argv[-1])
