@@ -15,7 +15,7 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from lxml import objectify
+from lxml import objectify, etree
 
 class File(object):
     
@@ -107,10 +107,10 @@ class File(object):
         pos = self.header_metadata[tf_mask]["Value"].values[0]
         self._fid.seek(pos)
         # All XML footer metadata is contained within one line.
-        # try:
-        self.footer_metadata = objectify.fromstring(self._fid.read())
-        # except XMLSyntaxError:
-        #     print("INFO: XML footer metadata is empty.", file=sys.stderr)
+        try:
+            self.footer_metadata = objectify.fromstring(self._fid.read())
+        except etree.XMLSyntaxError:
+            print("INFO: XML footer metadata is empty.", file=sys.stderr)
         return None
 
     def read_at(self, pos, size, ntype):
