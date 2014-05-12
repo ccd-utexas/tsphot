@@ -89,7 +89,7 @@ class File(object):
         # other elements and values from offets are 0.
         nan_array = np.empty(len(self.header_metadata))
         nan_array[:] = np.nan
-        self.header_metadata[["Value"]] = pd.DataFrame(nan_array)
+        self.header_metadata["Value"] = pd.DataFrame(nan_array)
         spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
         for offset in spe_30_required_offsets:
             tf_mask = (self.header_metadata["Offset"] == offset)
@@ -111,10 +111,10 @@ class File(object):
 
     def read_at(self, pos, size, ntype):
         """
-        Seek to position then read from file.
+        Seek to position then read size number of bytes in ntype format from file.
         """
         self._fid.seek(pos)
-        return np.fromfile(self._fid, ntype, size)
+        return np.fromfile(self._fid, ntype, int(size))
     
     # def _load_datatype(self):
     #     """
@@ -132,12 +132,46 @@ class File(object):
     #     self._datatype = datatypes[key]
     #     return None
         
-    # def load_img(self):
-    #     """
-    #     Load the first image in the file.
-    #     """
-    #     img = self.read_at(4100, self._xdim * self._ydim, np.uint16)
-    #     return img.reshape((self._ydim, self._xdim))
+    def load_frame(self, frame_num=0):
+        """
+        Load a frame from the file.
+        frame_num is python indexed: 0 is first frame.
+        Uses header metadata.
+        """
+        # Allow negative indexes
+        # TODO: allow lists
+        tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
+        numframes = self.header_metadata[tf_mask]["Value"].values[0]
+        frame_num = frame_num % numframes
+        # Get byte position of start of frame data
+        tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
+        start = self.header_metadata[tf_mask]["Offset"].values[0] + 2
+        # Get size
+        tf_mask = (self.header_metadata["Type_Name"] == "xdim")
+        xdim = self.header_metadata[tf_mask]["Value"].values[0]
+        tf_mask = (self.header_metadata["Type_Name"] == "ydim")
+        ydim = self.header_metadata[tf_mask]["Value"].values[0]
+        size = xdim * ydim
+        # Compute read position
+        # TODO: infer stride
+        pos = start + (frame_num * size)
+        print(pos)
+        # Get datatype
+        # datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
+        # From SPE 3.0 File Format Specification, Chapter 1.
+        tf_mask = (self.header_metadata["Type_Name"] == "datatype")
+        datatype = self.header_metadata[tf_mask]["Value"].values[0]
+        ntypes_by_datatype = {6: np.uint8,
+                              3: np.uint16,
+                              2: np.int16,
+                              8: np.uint32,
+                              1: np.int32,
+                              0: np.float32,
+                              5: np.float64}
+        ntype = ntypes_by_datatype[datatype]
+        # Read frame data.
+        frame = self.read_at(pos, size, ntype)
+        return frame.reshape((ydim, xdim))
 
     def close(self):
         """
@@ -145,12 +179,6 @@ class File(object):
         """
         self._fid.close()
         return None
-    
-# def load(fname):
-#     fid = File(fname)
-#     img = fid.load_img()
-#     fid.close()
-#     return img
 
 # if __name__ == "__main__":
 #     # TODO: use argparse
