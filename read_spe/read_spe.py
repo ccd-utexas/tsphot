@@ -12,6 +12,7 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 
 from __future__ import print_function
 import os
+import sys
 import numpy as np
 import pandas as pd
 from lxml import objectify
@@ -106,7 +107,10 @@ class File(object):
         pos = self.header_metadata[tf_mask]["Value"].values[0]
         self._fid.seek(pos)
         # All XML footer metadata is contained within one line.
-        self.footer_metadata = objectify.fromstring(self._fid.read())
+        try:
+            self.footer_metadata = objectify.fromstring(self._fid.read())
+        except XMLSyntaxError:
+            print("INFO: XML footer metadata is empty.", file=sys.stderr)
         return None
 
     def read_at(self, pos, size, ntype):
