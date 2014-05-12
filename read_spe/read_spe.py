@@ -119,23 +119,7 @@ class File(object):
         """
         self._fid.seek(pos)
         return np.fromfile(self._fid, ntype, int(size))
-    
-    # def _load_datatype(self):
-    #     """
-    #     Load binary type of pixel.
-    #     """
-    #     # datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
-    #     datatypes = {6: np.uint8,
-    #                  3: np.uint16,
-    #                  2: np.int16,
-    #                  8: np.uint32,
-    #                  1: np.int32,
-    #                  0: np.float32,
-    #                  5: np.float64}
-    #     key = self.read_at(108, 1, np.int16)[0]
-    #     self._datatype = datatypes[key]
-    #     return None
-        
+            
     def load_frame(self, frame_num=0):
         """
         Load a frame from the file.
