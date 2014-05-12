@@ -105,12 +105,12 @@ class File(object):
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
         pos = self.header_metadata[tf_mask]["Value"].values[0]
-        self._fid.seek(pos)
-        # All XML footer metadata is contained within one line.
-        try:
-            self.footer_metadata = objectify.fromstring(self._fid.read())
-        except etree.XMLSyntaxError:
+        if pos == 0:
             print("INFO: XML footer metadata is empty.", file=sys.stderr)
+        else:
+            self._fid.seek(pos)
+            # All XML footer metadata is contained within one line.
+            self.footer_metadata = objectify.fromstring(self._fid.read())
         return None
 
     def read_at(self, pos, size, ntype):
