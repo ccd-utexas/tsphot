@@ -10,11 +10,13 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 
 from __future__ import print_function
+from __future__ import division
 import os
 import sys
 import numpy as np
 import pandas as pd
 from lxml import objectify, etree
+from datetime import datetime
 
 class File(object):
     
@@ -24,6 +26,7 @@ class File(object):
         """
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
+        self._fname = fname
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
         self._load_footer_metadata()
@@ -123,6 +126,8 @@ class File(object):
     def get_frame(self, frame_num=0):
         """
         Return a frame and per-frame metadata from the file.
+        Frame is returned as a numpy 2D array.
+        Time stamp metadata is returned as Python datetime object.
         frame_num argument is python indexed: 0 is first frame.
         """
         # See SPE 3.0 File Format Specification:
@@ -131,6 +136,7 @@ class File(object):
         # TODO: Create frame class. Object has own frame metadata.
         # TODO: Catch if using ROIs. Currently only supports one ROI.
         # TODO: separate into two internal functions
+        # TODO: allow lists
         
         # If XML footer metadata exists (i.e. for final reductions).
         if hasattr(self, 'footer_metadata'):
@@ -139,11 +145,6 @@ class File(object):
         
         # Else use binary header metadata (i.e. for online analysis).
         # else:
-        # Allow negative indexes
-        # TODO: allow lists
-        tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
-        numframes = self.header_metadata[tf_mask]["Value"].values[0]
-        frame_num = frame_num % numframes
         # Get offset byte position of start of all data. Always = 4100.
         tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
         start_offset = self.header_metadata[tf_mask]["Offset"].values[0] + 2
@@ -183,33 +184,53 @@ class File(object):
                              np.float64: 64}
         bits_per_pixel = bitdepth_by_ntype[pixel_ntype]
         bits_per_metadata = bitdepth_by_ntype[metadata_ntype]
-        # Infer frame size, stride, offset. Infer per-frame metadata size, offset. 
+        # Infer frame size, stride. Infer per-frame metadata size.
         # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
         # bytes_per_frame = pixels_per_frame * bits_per_pixel / (8 bits per byte)
         # bytes_per_metadata = 8 bytes per metadata
         #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
         # bytes_per_stride = bytes_per_frame + bytes_per_metadata
-        # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
-        # TODO: need flags from user if per-frame meta data. print warning if not available.
-        # TODO: make num_metadata an arg
         num_metadata = 3
         bits_per_byte = 8
         bytes_per_frame = pixels_per_frame * (bits_per_pixel / bits_per_byte)
         bytes_per_metadata = bits_per_metadata / bits_per_byte
         bytes_per_stride = bytes_per_frame + (num_metadata * bytes_per_metadata)
+        # Allow negative indexes
+        # NOTE: NumFrames from the binary header metadata is the 
+        # number of frames typed into LightField that will be taken,
+        # not the number of frames that have been taken.
+        # Infer the number of frames that have been taken using the file size in bytes.
+        tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
+        numframes = self.header_metadata[tf_mask]["Value"].values[0]
+        frame_num = frame_num % numframes
+        # Infer frame offset. Infer per-frame metadata offsets.
+        # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
+        # TODO: need flags from user if per-frame meta data. print warning if not available.
+        # TODO: make num_metadata an arg
         frame_offset = start_offset + (frame_num * bytes_per_stride)
         metadata_offset = frame_offset + bytes_per_frame
-        # Read frame, metadata.
+        # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
+        # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
+        # Ticks per second from XML footer metadata using previous LightField experiments.
+        # 0 ticks is when "Acquire" was first clicked on LightField.
+        # Assume "Acquire" was clicked when the .SPE file was created.
+        # File creation time is in seconds since epoch, Jan 1 1970 UTC.
+        # Note: Only relevant for online analysis. Not accurate for reductions.
         # TODO: pop metadata off (default) input list to read.
         frame = self.read_at(frame_offset, pixels_per_frame, pixel_ntype)
-        frame.reshape((ydim, xdim))
-        tsexpstart_offset = metadata_offset
-        tsexpend_offset = tsexpstart_offset + bytes_per_metadata
-        ftracknum_offset = tsexpend_offset + bytes_per_metadata
+        frame = frame.reshape((ydim, xdim))
+        file_ctime = os.path.getctime(self._fname)
+        ticks_per_second = 1000000
+        metadata_tsexpstart_offset = metadata_offset
+        metadata_tsexpend_offset = metadata_tsexpstart_offset + bytes_per_metadata
+        metadata_ftracknum_offset = metadata_tsexpend_offset + bytes_per_metadata
         metadata = {}
-        metadata["time_stamp_exposure_started"] = self.read_at(tsexpstart_offset, 1, metadata_ntype)
-        metadata["time_stamp_exposure_ended"] = self.read_at(tsexpend_offset, 1, metadata_ntype)
-        metadata["frame_tracking_number"] = self.read_at(ftracknum_offset, 1, metadata_ntype)
+        metadata_tsexpstart = self.read_at(metadata_tsexpstart_offset, 1, metadata_ntype)[0] / ticks_per_second
+        metadata_tsexpend = self.read_at(metadata_tsexpend_offset, 1, metadata_ntype)[0] / ticks_per_second
+        metadata_ftracknum = self.read_at(metadata_ftracknum_offset, 1, metadata_ntype)[0]
+        metadata["time_stamp_exposure_started"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpstart)
+        metadata["time_stamp_exposure_ended"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpend)
+        metadata["frame_tracking_number"] = metadata_ftracknum
         # TODO: check that don't go past end of file offset.
         self._fid.seek(0, 2)
         eof_offset = self._fid.tell()
