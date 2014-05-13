@@ -8,9 +8,11 @@ ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%20
 
 Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
+# TODO: make test modules with test_yes/no_footer.spe files
 
 from __future__ import print_function
 from __future__ import division
+import argparse
 import os
 import sys
 import numpy as np
@@ -26,6 +28,7 @@ class File(object):
         """
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
+        # TODO: check if ver 3.0, warn if not
         self._fname = fname
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
@@ -129,6 +132,11 @@ class File(object):
         Frame is returned as a numpy 2D array.
         Time stamp metadata is returned as Python datetime object.
         frame_num argument is python indexed: 0 is first frame.
+        Note: Assuming trigger response is "readout per trigger"...
+        - For online analysis (using only binary header metadata):
+        timing accuracy is +/- 1 second
+        - For reductions (using XML footer metadata):
+        timing accuracy is +/- 0.001 second
         """
         # See SPE 3.0 File Format Specification:
         # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
@@ -140,17 +148,14 @@ class File(object):
         
         # If XML footer metadata exists (i.e. for final reductions).
         if hasattr(self, 'footer_metadata'):
-            # TODO: complete
+            # TODO: complete as below
             pass
         
         # Else use binary header metadata (i.e. for online analysis).
         # else:
-        # Get offset byte position of start of all data. Always = 4100.
+        # Get offset byte position of start of all data.
         tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
         start_offset = self.header_metadata[tf_mask]["Offset"].values[0] + 2
-        if start_offset != 4100:
-            print("WARNING: First frame is not located at byte offset 4100.\n"
-                  +"Check that file is being read correctly.", file=sys.stderr)
         # Get number of pixels per frame.
         tf_mask = (self.header_metadata["Type_Name"] == "xdim")
         xdim = self.header_metadata[tf_mask]["Value"].values[0]
@@ -195,14 +200,17 @@ class File(object):
         bytes_per_frame = pixels_per_frame * (bits_per_pixel / bits_per_byte)
         bytes_per_metadata = bits_per_metadata / bits_per_byte
         bytes_per_stride = bytes_per_frame + (num_metadata * bytes_per_metadata)
-        # Allow negative indexes
-        # NOTE: NumFrames from the binary header metadata is the 
-        # number of frames typed into LightField that will be taken,
-        # not the number of frames that have been taken.
         # Infer the number of frames that have been taken using the file size in bytes.
-        tf_mask = (self.header_metadata["Type_Name"] == "NumFrames")
-        numframes = self.header_metadata[tf_mask]["Value"].values[0]
-        frame_num = frame_num % numframes
+        # NumFrames from the binary header metadata is the 
+        # number of frames typed into LightField that will potentially be taken,
+        # not the number of frames that have already been taken and are in the file being read.
+        # In case the file is currently being written to by LightField
+        # when the file is being read by Python, count only an integer number of frames.
+        # Allow negative indexes using mod.
+        self._fid.seek(0, 2)
+        eof_offset = self._fid.tell()
+        num_frames = (eof_offset - start_offset) // bytes_per_stride
+        frame_num = frame_num % num_frames
         # Infer frame offset. Infer per-frame metadata offsets.
         # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
         # TODO: need flags from user if per-frame meta data. print warning if not available.
@@ -231,9 +239,6 @@ class File(object):
         metadata["time_stamp_exposure_started"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpstart)
         metadata["time_stamp_exposure_ended"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpend)
         metadata["frame_tracking_number"] = metadata_ftracknum
-        # TODO: check that don't go past end of file offset.
-        self._fid.seek(0, 2)
-        eof_offset = self._fid.tell()
         return (frame, metadata)
 
     def close(self):
@@ -243,9 +248,32 @@ class File(object):
         self._fid.close()
         return None
 
-# if __name__ == "__main__":
-#     # TODO: use argparse
-#     # TODO: check if ver 3.0, warn if not
-#     # TODO: make test modules with test_yes/no_footer.spe files
-#     import sys
-#     img = load(sys.argv[-1])
+def main(fname, frame_num):
+    """
+    Read a numbered frame from the SPE file.
+    Show a plot and print the metadata.
+    """
+    fid = File(fname)
+    (frame, metadata) = fid.get_frame(frame_num)
+    fid.close()
+    return (frame, metadata)
+            
+if __name__ == "__main__":
+    
+    # TODO: have defaults for metadata
+    fname_default = "test_yes_footer.spe"
+    frame_num_default = -1
+
+    parser = argparse.ArgumentParser(description="Read a SPE file and return ndarray frame and dict metadata variables.")
+    parser.add_argument("--fname",
+                        default=fname_default,
+                        help=("Path to SPE file. "
+                              +"Default: {default}".format(default=fname_default)))
+    parser.add_argument("--frame_num",
+                        default=frame_num_default,
+                        help=("Frame number to read in. First frame is 0. Last frame is -1. "
+                              +"Default: {default}".format(default=frame_num_default)))
+    args = parser.parse_args()
+    print(args)
+
+    (frame, metadata) = main(fname=args.fname, frame_num=args.frame_num)
