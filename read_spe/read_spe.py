@@ -244,19 +244,19 @@ class File(object):
         """
         # TODO: use footer metadata if it exists.
         # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
-        # bytes_per_metadata = 8 bytes per metadata
-        #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
+        # bytes_per_metadata_elt = 8 bytes per metadata element
+        #   metadata element includes time stamps, frame tracking number, etc with 8 bytes each.
         bits_per_metadata_elt = File._ntype_to_bits[File._metadata_ntype]
         bytes_per_metadata_elt = int(bits_per_metadata_elt / File._bits_per_byte)
         return bytes_per_metadata_elt
 
-    def _get_bytes_per_metadata(self):
+    def _get_bytes_per_metadata_set(self):
         """
         Return number of bytes per set of metadata elements.
         """
         bytes_per_metadata_elt = self._get_bytes_per_metadata_elt()
-        bytes_per_metadata = int(File._num_metadata * bytes_per_metadata_elt)
-        return bytes_per_metadata
+        bytes_per_metadata_set = int(File._num_metadata * bytes_per_metadata_elt)
+        return bytes_per_metadata_set
 
     def _get_bytes_per_stride(self):
         """
@@ -264,8 +264,8 @@ class File(object):
         Equivalent to the number of bytes to move to the beginning of the next frame.
         """
         bytes_per_frame = self._get_bytes_per_frame()
-        bytes_per_metadata = self._get_bytes_per_metadata()
-        bytes_per_stride = int(bytes_per_frame + bytes_per_metadata)
+        bytes_per_metadata_set = self._get_bytes_per_metadata_set()
+        bytes_per_stride = int(bytes_per_frame + bytes_per_metadata_set)
         return bytes_per_stride
         
     def _get_num_frames(self):
