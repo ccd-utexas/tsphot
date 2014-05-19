@@ -342,19 +342,20 @@ class File(object):
         metadata["frame_tracking_number"] = mftracknum
         return (frame, metadata)
 
-    def get_frames(self, frame_idx_list):
-        """
-        Yield a frame and per-frame metadata from the file.
-        Return a frame and per-frame metadata from the file.
-        Frame is returned as a numpy 2D array.
-        Time stamp metadata is returned as Python datetime object.
-        frame_list argument is python indexed: 0 is first frame.
-        """
-        # get_num_frames()
-        # self.current_frame_idx
-        for fnum in frame_idx_list:
-            print(fnum)
-        return None
+    # # TODO: make generator. for now use get_frame
+    # def get_frames(self, frame_idx_list):
+    #     """
+    #     Yield a frame and per-frame metadata from the file.
+    #     Return a frame and per-frame metadata from the file.
+    #     Frame is returned as a numpy 2D array.
+    #     Time stamp metadata is returned as Python datetime object.
+    #     frame_list argument is python indexed: 0 is first frame.
+    #     """
+    #     # get_num_frames()
+    #     # self.current_frame_idx
+    #     for fnum in frame_idx_list:
+    #         print(fnum)
+    #     return None
 
     def close(self):
         """
