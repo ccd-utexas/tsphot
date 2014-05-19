@@ -127,7 +127,7 @@ class File(object):
         self._fid.seek(offset)
         return np.fromfile(self._fid, ntype, int(size))
 
-    def get_frames(self, frame_list=[:]):
+    def get_frames(self, frame_list=None):
         """
         Yield a frame and per-frame metadata from the file.
         Return a frame and per-frame metadata from the file.
@@ -137,7 +137,6 @@ class File(object):
         """
         # self.num_frames
         # self.last_frame_num
-        
         pass
         
                 
