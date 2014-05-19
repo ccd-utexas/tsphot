@@ -18,7 +18,7 @@ import sys
 import numpy as np
 import pandas as pd
 from lxml import objectify, etree
-from datetime import datetime
+import datetime as dt
 
 class File(object):
     """
@@ -26,9 +26,12 @@ class File(object):
     """
     # Class-wide variables.
     _bits_per_byte = 8
-    # TODO: don't hardcode number of metadata
+    # TODO: don't hardcode number of metadata, get from user or footer if it exists
+    # Assuming metadata datatype is 64-bit signed integer
+    # from XML footer metadata using previous experiments with LightField.
     # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
     _num_metadata = 3
+    _metadata_ntype = np.int64
     _spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
     _ntype_to_bits = {np.int8: 8, np.uint8: 8,
                       np.int16: 16, np.uint16: 16,
@@ -240,13 +243,10 @@ class File(object):
         Return number of bytes per element of metadata.
         """
         # TODO: use footer metadata if it exists.
-        # Assuming metadata datatype is 64-bit signed integer
-        # from XML footer metadata using previous experiments with LightField.
         # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
         # bytes_per_metadata = 8 bytes per metadata
         #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
-        metadata_ntype = np.int64
-        bits_per_metadata_elt = File._ntype_to_bits[metadata_ntype]
+        bits_per_metadata_elt = File._ntype_to_bits[File._metadata_ntype]
         bytes_per_metadata_elt = int(bits_per_metadata_elt / File._bits_per_byte)
         return bytes_per_metadata_elt
 
@@ -315,7 +315,8 @@ class File(object):
         bytes_per_metadata = self._get_bytes_per_metadata()
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
-        # Ticks per second from XML footer metadata using previous LightField experiments.
+        # Ticks per second from XML footer metadata using previous LightField experiments:
+        # 1 tick = 1 microsecond ; 1E6 ticks per second.
         # 0 ticks is when "Acquire" was first clicked on LightField.
         # Assume "Acquire" was clicked when the .SPE file was created.
         # File creation time is in seconds since epoch, Jan 1 1970 UTC.
@@ -326,18 +327,17 @@ class File(object):
         xdim = self._get_xdim()
         ydim = self._get_ydim()
         frame = frame.reshape((ydim, xdim))
-        file_ctime = os.path.getctime(self._fname)
-        ticks_per_second = 1000000
-        metadata_tsexpstart_offset = metadata_offset
-        metadata_tsexpend_offset = metadata_tsexpstart_offset + bytes_per_metadata
-        metadata_ftracknum_offset = metadata_tsexpend_offset + bytes_per_metadata
+        fctime = dt.datetime.utcfromtimestamp(os.path.getctime(self._fname))
+        mtsexpstart_offset = metadata_offset
+        mtsexpend_offset = mtsexpstart_offset + bytes_per_metadata
+        mftracknum_offset = mtsexpend_offset + bytes_per_metadata
         metadata = {}
-        metadata_tsexpstart = self._read_at(metadata_tsexpstart_offset, 1, metadata_ntype)[0] / ticks_per_second
-        metadata_tsexpend = self._read_at(metadata_tsexpend_offset, 1, metadata_ntype)[0] / ticks_per_second
-        metadata_ftracknum = self._read_at(metadata_ftracknum_offset, 1, metadata_ntype)[0]
-        metadata["time_stamp_exposure_started"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpstart)
-        metadata["time_stamp_exposure_ended"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpend)
-        metadata["frame_tracking_number"] = metadata_ftracknum
+        mtsexpstart = dt.timedelta(microseconds=self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0])
+        mtsexpend   = dt.timedelta(microseconds=self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0])
+        mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
+        metadata["time_stamp_exposure_started"] = fctime + mtsexpstart
+        metadata["time_stamp_exposure_ended"] = fctime + mtsexpend
+        metadata["frame_tracking_number"] = mftracknum
         return (frame, metadata)
 
     def get_frames(self, frame_idx_list):
