@@ -329,7 +329,7 @@ class File(object):
         self._fid.close()
         return None
 
-def main(args.fname, args.frame_idx):
+def main(args):
     """
     Read a numbered frame from the SPE file.
     Show a plot and print the metadata.
