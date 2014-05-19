@@ -31,7 +31,7 @@ class File(object):
         # TODO: check if ver 3.0, warn if not
         print("in __init__")
         self.num_frames = 0
-        self.current_frame_num = 0
+        self.current_frame_idx = 0
         self._fname = fname
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
@@ -136,7 +136,7 @@ class File(object):
         self._fid.seek(offset)
         return np.fromfile(self._fid, ntype, int(size))
 
-    def get_frames(self, frame_num_list=None):
+    def get_frames(self, frame_idx_list=None):
         """
         Yield a frame and per-frame metadata from the file.
         Return a frame and per-frame metadata from the file.
@@ -145,17 +145,17 @@ class File(object):
         frame_list argument is python indexed: 0 is first frame.
         """
         # self.num_frames
-        # self.current_frame_num
-        for fnum in frame_num_list:
+        # self.current_frame_idx
+        for fnum in frame_idx_list:
             print(fnum)
         return None
                 
-    def get_frame(self, frame_num=0):
+    def get_frame(self, frame_idx=0):
         """
         Return a frame and per-frame metadata from the file.
         Frame is returned as a numpy 2D array.
         Time stamp metadata is returned as Python datetime object.
-        frame_num argument is python indexed: 0 is first frame.
+        frame_idx argument is python indexed: 0 is first frame.
         """
         # See SPE 3.0 File Format Specification:
         # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
@@ -226,12 +226,12 @@ class File(object):
         self._fid.seek(0, 2)
         eof_offset = self._fid.tell()
         self.num_frames = (eof_offset - start_offset) // bytes_per_stride
-        self.current_frame_num = frame_num % self.num_frames
+        self.current_frame_idx = frame_idx % self.num_frames
         # Infer frame offset. Infer per-frame metadata offsets.
         # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
         # TODO: need flags from user if per-frame meta data. print warning if not available.
         # TODO: make num_metadata an arg
-        frame_offset = start_offset + (self.current_frame_num * bytes_per_stride)
+        frame_offset = start_offset + (self.current_frame_idx * bytes_per_stride)
         metadata_offset = frame_offset + bytes_per_frame
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
@@ -264,13 +264,13 @@ class File(object):
         self._fid.close()
         return None
 
-def main(fname, frame_num):
+def main(fname, frame_idx):
     """
     Read a numbered frame from the SPE file.
     Show a plot and print the metadata.
     """
     fid = File(fname)
-    (frame, metadata) = fid.get_frame(frame_num)
+    (frame, metadata) = fid.get_frame(frame_idx)
     fid.close()
     return (frame, metadata)
             
@@ -278,18 +278,18 @@ if __name__ == "__main__":
     
     # TODO: have defaults for metadata
     fname_default = "test_yes_footer.spe"
-    frame_num_default = -1
+    frame_idx_default = -1
 
     parser = argparse.ArgumentParser(description="Read a SPE file and return ndarray frame and dict metadata variables.")
     parser.add_argument("--fname",
                         default=fname_default,
                         help=("Path to SPE file. "
                               +"Default: {default}".format(default=fname_default)))
-    parser.add_argument("--frame_num",
-                        default=frame_num_default,
+    parser.add_argument("--frame_idx",
+                        default=frame_idx_default,
                         help=("Frame number to read in. First frame is 0. Last frame is -1. "
-                              +"Default: {default}".format(default=frame_num_default)))
+                              +"Default: {default}".format(default=frame_idx_default)))
     args = parser.parse_args()
     print(args)
 
-    (frame, metadata) = main(fname=args.fname, frame_num=args.frame_num)
+    (frame, metadata) = main(fname=args.fname, frame_idx=args.frame_idx)
