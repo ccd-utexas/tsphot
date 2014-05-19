@@ -27,6 +27,7 @@ class File(object):
     # Class-wide variables.
     bits_per_byte = 8
     # TODO: don't hardcode number of metadata
+    # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
     num_metadata = 3
     spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
     ntype_to_bits = {np.int8: 8, np.uint8: 8,
@@ -122,7 +123,7 @@ class File(object):
             except KeyError:
                 size = 1
             ntype = binary_to_ntype[self.header_metadata["Binary"][idx]]
-            offset_to_value[offset] = self.read_at(offset, size, ntype)
+            offset_to_value[offset] = self._read_at(offset, size, ntype)
         # Store only the values for the byte offsets required of SPE 3.0 files.
         # Read only first element of these values since for files written by LightField,
         # other elements and values from offets are 0.
@@ -182,7 +183,7 @@ class File(object):
         eof_offset = int(self._fid.tell())
         return eof_offset
 
-    def get_pixels_per_frame(self):
+    def _get_pixels_per_frame(self):
         """
         Return number of pixels per frame.
         """
@@ -212,8 +213,9 @@ class File(object):
         # Infer frame size.
         # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
         # bytes_per_frame = pixels_per_frame * bits_per_pixel / (8 bits per byte)
+        pixels_per_frame = self._get_pixels_per_frame()
+        pixel_ntype = self._get_pixel_ntype()
         bits_per_pixel = ntype_to_bits[pixel_ntype]
-        bits_per_metadata = ntype_to_bits[metadata_ntype]
         bytes_per_frame = int(pixels_per_frame * (bits_per_pixel / bits_per_byte))
         return bytes_per_frame
 
@@ -237,8 +239,8 @@ class File(object):
         Return number of bytes per frame + per-frame metadata.
         Equivalent to the number of bytes to move to the beginning of the next frame.
         """
-        bytes_per_frame = self.get_bytes_per_frame()
-        bytes_per_metadata_elt = self.get_bytes_per_metadata_elt()
+        bytes_per_frame = self._get_bytes_per_frame()
+        bytes_per_metadata_elt = self._get_bytes_per_metadata_elt()
         bytes_per_stride = int(bytes_per_frame + (num_metadata * bytes_per_metadata_elt))
         return bytes_per_stride
         
@@ -254,9 +256,9 @@ class File(object):
         # In case the file is currently being written to by LightField
         # when the file is being read by Python, count only an integer number of frames.
         # Allow negative indexes using mod.
-        start_offset = self.get_start_offset()
-        bytes_per_stride = self.get_bytes_per_stride()
-        eof_offset = self.get_eof_offset()
+        start_offset = self._get_start_offset()
+        bytes_per_stride = self._get_bytes_per_stride()
+        eof_offset = self._get_eof_offset()
         num_frames = int((eof_offset - start_offset) // bytes_per_stride)
         return num_frames
                 
@@ -270,8 +272,6 @@ class File(object):
         # See SPE 3.0 File Format Specification:
         # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
         # SPE%203.0%20File%20Format%20Specification.pdf
-        # TODO: separate into two internal functions
-        # TODO: allow lists
         # If XML footer metadata exists (i.e. for final reductions).
         if hasattr(self, 'footer_metadata'):
             # TODO: complete as below
@@ -280,12 +280,9 @@ class File(object):
         # else:
         # Get the number of frames currently in the file.
         # Update the index position of the frame last read.
-        num_frames = self.get_num_frames()
+        num_frames = self._get_num_frames()
         self.current_frame_idx = int(frame_idx % num_frames)
-        # Infer frame offset. Infer per-frame metadata offsets.
-        # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
-        # TODO: need flags from user if per-frame meta data. print warning if not available.
-        # TODO: make num_metadata an arg
+        # Infer frame and per-frame metadata offsets.
         frame_offset = start_offset + (self.current_frame_idx * bytes_per_stride)
         metadata_offset = frame_offset + bytes_per_frame
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
@@ -295,8 +292,7 @@ class File(object):
         # Assume "Acquire" was clicked when the .SPE file was created.
         # File creation time is in seconds since epoch, Jan 1 1970 UTC.
         # Note: Only relevant for online analysis. Not accurate for reductions.
-        # TODO: pop metadata off (default) input list to read.
-        frame = self.read_at(frame_offset, pixels_per_frame, pixel_ntype)
+        frame = self._read_at(frame_offset, pixels_per_frame, pixel_ntype)
         frame = frame.reshape((ydim, xdim))
         file_ctime = os.path.getctime(self._fname)
         ticks_per_second = 1000000
@@ -304,9 +300,9 @@ class File(object):
         metadata_tsexpend_offset = metadata_tsexpstart_offset + bytes_per_metadata
         metadata_ftracknum_offset = metadata_tsexpend_offset + bytes_per_metadata
         metadata = {}
-        metadata_tsexpstart = self.read_at(metadata_tsexpstart_offset, 1, metadata_ntype)[0] / ticks_per_second
-        metadata_tsexpend = self.read_at(metadata_tsexpend_offset, 1, metadata_ntype)[0] / ticks_per_second
-        metadata_ftracknum = self.read_at(metadata_ftracknum_offset, 1, metadata_ntype)[0]
+        metadata_tsexpstart = self._read_at(metadata_tsexpstart_offset, 1, metadata_ntype)[0] / ticks_per_second
+        metadata_tsexpend = self._read_at(metadata_tsexpend_offset, 1, metadata_ntype)[0] / ticks_per_second
+        metadata_ftracknum = self._read_at(metadata_ftracknum_offset, 1, metadata_ntype)[0]
         metadata["time_stamp_exposure_started"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpstart)
         metadata["time_stamp_exposure_ended"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpend)
         metadata["frame_tracking_number"] = metadata_ftracknum
@@ -320,12 +316,11 @@ class File(object):
         Time stamp metadata is returned as Python datetime object.
         frame_list argument is python indexed: 0 is first frame.
         """
-        # get_num_frames()
+        # _get_num_frames()
         # self.current_frame_idx
         for fnum in frame_idx_list:
             print(fnum)
         return None
-                
 
     def close(self):
         """
@@ -340,7 +335,7 @@ def main(args.fname, args.frame_idx):
     Show a plot and print the metadata.
     """
     fid = File(args.fname)
-    (frame, metadata) = fid.get_frame(args.frame_idx)
+    (frame, metadata) = fid.get_frames(args.frame_idx)
     fid.close()
     return (frame, metadata)
             
