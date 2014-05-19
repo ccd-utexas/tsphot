@@ -91,9 +91,9 @@ class File(object):
                 size = 1
             ntype = binary_ntypes[self.header_metadata["Binary"][idx]]
             values_by_offset[offset] = self.read_at(offset, size, ntype)
-        # Store only the values for the byte offsets required of SPE 3.0 files.
-        # Read only first element of these values since for files written by LightField,
-        # other elements and values from offets are 0.
+        Store only the values for the byte offsets required of SPE 3.0 files.
+        Read only first element of these values since for files written by LightField,
+        other elements and values from offets are 0.
         nan_array = np.empty(len(self.header_metadata))
         nan_array[:] = np.nan
         self.header_metadata["Value"] = pd.DataFrame(nan_array)
