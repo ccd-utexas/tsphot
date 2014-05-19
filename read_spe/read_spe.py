@@ -183,15 +183,31 @@ class File(object):
         eof_offset = int(self._fid.tell())
         return eof_offset
 
+    def _get_xdim(self):
+        """
+        Return number of pixels along frame x-axis.
+        """
+        # TODO: use footer metadata if it exists
+        tf_mask = (self.header_metadata["Type_Name"] == "xdim")
+        xdim = int(self.header_metadata[tf_mask]["Value"].values[0])
+        return xdim
+
+    def _get_ydim(self):
+        """
+        Return number of pixels along frame y-axis.
+        """
+        # TODO: use footer metadata if it exists
+        tf_mask = (self.header_metadata["Type_Name"] == "ydim")
+        ydim = int(elf.header_metadata[tf_mask]["Value"].values[0])
+        return ydim
+
     def _get_pixels_per_frame(self):
         """
         Return number of pixels per frame.
         """
         # TODO: use footer metadata if it exists.
-        tf_mask = (self.header_metadata["Type_Name"] == "xdim")
-        xdim = self.header_metadata[tf_mask]["Value"].values[0]
-        tf_mask = (self.header_metadata["Type_Name"] == "ydim")
-        ydim = self.header_metadata[tf_mask]["Value"].values[0]
+        xdim = self._get_xdim()
+        ydim = self._get_ydim()
         pixels_per_frame = int(xdim * ydim)
         return pixels_per_frame
 
@@ -296,6 +312,7 @@ class File(object):
         frame_offset = start_offset + (self.current_frame_idx * bytes_per_stride)
         bytes_per_frame = self._get_bytes_per_frame()
         metadata_offset = frame_offset + bytes_per_frame
+        bytes_per_metadata = self._get_bytes_per_metadata()
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
         # Ticks per second from XML footer metadata using previous LightField experiments.
@@ -306,6 +323,8 @@ class File(object):
         pixels_per_frame = self._get_pixels_per_frame()
         pixel_ntype = self._get_pixel_ntype()
         frame = self._read_at(frame_offset, pixels_per_frame, pixel_ntype)
+        xdim = self._get_xdim()
+        ydim = self._get_ydim()
         frame = frame.reshape((ydim, xdim))
         file_ctime = os.path.getctime(self._fname)
         ticks_per_second = 1000000
