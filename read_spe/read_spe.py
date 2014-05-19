@@ -38,7 +38,7 @@ class File(object):
         self._load_footer_metadata()
         return None
 
-    def __del__(self, fname):
+    def __del__(self):
         """
         Close the file.
         """
