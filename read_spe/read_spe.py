@@ -26,7 +26,7 @@ class File(object):
     """
     # Class-wide variables.
     bits_per_byte = 8
-    # TOOD: don't hardcode number of metadata
+    # TODO: don't hardcode number of metadata
     num_metadata = 3
     ntype_to_bits = {np.int8: 8, np.uint8: 8,
                      np.int16: 16, np.uint16: 16,
@@ -46,12 +46,13 @@ class File(object):
 
     def __init__(self, fname):
         """
-        Open file and load metadata from header and footer.
+        Initialize file.
+        Open, load header and footer metadata, set current frame index.
         """
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
         # TODO: check if ver 3.0, warn if not
-        print("in __init__")
+        print("TEST: in __init__")
         self.current_frame_idx = 0
         self._fname = fname
         self._fid = open(fname, 'rb')
