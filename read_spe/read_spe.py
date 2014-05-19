@@ -312,7 +312,7 @@ class File(object):
         frame_offset = start_offset + (self.current_frame_idx * bytes_per_stride)
         bytes_per_frame = self._get_bytes_per_frame()
         metadata_offset = frame_offset + bytes_per_frame
-        bytes_per_metadata = self._get_bytes_per_metadata()
+        bytes_per_metadata_elt = self._get_bytes_per_metadata_elt()
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
         # Ticks per second from XML footer metadata using previous LightField experiments:
@@ -329,14 +329,11 @@ class File(object):
         frame = frame.reshape((ydim, xdim))
         fctime = dt.datetime.utcfromtimestamp(os.path.getctime(self._fname))
         mtsexpstart_offset = metadata_offset
-        mtsexpend_offset = mtsexpstart_offset + bytes_per_metadata
-        mftracknum_offset = mtsexpend_offset + bytes_per_metadata
+        mtsexpend_offset = mtsexpstart_offset + bytes_per_metadata_elt
+        mftracknum_offset = mtsexpend_offset + bytes_per_metadata_elt
         metadata = {}
         mtsexpstart = dt.timedelta(
             microseconds=(self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]).astype(int))
-        print(mtsexpstart)
-        print(mtsexpstart_offset, mtsexpend_offset)
-        print(self._read_at(mtsexpend_offset, 1, File._metadata_ntype))
         mtsexpend   = dt.timedelta(
             microseconds=(self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]).astype(int))
         mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
