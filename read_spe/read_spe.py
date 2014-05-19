@@ -25,26 +25,26 @@ class File(object):
     Handle an SPE file.
     """
     # Class-wide variables.
-    bits_per_byte = 8
+    _bits_per_byte = 8
     # TODO: don't hardcode number of metadata
     # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
-    num_metadata = 3
-    spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
-    ntype_to_bits = {np.int8: 8, np.uint8: 8,
-                     np.int16: 16, np.uint16: 16,
-                     np.int32: 32, np.uint32: 32,
-                     np.int64: 64, np.uint64: 64,
-                     np.float32: 32, np.float64: 64}
+    _num_metadata = 3
+    _spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
+    _ntype_to_bits = {np.int8: 8, np.uint8: 8,
+                      np.int16: 16, np.uint16: 16,
+                      np.int32: 32, np.uint32: 32,
+                      np.int64: 64, np.uint64: 64,
+                      np.float32: 32, np.float64: 64}
     # Datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
-    datatype_to_ntype = {6: np.uint8, 3: np.uint16,
-                         2: np.int16, 8: np.uint32,
-                         1: np.int32, 0: np.float32,
-                         5: np.float64}
-    binary_to_ntype = {"8s": np.int8, "8u": np.uint8,
-                       "16s": np.int16, "16u": np.uint16,
-                       "32s": np.int32, "32u": np.uint32,
-                       "64s": np.int64, "64u": np.uint64,
-                       "32f": np.float32, "64f": np.float64}
+    _datatype_to_ntype = {6: np.uint8, 3: np.uint16,
+                          2: np.int16, 8: np.uint32,
+                          1: np.int32, 0: np.float32,
+                          5: np.float64}
+    _binary_to_ntype = {"8s": np.int8, "8u": np.uint8,
+                        "16s": np.int16, "16u": np.uint16,
+                        "32s": np.int32, "32u": np.uint32,
+                        "64s": np.int64, "64u": np.uint64,
+                        "32f": np.float32, "64f": np.float64}
 
     def __init__(self, fname):
         """
@@ -122,7 +122,7 @@ class File(object):
             # Key error if at last value in the header
             except KeyError:
                 size = 1
-            ntype = binary_to_ntype[self.header_metadata["Binary"][idx]]
+            ntype = File._binary_to_ntype[self.header_metadata["Binary"][idx]]
             offset_to_value[offset] = self._read_at(offset, size, ntype)
         # Store only the values for the byte offsets required of SPE 3.0 files.
         # Read only first element of these values since for files written by LightField,
@@ -130,7 +130,7 @@ class File(object):
         nan_array = np.empty(len(self.header_metadata))
         nan_array[:] = np.nan
         self.header_metadata["Value"] = pd.DataFrame(nan_array)
-        for offset in spe_30_required_offsets:
+        for offset in File._spe_30_required_offsets:
             tf_mask = (self.header_metadata["Offset"] == offset)
             self.header_metadata["Value"].loc[tf_mask] = offset_to_value[offset][0]
         return None
@@ -202,7 +202,7 @@ class File(object):
         # TODO: use footer metadata if it exists.
         tf_mask = (self.header_metadata["Type_Name"] == "datatype")
         pixel_datatype = self.header_metadata[tf_mask]["Value"].values[0]
-        pixel_ntype = datatype_to_ntype[pixel_datatype]
+        pixel_ntype = File._datatype_to_ntype[pixel_datatype]
         return pixel_ntype
 
     def _get_bytes_per_frame(self):
@@ -215,8 +215,8 @@ class File(object):
         # bytes_per_frame = pixels_per_frame * bits_per_pixel / (8 bits per byte)
         pixels_per_frame = self._get_pixels_per_frame()
         pixel_ntype = self._get_pixel_ntype()
-        bits_per_pixel = ntype_to_bits[pixel_ntype]
-        bytes_per_frame = int(pixels_per_frame * (bits_per_pixel / bits_per_byte))
+        bits_per_pixel = File._ntype_to_bits[pixel_ntype]
+        bytes_per_frame = int(pixels_per_frame * (bits_per_pixel / File._bits_per_byte))
         return bytes_per_frame
 
     def _get_bytes_per_metadata_elt(self):
@@ -230,8 +230,8 @@ class File(object):
         # bytes_per_metadata = 8 bytes per metadata
         #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
         metadata_ntype = np.int64
-        bits_per_metadata_elt = ntype_to_bits[metadata_ntype]
-        bytes_per_metadata_elt = int(bits_per_metadata / bits_per_byte)
+        bits_per_metadata_elt = File._ntype_to_bits[metadata_ntype]
+        bytes_per_metadata_elt = int(bits_per_metadata / File._bits_per_byte)
         return bytes_per_metadata_elt
 
     def _get_bytes_per_stride(self):
@@ -241,7 +241,7 @@ class File(object):
         """
         bytes_per_frame = self._get_bytes_per_frame()
         bytes_per_metadata_elt = self._get_bytes_per_metadata_elt()
-        bytes_per_stride = int(bytes_per_frame + (num_metadata * bytes_per_metadata_elt))
+        bytes_per_stride = int(bytes_per_frame + (File._num_metadata * bytes_per_metadata_elt))
         return bytes_per_stride
         
     def _get_num_frames(self):
