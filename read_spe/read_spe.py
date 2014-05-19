@@ -303,6 +303,8 @@ class File(object):
         # Assume "Acquire" was clicked when the .SPE file was created.
         # File creation time is in seconds since epoch, Jan 1 1970 UTC.
         # Note: Only relevant for online analysis. Not accurate for reductions.
+        pixels_per_frame = self._get_pixels_per_frame()
+        pixel_ntype = self._get_pixel_ntype()
         frame = self._read_at(frame_offset, pixels_per_frame, pixel_ntype)
         frame = frame.reshape((ydim, xdim))
         file_ctime = os.path.getctime(self._fname)
