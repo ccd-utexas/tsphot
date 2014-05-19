@@ -334,6 +334,8 @@ class File(object):
         metadata = {}
         mtsexpstart = dt.timedelta(
             microseconds=(self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]).astype(int))
+        print(mtsexpstart)
+        print(self._read_at(mtsexpend_offset, 1, File._metadata_ntype))
         mtsexpend   = dt.timedelta(
             microseconds=(self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]).astype(int))
         mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
