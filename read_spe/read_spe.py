@@ -225,8 +225,8 @@ class File(object):
         # Allow negative indexes using mod.
         self._fid.seek(0, 2)
         eof_offset = self._fid.tell()
-        self.num_frames = (eof_offset - start_offset) // bytes_per_stride
-        self.current_frame_idx = frame_idx % self.num_frames
+        self.num_frames = int((eof_offset - start_offset) // bytes_per_stride)
+        self.current_frame_idx = int(frame_idx % self.num_frames)
         # Infer frame offset. Infer per-frame metadata offsets.
         # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
         # TODO: need flags from user if per-frame meta data. print warning if not available.
