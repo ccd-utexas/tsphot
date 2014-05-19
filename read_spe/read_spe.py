@@ -291,7 +291,10 @@ class File(object):
         num_frames = self._get_num_frames()
         self.current_frame_idx = int(frame_idx % num_frames)
         # Infer frame and per-frame metadata offsets.
+        start_offset = self._get_start_offset()
+        bytes_per_stride = self._get_bytes_per_stride()
         frame_offset = start_offset + (self.current_frame_idx * bytes_per_stride)
+        bytes_per_frame = self._get_bytes_per_frame()
         metadata_offset = frame_offset + bytes_per_frame
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
