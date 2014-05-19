@@ -285,7 +285,7 @@ class File(object):
         num_frames = int((eof_offset - start_offset) // bytes_per_stride)
         return num_frames
                 
-    def _get_frame(self, frame_idx):
+    def get_frame(self, frame_idx):
         """
         Return a frame and per-frame metadata from the file.
         Frame is returned as a numpy 2D array.
