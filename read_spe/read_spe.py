@@ -268,7 +268,7 @@ class File(object):
         bytes_per_stride = int(bytes_per_frame + bytes_per_metadata_set)
         return bytes_per_stride
         
-    def _get_num_frames(self):
+    def get_num_frames(self):
         """
         Return number of frames currently in an SPE file.
         """
@@ -304,7 +304,7 @@ class File(object):
         # else:
         # Get the number of frames currently in the file.
         # Update the index position of the frame last read.
-        num_frames = self._get_num_frames()
+        num_frames = self.get_num_frames()
         self.current_frame_idx = int(frame_idx % num_frames)
         # Infer frame and per-frame metadata offsets.
         start_offset = self._get_start_offset()
@@ -350,7 +350,7 @@ class File(object):
         Time stamp metadata is returned as Python datetime object.
         frame_list argument is python indexed: 0 is first frame.
         """
-        # _get_num_frames()
+        # get_num_frames()
         # self.current_frame_idx
         for fnum in frame_idx_list:
             print(fnum)
