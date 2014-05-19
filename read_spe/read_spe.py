@@ -136,6 +136,39 @@ class File(object):
         # Get offset byte position of start of all data.
         tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
         start_offset = self.header_metadata[tf_mask]["Offset"].values[0] + 2
+        # Get number of pixels per frame.
+        tf_mask = (self.header_metadata["Type_Name"] == "xdim")
+        xdim = self.header_metadata[tf_mask]["Value"].values[0]
+        tf_mask = (self.header_metadata["Type_Name"] == "ydim")
+        ydim = self.header_metadata[tf_mask]["Value"].values[0]
+        pixels_per_frame = xdim * ydim
+        # Get pixel datatype, bit-depth. Assume metadata datatype, bit-depth.
+        # Datatypes 6, 2, 1, 5 are for only SPE 2.X, not SPE 3.0.
+        # Assumed metadata datatype 64-bit signed integer
+        # is from XML footer metadata using previous experiments with LightField.
+        tf_mask = (self.header_metadata["Type_Name"] == "datatype")
+        pixel_datatype = self.header_metadata[tf_mask]["Value"].values[0]
+        ntypes_by_datatype = {6: np.uint8,
+                              3: np.uint16,
+                              2: np.int16,
+                              8: np.uint32,
+                              1: np.int32,
+                              0: np.float32,
+                              5: np.float64}
+        pixel_ntype = ntypes_by_datatype[pixel_datatype]
+        metadata_ntype = np.int64
+        bitdepth_by_ntype = {np.int8: 8,
+                             np.uint8: 8,
+                             np.int16: 16,
+                             np.uint16: 16,
+                             np.int32: 32,
+                             np.uint32: 32,
+                             np.int64: 64,
+                             np.uint64: 64,
+                             np.float32: 32,
+                             np.float64: 64}
+        bits_per_pixel = bitdepth_by_ntype[pixel_ntype]
+        bits_per_metadata = bitdepth_by_ntype[metadata_ntype]
         # Infer frame size, stride. Infer per-frame metadata size.
         # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
         # bytes_per_frame = pixels_per_frame * bits_per_pixel / (8 bits per byte)
