@@ -231,8 +231,16 @@ class File(object):
         #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
         metadata_ntype = np.int64
         bits_per_metadata_elt = File._ntype_to_bits[metadata_ntype]
-        bytes_per_metadata_elt = int(bits_per_metadata / File._bits_per_byte)
+        bytes_per_metadata_elt = int(bits_per_metadata_elt / File._bits_per_byte)
         return bytes_per_metadata_elt
+
+    def _get_bytes_per_metadata(self):
+        """
+        Return number of bytes per set of metadata elements.
+        """
+        bytes_per_metadata_elt = self._get_bytes_per_metadata_elt()
+        bytes_per_metadata = int(File._num_metadata * bytes_per_metadata_elt)
+        return bytes_per_metadata
 
     def _get_bytes_per_stride(self):
         """
@@ -240,8 +248,8 @@ class File(object):
         Equivalent to the number of bytes to move to the beginning of the next frame.
         """
         bytes_per_frame = self._get_bytes_per_frame()
-        bytes_per_metadata_elt = self._get_bytes_per_metadata_elt()
-        bytes_per_stride = int(bytes_per_frame + (File._num_metadata * bytes_per_metadata_elt))
+        bytes_per_metadata = self._get_bytes_per_metadata()
+        bytes_per_stride = int(bytes_per_frame + bytes_per_metadata)
         return bytes_per_stride
         
     def _get_num_frames(self):
