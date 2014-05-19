@@ -198,7 +198,7 @@ class File(object):
         """
         # TODO: use footer metadata if it exists
         tf_mask = (self.header_metadata["Type_Name"] == "ydim")
-        ydim = int(elf.header_metadata[tf_mask]["Value"].values[0])
+        ydim = int(self.header_metadata[tf_mask]["Value"].values[0])
         return ydim
 
     def _get_pixels_per_frame(self):
