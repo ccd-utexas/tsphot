@@ -57,7 +57,6 @@ class File(object):
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
         # TODO: check if ver 3.0, warn if not
-        print("TEST: in __init__")
         self.current_frame_idx = 0
         self._fname = fname
         self._fid = open(fname, 'rb')
@@ -370,7 +369,7 @@ def main(args):
     Show a plot and print the metadata.
     """
     fid = File(args.fname)
-    (frame, metadata) = fid.get_frames(args.frame_idx)
+    (frame, metadata) = fid.get_frame(args.frame_idx)
     fid.close()
     return (frame, metadata)
             
@@ -385,7 +384,7 @@ if __name__ == "__main__":
                               +"Default: {default}".format(default=fname_default)))
     parser.add_argument("--frame_idx",
                         default=frame_idx_default,
-                        help=("Frame number to read in. First frame is 0. Last frame is -1. "
+                        help=("Frame index to read in. First frame is 0. Last frame is -1. "
                               +"Default: {default}".format(default=frame_idx_default)))
     parser.add_argument("--verbose",
                         "-v",
@@ -397,4 +396,4 @@ if __name__ == "__main__":
         for arg in args.__dict__:
             print(arg, args.__dict__[arg])
     (frame, metadata) = main(args)
-     
+    
