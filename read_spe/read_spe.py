@@ -28,6 +28,7 @@ class File(object):
     bits_per_byte = 8
     # TODO: don't hardcode number of metadata
     num_metadata = 3
+    spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
     ntype_to_bits = {np.int8: 8, np.uint8: 8,
                      np.int16: 16, np.uint16: 16,
                      np.int32: 32, np.uint32: 32,
@@ -67,9 +68,18 @@ class File(object):
         self._fid.close()
         return None
 
+    def _read_at(self, offset, size, ntype):
+        """
+        Seek to offset byte position then read size number of bytes in ntype format from file.
+        """
+        self._fid.seek(offset)
+        result = np.fromfile(self._fid, ntype, int(size))
+        return result
+
     def _load_header_metadata(self):
         """
-        Load SPE metadata from binary header as a pandas dataframe.
+        Load SPE metadata from binary header into a pandas dataframe
+        and save as an object attribute.
         Use metadata from header for online analysis
         since XML footer does not yet exist while taking data.
         Only the fields required for SPE 3.0 files are loaded. All other fields are numpy NaN.
@@ -86,7 +96,7 @@ class File(object):
         ffmt_nocmts = ffmt_base + '_temp' + ext
         if not os.path.isfile(ffmt):
             raise IOError("SPE 3.0 header format file does not exist: {fname}".format(fname=ffmt))
-        if not ext == '.csv':
+        if ext != '.csv':
             raise TypeError("SPE 3.0 header format file is not .csv: {fname}".format(fname=ffmt))
         with open(ffmt) as fcmts:
             # Make a temporary file without comments.
@@ -100,7 +110,6 @@ class File(object):
         os.remove(ffmt_nocmts)
         # TODO: Efficiently read values and create column following
         # http://pandas.pydata.org/pandas-docs/version/0.13.1/cookbook.html
-        # TODO: use zip and map to map read_at over arguments
         # Index values by offset byte position.
         offset_to_value = {}
         for idx in xrange(len(self.header_metadata)):
@@ -120,40 +129,53 @@ class File(object):
         nan_array = np.empty(len(self.header_metadata))
         nan_array[:] = np.nan
         self.header_metadata["Value"] = pd.DataFrame(nan_array)
-        spe_30_required_offsets = [6, 18, 34, 42, 108, 656, 658, 664, 678, 1446, 1992, 2996, 4098]
         for offset in spe_30_required_offsets:
             tf_mask = (self.header_metadata["Offset"] == offset)
             self.header_metadata["Value"].loc[tf_mask] = offset_to_value[offset][0]
         return None
 
+    def get_header_metadata(self):
+        """
+        Return header metadata from object attribute.
+        """
+        return self.header_metadata
+    
     def _load_footer_metadata(self):
         """
-        Load SPE metadata from XML footer as an lxml object.
+        Load SPE metadata from XML footer as an lxml object
+        and save as an object attribute.
         Use metadata from footer for final reductions
         since XML footer is more complete.
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
         offset = self.header_metadata[tf_mask]["Value"].values[0]
         if offset == 0:
-            print("INFO: XML footer metadata is empty.", file=sys.stderr)
+            print(("INFO: XML footer metadata is empty for:\n"
+                  +" {fname}").format(fname=self._fname), file=sys.stderr)
         else:
             self._fid.seek(offset)
             # All XML footer metadata is contained within one line.
             self.footer_metadata = objectify.fromstring(self._fid.read())
         return None
 
-    def get_start_offset(self):
+    def get_footer_metadata(self):
         """
-        Get offset byte position of start of all data.
+        Return footer metadata from object attribute.
+        """
+        return self.footer_metadata
+    
+    def _get_start_offset(self):
+        """
+        Return offset byte position of start of all data.
         """
         # TODO: use footer metadata if it exists.
         tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
         start_offset = int(self.header_metadata[tf_mask]["Offset"].values[0] + 2)
         return start_offset
 
-    def get_eof_offset(self):
+    def _get_eof_offset(self):
         """
-        Get end-of-file byte position.
+        Return end-of-file byte position.
         """
         # TODO: use footer metadata if it exists.
         self._fid.seek(0, 2)
@@ -162,7 +184,7 @@ class File(object):
 
     def get_pixels_per_frame(self):
         """
-        Get number of pixels per frame.
+        Return number of pixels per frame.
         """
         # TODO: use footer metadata if it exists.
         tf_mask = (self.header_metadata["Type_Name"] == "xdim")
@@ -172,9 +194,9 @@ class File(object):
         pixels_per_frame = int(xdim * ydim)
         return pixels_per_frame
 
-    def get_pixel_ntype(self):
+    def _get_pixel_ntype(self):
         """
-        Get pixel binary data type as numpy type.
+        Return pixel binary data type as numpy type.
         """
         # TODO: use footer metadata if it exists.
         tf_mask = (self.header_metadata["Type_Name"] == "datatype")
@@ -182,9 +204,9 @@ class File(object):
         pixel_ntype = datatype_to_ntype[pixel_datatype]
         return pixel_ntype
 
-    def get_bytes_per_frame(self):
+    def _get_bytes_per_frame(self):
         """
-        Get number of bytes per frame.
+        Return number of bytes per frame.
         """
         # TODO: use footer metadata if it exists.
         # Infer frame size.
@@ -195,9 +217,9 @@ class File(object):
         bytes_per_frame = int(pixels_per_frame * (bits_per_pixel / bits_per_byte))
         return bytes_per_frame
 
-    def get_bytes_per_metadata_elt(self):
+    def _get_bytes_per_metadata_elt(self):
         """
-        Get number of bytes per element of metadata.
+        Return number of bytes per element of metadata.
         """
         # TODO: use footer metadata if it exists.
         # Assuming metadata datatype is 64-bit signed integer
@@ -210,9 +232,9 @@ class File(object):
         bytes_per_metadata_elt = int(bits_per_metadata / bits_per_byte)
         return bytes_per_metadata_elt
 
-    def get_bytes_per_stride(self):
+    def _get_bytes_per_stride(self):
         """
-        Get number of bytes per frame + per-frame metadata.
+        Return number of bytes per frame + per-frame metadata.
         Equivalent to the number of bytes to move to the beginning of the next frame.
         """
         bytes_per_frame = self.get_bytes_per_frame()
@@ -220,9 +242,9 @@ class File(object):
         bytes_per_stride = int(bytes_per_frame + (num_metadata * bytes_per_metadata_elt))
         return bytes_per_stride
         
-    def get_num_frames(self):
+    def _get_num_frames(self):
         """
-        Get number of frames currently in an SPE file.
+        Return number of frames currently in an SPE file.
         """
         # TODO: use footer metadata if it exists.
         # Infer the number of frames that have been taken using the file size in bytes.
@@ -238,29 +260,7 @@ class File(object):
         num_frames = int((eof_offset - start_offset) // bytes_per_stride)
         return num_frames
                 
-    def read_at(self, offset, size, ntype):
-        """
-        Seek to offset byte position then read size number of bytes in ntype format from file.
-        """
-        self._fid.seek(offset)
-        result = np.fromfile(self._fid, ntype, int(size))
-        return result
-
-    def get_frames(self, frame_idx_list):
-        """
-        Yield a frame and per-frame metadata from the file.
-        Return a frame and per-frame metadata from the file.
-        Frame is returned as a numpy 2D array.
-        Time stamp metadata is returned as Python datetime object.
-        frame_list argument is python indexed: 0 is first frame.
-        """
-        # get_num_frames()
-        # self.current_frame_idx
-        for fnum in frame_idx_list:
-            print(fnum)
-        return None
-                
-    def get_frame(self, frame_idx):
+    def _get_frame(self, frame_idx):
         """
         Return a frame and per-frame metadata from the file.
         Frame is returned as a numpy 2D array.
@@ -270,8 +270,6 @@ class File(object):
         # See SPE 3.0 File Format Specification:
         # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
         # SPE%203.0%20File%20Format%20Specification.pdf
-        # TODO: Create frame class. Object has own frame metadata.
-        # TODO: Catch if using ROIs. Currently only supports one ROI.
         # TODO: separate into two internal functions
         # TODO: allow lists
         # If XML footer metadata exists (i.e. for final reductions).
@@ -313,6 +311,21 @@ class File(object):
         metadata["time_stamp_exposure_ended"] = datetime.utcfromtimestamp(file_ctime + metadata_tsexpend)
         metadata["frame_tracking_number"] = metadata_ftracknum
         return (frame, metadata)
+
+    def get_frames(self, frame_idx_list):
+        """
+        Yield a frame and per-frame metadata from the file.
+        Return a frame and per-frame metadata from the file.
+        Frame is returned as a numpy 2D array.
+        Time stamp metadata is returned as Python datetime object.
+        frame_list argument is python indexed: 0 is first frame.
+        """
+        # get_num_frames()
+        # self.current_frame_idx
+        for fnum in frame_idx_list:
+            print(fnum)
+        return None
+                
 
     def close(self):
         """
