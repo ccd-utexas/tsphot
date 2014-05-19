@@ -30,12 +30,12 @@ class File(object):
         # For final reductions, read more complete metadata from XML footer.
         # TODO: check if ver 3.0, warn if not
         print("in __init__")
-        self.num_frames = 0
         self.current_frame_idx = 0
         self._fname = fname
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
         self._load_footer_metadata()
+        self._load_num_frames()
         return None
 
     def __del__(self):
@@ -129,6 +129,36 @@ class File(object):
             self.footer_metadata = objectify.fromstring(self._fid.read())
         return None
 
+    def _load_num_frames(self):
+        """
+        Load number of frames from SPE binary header for internal use.
+        """
+        # Get offset byte position of start of all data.
+        tf_mask = (self.header_metadata["Type_Name"] == "lastvalue")
+        start_offset = self.header_metadata[tf_mask]["Offset"].values[0] + 2
+        # Infer frame size, stride. Infer per-frame metadata size.
+        # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
+        # bytes_per_frame = pixels_per_frame * bits_per_pixel / (8 bits per byte)
+        # bytes_per_metadata = 8 bytes per metadata
+        #   metadata includes time stamps, frame tracking number, etc with 8 bytes each.
+        # bytes_per_stride = bytes_per_frame + bytes_per_metadata
+        num_metadata = 3
+        bits_per_byte = 8
+        bytes_per_frame = pixels_per_frame * (bits_per_pixel / bits_per_byte)
+        bytes_per_metadata = bits_per_metadata / bits_per_byte
+        bytes_per_stride = bytes_per_frame + (num_metadata * bytes_per_metadata)
+        # Infer the number of frames that have been taken using the file size in bytes.
+        # NumFrames from the binary header metadata is the 
+        # number of frames typed into LightField that will potentially be taken,
+        # not the number of frames that have already been taken and are in the file being read.
+        # In case the file is currently being written to by LightField
+        # when the file is being read by Python, count only an integer number of frames.
+        # Allow negative indexes using mod.
+        self._fid.seek(0, 2)
+        eof_offset = self._fid.tell()
+        self.num_frames = int((eof_offset - start_offset) // bytes_per_stride)
+        return None
+                
     def read_at(self, offset, size, ntype):
         """
         Seek to offset byte position then read size number of bytes in ntype format from file.
