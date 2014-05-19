@@ -38,6 +38,13 @@ class File(object):
         self._load_footer_metadata()
         return None
 
+    def __del__(self, fname):
+        """
+        Close the file.
+        """
+        self._fid.close()
+        return None
+
     def _load_header_metadata(self):
         """
         Load SPE metadata from binary header as a pandas dataframe.
@@ -129,7 +136,7 @@ class File(object):
         self._fid.seek(offset)
         return np.fromfile(self._fid, ntype, int(size))
 
-    def get_frames(self, frame_list=None):
+    def get_frames(self, frame_num_list=None):
         """
         Yield a frame and per-frame metadata from the file.
         Return a frame and per-frame metadata from the file.
@@ -138,9 +145,10 @@ class File(object):
         frame_list argument is python indexed: 0 is first frame.
         """
         # self.num_frames
-        # self.last_frame_num
-        pass
-        
+        # self.current_frame_num
+        for fnum in frame_num_list:
+            print(fnum)
+        return None
                 
     def get_frame(self, frame_num=0):
         """
@@ -151,17 +159,14 @@ class File(object):
         """
         # See SPE 3.0 File Format Specification:
         # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
-
         # TODO: Create frame class. Object has own frame metadata.
         # TODO: Catch if using ROIs. Currently only supports one ROI.
         # TODO: separate into two internal functions
         # TODO: allow lists
-        
         # If XML footer metadata exists (i.e. for final reductions).
         if hasattr(self, 'footer_metadata'):
             # TODO: complete as below
             pass
-        
         # Else use binary header metadata (i.e. for online analysis).
         # else:
         # Get offset byte position of start of all data.
