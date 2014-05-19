@@ -29,6 +29,7 @@ class File(object):
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
         # TODO: check if ver 3.0, warn if not
+        print("in __init__")
         self._fname = fname
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
@@ -125,18 +126,27 @@ class File(object):
         """
         self._fid.seek(offset)
         return np.fromfile(self._fid, ntype, int(size))
-            
+
+    def get_frames(self, frame_list=[:])
+        """
+        Yield a frame and per-frame metadata from the file.
+        Return a frame and per-frame metadata from the file.
+        Frame is returned as a numpy 2D array.
+        Time stamp metadata is returned as Python datetime object.
+        frame_list argument is python indexed: 0 is first frame.
+        """
+        # self.num_frames
+        # self.last_frame_num
+        
+        pass
+        
+                
     def get_frame(self, frame_num=0):
         """
         Return a frame and per-frame metadata from the file.
         Frame is returned as a numpy 2D array.
         Time stamp metadata is returned as Python datetime object.
         frame_num argument is python indexed: 0 is first frame.
-        Note: Assuming trigger response is "readout per trigger"...
-        - For online analysis (using only binary header metadata):
-        timing accuracy is +/- 1 second
-        - For reductions (using XML footer metadata):
-        timing accuracy is +/- 0.001 second
         """
         # See SPE 3.0 File Format Specification:
         # ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
