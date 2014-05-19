@@ -30,6 +30,8 @@ class File(object):
         # For final reductions, read more complete metadata from XML footer.
         # TODO: check if ver 3.0, warn if not
         print("in __init__")
+        self.num_frames = 0
+        self.current_frame_num = 0
         self._fname = fname
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
@@ -218,13 +220,13 @@ class File(object):
         # Allow negative indexes using mod.
         self._fid.seek(0, 2)
         eof_offset = self._fid.tell()
-        num_frames = (eof_offset - start_offset) // bytes_per_stride
-        frame_num = frame_num % num_frames
+        self.num_frames = (eof_offset - start_offset) // bytes_per_stride
+        self.current_frame_num = frame_num % self.num_frames
         # Infer frame offset. Infer per-frame metadata offsets.
         # Assuming metadata: time_stamp_exposure_started, time_stamp_exposure_ended, frame_tracking_number
         # TODO: need flags from user if per-frame meta data. print warning if not available.
         # TODO: make num_metadata an arg
-        frame_offset = start_offset + (frame_num * bytes_per_stride)
+        frame_offset = start_offset + (self.current_frame_num * bytes_per_stride)
         metadata_offset = frame_offset + bytes_per_frame
         # Read frame, metadata. Format metadata timestamps to be absolute time, UTC.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
