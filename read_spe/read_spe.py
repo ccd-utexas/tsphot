@@ -48,33 +48,33 @@ class File(object):
         # the only required header fields for SPE 3.0.
         # Header information from SPE 3.0 File Specification, Appendix A.
         # Read in CSV of header format without comments.
-        format_file = 'spe_30_header_format.csv'
-        format_file_base, ext = os.path.splitext(format_file)
-        format_file_nocmts = format_file_base + '_temp' + ext
-        if not os.path.isfile(format_file):
-            raise IOError("SPE 3.0 header format file does not exist: "+format_file)
+        ffmt = 'spe_30_header_format.csv'
+        ffmt_base, ext = os.path.splitext(ffmt)
+        ffmt_nocmts = ffmt_base + '_temp' + ext
+        if not os.path.isfile(ffmt):
+            raise IOError("SPE 3.0 header format file does not exist: {fname}".format(fname=ffmt))
         if not ext == '.csv':
-            raise TypeError("SPE 3.0 header format file is not .csv: "+format_file)
-        with open(format_file, 'r') as f_cmts:
+            raise TypeError("SPE 3.0 header format file is not .csv: {fname}".format(fname=ffmt))
+        with open(ffmt) as fcmts:
             # Make a temporary file without comments.
-            with open(format_file_nocmts, 'w') as f_nocmts:
-                for line in f_cmts:
+            with open(ffmt_nocmts, 'w') as fnocmts:
+                for line in fcmts:
                     if line.startswith('#'):
                         continue
                     else:
-                        f_nocmts.write(line)
-        self.header_metadata = pd.read_csv(format_file_nocmts, sep=',')
-        os.remove(format_file_nocmts)
+                        fnocmts.write(line)
+        self.header_metadata = pd.read_csv(ffmt_nocmts, sep=',')
+        os.remove(ffmt_nocmts)
         binary_ntypes = {"8s": np.int8,
-                        "8u": np.uint8,
-                        "16s": np.int16,
-                        "16u": np.uint16,
-                        "32s": np.int32,
-                        "32u": np.uint32,
-                        "64s": np.int64,
-                        "64u": np.uint64,
-                        "32f": np.float32,
-                        "64f": np.float64}
+                         "8u": np.uint8,
+                         "16s": np.int16,
+                         "16u": np.uint16,
+                         "32s": np.int32,
+                         "32u": np.uint32,
+                         "64s": np.int64,
+                         "64u": np.uint64,
+                         "32f": np.float32,
+                         "64f": np.float64}
         # TODO: Efficiently read values and create column following
         # http://pandas.pydata.org/pandas-docs/version/0.13.1/cookbook.html
         # TODO: use zip and map to map read_at over arguments
