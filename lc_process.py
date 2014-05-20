@@ -244,7 +244,7 @@ if __name__ == '__main__':
     f.close()
 
     # Get list of all FITS images for run
-    fits_files = glob.glob('A????.????.fits')
+    fits_files = glob.glob("*.fits")
     fimage = fits_files[0]
     com0 = 'whiff ' + fimage + ' -o mcdo'
     retvalue = os.system(com0)
