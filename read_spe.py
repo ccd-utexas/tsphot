@@ -95,7 +95,6 @@ class File(object):
         # Header information from SPE 3.0 File Specification, Appendix A.
         # Read in CSV of header format without comments.
         ffmt = os.path.join(os.path.dirname(__file__), 'spe_30_header_format.csv')
-        print("ffmt = ", ffmt)
         ffmt_base, ext = os.path.splitext(ffmt)
         ffmt_nocmts = ffmt_base + '_temp' + ext
         if not os.path.isfile(ffmt):
@@ -155,7 +154,7 @@ class File(object):
         offset = self.header_metadata[tf_mask]["Value"].values[0]
         if offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
-                  +" {fname}").format(fname=self._fname), file=sys.stderr)
+                  +" {fname}").format(fname=self._fname))
         else:
             self._fid.seek(offset)
             # All XML footer metadata is contained within one line.
