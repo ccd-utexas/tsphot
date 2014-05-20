@@ -94,7 +94,8 @@ class File(object):
         # the only required header fields for SPE 3.0.
         # Header information from SPE 3.0 File Specification, Appendix A.
         # Read in CSV of header format without comments.
-        ffmt = 'spe_30_header_format.csv'
+        ffmt = os.path.join(os.path.dirname(__file__), 'spe_30_header_format.csv')
+        print("ffmt = ", ffmt)
         ffmt_base, ext = os.path.splitext(ffmt)
         ffmt_nocmts = ffmt_base + '_temp' + ext
         if not os.path.isfile(ffmt):
