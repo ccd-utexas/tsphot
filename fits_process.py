@@ -297,9 +297,9 @@ if __name__ == '__main__':
         # open FITS file
         list = fits.open(file)
         imdata = list[0].data
-        # make sure imdata is 2d
-        if imdata.ndim == 3:
-            imdata = imdata[0]
+        # # STH: make sure imdata is 2d, but only from here
+        # if imdata.ndim == 3:
+        #     imdata = imdata[0]
         # # STH: Don't do calibrations for online analysis hack
         # # Dark and Flat correct the data
         # imdata = imdata - master_dark
@@ -316,6 +316,8 @@ if __name__ == '__main__':
         # var2 contains the list [fluxc,skyc,fwhm])
         # jd,svec,pvec,apvec,starr
         # fluxc, skyc, and fwhm are all lists of length nstars
+        # STH: hack since no corrections
+        dnorm = np.mean(imdata)
         jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
         ndim = len(apvec)
 
