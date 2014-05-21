@@ -29,7 +29,10 @@ def center(xx):
     global imdata
     # The aperture size for finding the location of the stars is arbitrarily set here
     app = 7.
-    flux = -photutils.aperture_circular(imdata, xx[0], xx[1], app, method='exact',subpixels=10)
+    # STH: make sure imdata is 2d, but only here
+    if imdata.ndim == 3:
+        imdata2d = imdata[0]
+    flux = -photutils.aperture_circular(imdata2d, xx[0], xx[1], app, method='exact',subpixels=10)
     return flux
 
 # The derivative of the Gaussian PSF with respect to x and y in pixels. eps = 0.2 pixels
@@ -97,7 +100,10 @@ def aperture(image,hdr,dnorm):
     #exit()
 
     # Calculate sky around stars
-    sky  = photutils.annulus_circular(image, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
+        # STH: make sure image is 2d, but only here
+    if image.ndim == 3:
+        image2d = image[0]
+    sky  = photutils.annulus_circular(image2d, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
 
     # Do psf fits to stars. Results are stored in arrays fwhm, pflux, psky, psf_x, and psf_y
     nx=10
@@ -297,9 +303,6 @@ if __name__ == '__main__':
         # open FITS file
         list = fits.open(file)
         imdata = list[0].data
-        # # STH: make sure imdata is 2d, but only from here
-        # if imdata.ndim == 3:
-        #     imdata = imdata[0]
         # # STH: Don't do calibrations for online analysis hack
         # # Dark and Flat correct the data
         # imdata = imdata - master_dark
