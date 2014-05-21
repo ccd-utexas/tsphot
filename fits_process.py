@@ -235,18 +235,17 @@ if __name__ == '__main__':
     # master_flat_n[master_flat_n <= 0.0] = 1.0
 
     # # STH: TODO: call spe file here and use astropy to convert to nddata
-    # # Get list of all FITS images for run
+    # Get list of all FITS images for run
+    # fits_files = glob.glob('A????.????.fits')
     fits_files = glob.glob("*.fits")
-    # # This is the first image
+    # This is the first image
     fimage = fits_files[0]
 
-    # # STH: Don't do corrections
-    # print "Dark correcting and flat-fielding files...\n"
+    print "Dark correcting and flat-fielding files...\n"
     list = fits.open(fimage)
     hdr = list[0].header
-    # STH: Omit argos-specific keywords
-    object= 'object' # hdr['object']
-    run= 'run' # hdr['run']
+    object= hdr['object']
+    run= hdr['run']
     fout=open('lightcurve_old.app','w')
     efout=open('lightcurve.app','w')
     nstars = 3
@@ -289,37 +288,29 @@ if __name__ == '__main__':
             if file == fits_files[-1]:
                 print fcount
         icount = icount + 1
-        # # STH: No corrections.
-        # # Create modified file name for "corrected" FITS files
-        # s=file.split('.')
-        # filec = s[0] + 'c.' + s[1] + '.' + s[2]
+        # Create modified file name for "corrected" FITS files
+        s=file.split('.')
+        filec = s[0] + 'c.' + s[1] + '.' + s[2]
         # open FITS file
         list = fits.open(file)
         imdata = list[0].data
-        # # STH: Don't do calibrations for online analysis hack
-        # # Dark and Flat correct the data
-        # imdata = imdata - master_dark
-        # imdata = imdata/master_flat_n
+        # Dark and Flat correct the data
+        imdata = imdata - master_dark
+        imdata = imdata/master_flat_n
         hdr = list[0].header
-        # # STH: No corrections
-        # # Replace offending ":" character wrt the FITS standard with the accepted "-" character
-        # hdr.rename_keyword('NTP:GPS','NTP-GPS')
-        # # Write out corrected FITS file
-        # list.writeto(filec)
+        # Replace offending ":" character wrt the FITS standard with the accepted "-" character
+        hdr.rename_keyword('NTP:GPS','NTP-GPS')
+        # Write out corrected FITS file
+        list.writeto(filec)
         list.close()
 
         # Call aperture photometry routine. Get times, positions, and fluxes
         # var2 contains the list [fluxc,skyc,fwhm])
         # jd,svec,pvec,apvec,starr
         # fluxc, skyc, and fwhm are all lists of length nstars
-        # STH: hack since no calibrations, make sure imdata is 2D.
-        if imdata.ndim == 3:
-            imdata = imdata[0]
-        dnorm = np.mean(imdata)
         jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
         ndim = len(apvec)
 
-        # # STH: TODO: Don't use fixed-width format. Use csv.
         # loop over apertures
         for i in range(0,ndim):
             if apvec[i] >= 0.0:
