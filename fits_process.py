@@ -100,10 +100,16 @@ def aperture(image,hdr,dnorm):
     #exit()
 
     # Calculate sky around stars
-        # STH: make sure image is 2d, but only here
+    # STH: make sure image is 2d, but only here
+    # STH: TODO: RESUME HERE:
+    # ValueError: trailing dimension of 'apertures' must match the length of xc, yc
     if image.ndim == 3:
         image2d = image[0]
+    lxvec = xvec.tolist()
+    lyvec = yvec.tolist()
+    # sky  = photutils.annulus_circular(image, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
     sky  = photutils.annulus_circular(image2d, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
+    # sky  = photutils.annulus_circular(image2d, lxvec, lyvec, rann1, rann2, method='exact',subpixels=10)
 
     # Do psf fits to stars. Results are stored in arrays fwhm, pflux, psky, psf_x, and psf_y
     nx=10
