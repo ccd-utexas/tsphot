@@ -32,7 +32,8 @@ def center(xx):
     # STH: make sure imdata is 2d, but only here
     if imdata.ndim == 3:
         imdata2d = imdata[0]
-    flux = -photutils.aperture_circular(imdata2d, xx[0], xx[1], app, method='exact',subpixels=10)
+        flux = -photutils.aperture_circular(imdata2d, xx[0], xx[1], app, method='exact',subpixels=10)
+    flux = -photutils.aperture_circular(imdata, xx[0], xx[1], app, method='exact',subpixels=10)
     return flux
 
 # The derivative of the Gaussian PSF with respect to x and y in pixels. eps = 0.2 pixels
@@ -103,13 +104,13 @@ def aperture(image,hdr,dnorm):
     # STH: make sure image is 2d, but only here
     # STH: TODO: RESUME HERE:
     # ValueError: trailing dimension of 'apertures' must match the length of xc, yc
-    if image.ndim == 3:
-        image2d = image[0]
     lxvec = xvec.tolist()
     lyvec = yvec.tolist()
+    if image.ndim == 3:
+        image2d = image[0]
+        sky  = photutils.annulus_circular(image2d, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
+        # sky  = photutils.annulus_circular(image2d, lxvec, lyvec, rann1, rann2, method='exact',subpixels=10)
     # sky  = photutils.annulus_circular(image, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
-    sky  = photutils.annulus_circular(image2d, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
-    # sky  = photutils.annulus_circular(image2d, lxvec, lyvec, rann1, rann2, method='exact',subpixels=10)
 
     # Do psf fits to stars. Results are stored in arrays fwhm, pflux, psky, psf_x, and psf_y
     nx=10
