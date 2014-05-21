@@ -241,11 +241,13 @@ if __name__ == '__main__':
     # This is the first image
     fimage = fits_files[0]
 
-    print "Dark correcting and flat-fielding files...\n"
+    # # STH: Don't do corrections
+    # print "Dark correcting and flat-fielding files...\n"
     list = fits.open(fimage)
     hdr = list[0].header
-    object= hdr['object']
-    run= hdr['run']
+    # # STH: Don't do corrections
+    object= 'object' # hdr['object']
+    run= 'run' # hdr['run']
     fout=open('lightcurve_old.app','w')
     efout=open('lightcurve.app','w')
     nstars = 3
@@ -288,20 +290,26 @@ if __name__ == '__main__':
             if file == fits_files[-1]:
                 print fcount
         icount = icount + 1
-        # Create modified file name for "corrected" FITS files
-        s=file.split('.')
-        filec = s[0] + 'c.' + s[1] + '.' + s[2]
+        # # STH: Don't do corrections
+        # # Create modified file name for "corrected" FITS files
+        # s=file.split('.')
+        # filec = s[0] + 'c.' + s[1] + '.' + s[2]
         # open FITS file
         list = fits.open(file)
         imdata = list[0].data
-        # Dark and Flat correct the data
-        imdata = imdata - master_dark
-        imdata = imdata/master_flat_n
+        # make sure imdata is 2d
+        if imdata.ndim == 3:
+            imdata = imdata[0]
+        # # STH: Don't do calibrations for online analysis hack
+        # # Dark and Flat correct the data
+        # imdata = imdata - master_dark
+        # imdata = imdata/master_flat_n
         hdr = list[0].header
-        # Replace offending ":" character wrt the FITS standard with the accepted "-" character
-        hdr.rename_keyword('NTP:GPS','NTP-GPS')
-        # Write out corrected FITS file
-        list.writeto(filec)
+        # # STH: No corrections
+        # # Replace offending ":" character wrt the FITS standard with the accepted "-" character
+        # hdr.rename_keyword('NTP:GPS','NTP-GPS')
+        # # Write out corrected FITS file
+        # list.writeto(filec)
         list.close()
 
         # Call aperture photometry routine. Get times, positions, and fluxes
@@ -311,6 +319,7 @@ if __name__ == '__main__':
         jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
         ndim = len(apvec)
 
+        # STH: Don't use fixed-width format. Use csv.
         # loop over apertures
         for i in range(0,ndim):
             if apvec[i] >= 0.0:
