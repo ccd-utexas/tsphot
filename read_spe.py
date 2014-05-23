@@ -156,9 +156,12 @@ class File(object):
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
         else:
-            self._fid.seek(offset)
-            # All XML footer metadata is contained within one line.
-            self.footer_metadata = objectify.fromstring(self._fid.read())
+	    try:
+            	self._fid.seek(offset)
+            	# All XML footer metadata is contained within one line.
+            	self.footer_metadata = objectify.fromstring(self._fid.read())
+	    except:
+		pass
         return None
 
     def get_footer_metadata(self):
