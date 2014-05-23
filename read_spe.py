@@ -335,12 +335,14 @@ class File(object):
         mftracknum_offset = mtsexpend_offset + bytes_per_metadata_elt
         metadata = {}
         mtsexpstart = dt.timedelta(
-            microseconds=(self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]).astype(int))
+            microseconds=(self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]).astype(long))
         mtsexpend   = dt.timedelta(
-            microseconds=(self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]).astype(int))
+            microseconds=(self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]).astype(long))
         mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
-        metadata["time_stamp_exposure_started"] = fctime + mtsexpstart
-        metadata["time_stamp_exposure_ended"] = fctime + mtsexpend
+#        metadata["time_stamp_exposure_started"] = fctime + mtsexpstart
+#        metadata["time_stamp_exposure_ended"] = fctime + mtsexpend
+        metadata["time_stamp_exposure_started"] = mtsexpstart
+        metadata["time_stamp_exposure_ended"] = mtsexpend
         metadata["frame_tracking_number"] = mftracknum
         return (frame, metadata)
 
