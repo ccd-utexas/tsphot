@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Reduce data for online analysis.
+"""
 
 from astropy.io import fits
 from astropy.time import Time
@@ -210,9 +213,13 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
             eform = eform + file + '\n'
         efout.write(eform)
 
+def get_spe():
+    pass
+        
 
 if __name__ == '__main__':
 
+    # TODO: add argparse
     global imdata, iap, nstars
 
     # Get list of all FITS images for run
@@ -231,7 +238,10 @@ if __name__ == '__main__':
     object= 'object'
     #run= hdr['run']
 
-    efout=open('lightcurve.app','w')
+    # TODO: WARNING: efout left open, never explicitly closed
+    # can't use implicit close "with open as" otherwise
+    # head_write breaks. head_write depends on efout being open.
+    efout = open('lightcurve.app','w')
 
     #print 'Calculating apertures:'
 
@@ -239,6 +249,7 @@ if __name__ == '__main__':
     icount = 1
     fcount = ''
     print 'Processing files:'
+    # TODO: file is a protected name. don't use.
     for file in fits_files:
         fcount = fcount + '  ' + file
         if np.remainder(icount,5) == 0:
@@ -267,5 +278,7 @@ if __name__ == '__main__':
         if icount == 2:
             head_write(efout,object,nstars)
 
+        # TODO: WARNING: namespace dependency in app_write on "file"
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
+        
