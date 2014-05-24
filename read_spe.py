@@ -59,12 +59,12 @@ class File(object):
         """
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
-        # TODO: check if ver 3.0, warn if not
-        self.current_frame_idx = 0
         self._fname = fname
+        self._check_spe()
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
         self._load_footer_metadata()
+        self.current_frame_idx = 0
         return None
 
     def __del__(self):
@@ -74,6 +74,18 @@ class File(object):
         self._fid.close()
         return None
 
+    def _check_spe(self):
+        """
+        Check that the file exists and is .spe.
+        """
+        # TODO: check if ver 3.0, warn if not
+        if not os.path.isfile(self._fname):
+            raise IOError(("File does not exist: {fname}").format(fname=self._fname))
+        (fbase, fext) = os.path.splitext(self._fname)
+        if fext != '.spe':
+            raise IOError(("File extension not '.spe': {fname}").format(fname=self._fname))
+        return None
+    
     def _read_at(self, offset, size, ntype):
         """
         Seek to offset byte position then read size number of bytes in ntype format from file.

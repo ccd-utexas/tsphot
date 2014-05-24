@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Read .spe file and do aperture photometry.
+"""
 
 from astropy.io import fits
 from astropy.time import Time
@@ -7,6 +10,8 @@ import os
 import photutils
 import scipy.optimize as sco
 import numpy as np
+import argparse
+import read_spe
 
 # Gaussian functional form assumed for PSF fits
 def psf((xx,yy),s0,s1,x0,y0,w):
@@ -212,7 +217,19 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
 
 
 if __name__ == '__main__':
-
+    parser = argparse.ArgumentParser(description="Read .spe file and do aperture photometry.")
+    parser.add_argument("--fpath",
+                        required=True,
+                        help=("Input .spe file."))
+    parser.add_argument("--verbose", "-v",
+                        action='store_true',
+                        help=("Print 'INFO:' messages to stdout."))
+    args = parser.parse_args()
+    if args.verbose:
+        print "INFO: Arguments:"
+        for arg in args.__dict__:
+            print ' ', arg, args.__dict__[arg]
+    
     global imdata, iap, nstars
 
     # Get list of all FITS images for run
@@ -228,6 +245,9 @@ if __name__ == '__main__':
     object= hdr['object']
     #run= hdr['run']
 
+    spe = read_spe.File(args.fpath)
+    print spe.get_num_frames()
+    
     efout=open('lightcurve.app','w')
 
     #print 'Calculating apertures:'
