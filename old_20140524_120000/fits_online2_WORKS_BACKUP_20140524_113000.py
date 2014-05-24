@@ -2,8 +2,6 @@
 
 from astropy.io import fits
 from astropy.time import Time
-import argparse
-import read_spe
 import glob
 import os
 import photutils
@@ -214,80 +212,60 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Reduce data for online analysis.")
-    parser.add_argument("--spefile",
-                        nargs=1,
-                        
-                        default=glob.glob(os.path.join(os.getcwd(), "*.spe"))[0],
-                        help=("Input data files, .fits or .spe."
-                              +"Default: [first found .spe in CWD]"))
-    # parser.add_argument("--verbose",
-    #                     "-v",
-    #                     action='store_true',
-    #                     help=("Print 'INFO:' messages to stdout."))
-    args = parser.parse_args()
-    # if args.verbose:
-    print "INFO: Arguments:"
-    for arg in args.__dict__:
-        print arg, args.__dict__[arg]
-    
+
     global imdata, iap, nstars
 
-    # # Get list of all FITS images for run
-    # run_pattern = "*.fits"
-    # #run_pattern = 'test_lightbox_10s*fits'
-    # #fits_files = glob.glob('A????.????.fits')
-    # fits_files = glob.glob(run_pattern)
-    # print fits_files
-    # # This is the first image
-    # fimage = fits_files[0]
+    # Get list of all FITS images for run
+    run_pattern = "*.fits"
+    #run_pattern = 'test_lightbox_10s*fits'
+    #fits_files = glob.glob('A????.????.fits')
+    fits_files = glob.glob(run_pattern)
+    print fits_files
+    # This is the first image
+    fimage = fits_files[0]
 
-    # # print "Dark correcting and flat-fielding files...\n"
-    # list = fits.open(fimage)
-    # hdr = list[0].header
-    # #object= hdr['object']
-    # object= 'object'
-    # #run= hdr['run']
+    # print "Dark correcting and flat-fielding files...\n"
+    list = fits.open(fimage)
+    hdr = list[0].header
+    #object= hdr['object']
+    object= 'object'
+    #run= hdr['run']
 
-    
-    
-    spe = read_spe.File(fname)
+    efout=open('lightcurve.app','w')
 
-    # efout=open('lightcurve.app','w')
+    #print 'Calculating apertures:'
 
-    # #print 'Calculating apertures:'
+    iap = 0
+    icount = 1
+    fcount = ''
+    print 'Processing files:'
+    for file in fits_files:
+        fcount = fcount + '  ' + file
+        if np.remainder(icount,5) == 0:
+            print fcount
+            fcount = ''
+        else:
+            if file == fits_files[-1]:
+                print fcount
+        icount = icount + 1
 
-    # iap = 0
-    # icount = 1
-    # fcount = ''
-    # print 'Processing files:'
-    # for file in fits_files:
-    #     fcount = fcount + '  ' + file
-    #     if np.remainder(icount,5) == 0:
-    #         print fcount
-    #         fcount = ''
-    #     else:
-    #         if file == fits_files[-1]:
-    #             print fcount
-    #     icount = icount + 1
+        # open FITS file
+        list = fits.open(file)
+        imdata = list[0].data
 
-    #     # open FITS file
-    #     list = fits.open(file)
-    #     imdata = list[0].data
+        hdr = list[0].header
 
-    #     hdr = list[0].header
+        # Call aperture photometry routine. Get times, positions, and fluxes
+        # var2 contains the list [fluxc,skyc,fwhm])
+        # jd,svec,pvec,apvec,starr
+        # fluxc, skyc, and fwhm are all lists of length nstars
+        # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
+        jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
+        ndim = len(apvec)
 
-    #     # Call aperture photometry routine. Get times, positions, and fluxes
-    #     # var2 contains the list [fluxc,skyc,fwhm])
-    #     # jd,svec,pvec,apvec,starr
-    #     # fluxc, skyc, and fwhm are all lists of length nstars
-    #     # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
-    #     jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
-    #     ndim = len(apvec)
+        # First time through write header
+        if icount == 2:
+            head_write(efout,object,nstars)
 
-    #     # First time through write header
-    #     if icount == 2:
-    #         head_write(efout,object,nstars)
-
-    #     # Write out results for all apertures
-    #     app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
+        # Write out results for all apertures
+        app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
