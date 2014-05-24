@@ -136,6 +136,12 @@ class File(object):
             tf_mask = (self.header_metadata["Offset"] == offset)
             self.header_metadata["Value"].loc[tf_mask] = offset_to_value[offset][0]
         return None
+
+    def get_header_metadata(self):
+        """
+        Return header metadata from object attribute.
+        """
+        return self.header_metadata
     
     def _load_footer_metadata(self):
         """
@@ -158,6 +164,12 @@ class File(object):
 		pass
         return None
 
+    def get_footer_metadata(self):
+        """
+        Return footer metadata from object attribute.
+        """
+        return self.footer_metadata
+    
     def _get_start_offset(self):
         """
         Return offset byte position of start of all data.

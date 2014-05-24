@@ -1,14 +1,9 @@
 #!/usr/bin/env python
-"""
-Reduce data for online analysis.
-"""
 
-from __future__ import division
-import argparse
-import os
-import glob
 from astropy.io import fits
 from astropy.time import Time
+import glob
+import os
 import photutils
 import scipy.optimize as sco
 import numpy as np
@@ -136,21 +131,21 @@ def combine(pattern,fileout):
     print 'files= ',files
     n=0
     print "  Combining frames: "
-    for fname in files:
-        pa,fi = os.path.split(fname)
+    for file in files:
+        pa,fi = os.path.split(file)
         print fi,
         if ( (n+1)/4 )*4 == n+1:
             print " "
-        list = fits.open(fname)
+        list = fits.open(file)
         imdata = list[0].data
         hdr    = list[0].header
         if n==0:
             exptime0 = hdr['exptime']
         exptime = hdr['exptime']
         if exptime != exptime0:
-            print "\nError: Exposure time mismatch in",fname,"\n"
+            print "\nError: Exposure time mismatch in",file,"\n"
             exit()
-        if fname == files[0]:
+        if file == files[0]:
             comb = imdata
         else:
             comb = comb + imdata
@@ -189,10 +184,7 @@ def head_write(ffile,object,nstars):
     eform0 = eform0 + '   FITS File\n'
     ffile.write(eform0)
 
-def app_write(fname, efout,ndim,nstars,jd,apvec,svec,pvec,var2):
-    """
-    Write out aperture fits.
-    """
+def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
     for i in range(0,ndim):
         if apvec[i] >= 0.0:
             eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
@@ -204,7 +196,7 @@ def app_write(fname, efout,ndim,nstars,jd,apvec,svec,pvec,var2):
                 eform = eform + '{0:8.2f} {1:7.2f} '.format(svec[j,0],svec[j,1])
             for j in range(0,nstars):
                 eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
-            eform = eform + fname + '\n'
+            eform = eform + file + '\n'
         else:
             eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
             for j in range(0,nstars):
@@ -215,66 +207,66 @@ def app_write(fname, efout,ndim,nstars,jd,apvec,svec,pvec,var2):
                 eform = eform + '{0:8.2f} {1:7.2f} '.format(pvec[j,0],pvec[j,1])
             for j in range(0,nstars):
                 eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
-            eform = eform + fname + '\n'
+            eform = eform + file + '\n'
         efout.write(eform)
 
-def main(args):
-    """
-    Calculate apertures.
-    """
-    # TODO: share variables via class, not globals
+
+if __name__ == '__main__':
+
     global imdata, iap, nstars
-    fits_files = args.files
+
+    # Get list of all FITS images for run
+    run_pattern = "*.fits"
+    #run_pattern = 'test_lightbox_10s*fits'
+    #fits_files = glob.glob('A????.????.fits')
+    fits_files = glob.glob(run_pattern)
+    print fits_files
     # This is the first image
     fimage = fits_files[0]
+
+    # print "Dark correcting and flat-fielding files...\n"
     list = fits.open(fimage)
     hdr = list[0].header
     #object= hdr['object']
     object= 'object'
     #run= hdr['run']
-    # Calculating apertures
-    with open('lightcurve.app', 'w') as efout:
-        iap = 0
-        icount = 1
-        fcount = ''
-        if args.verbose: print 'Processing files:'
-        for fname in fits_files:
-            fcount = fcount + '  ' + fname
-            if np.remainder(icount,5) == 0:
-                if args.verbose: print fcount
-                fcount = ''
-            else:
-                if fname == fits_files[-1]:
-                    if args.verbose: print fcount
-            icount = icount + 1
+
+    efout=open('lightcurve.app','w')
+
+    #print 'Calculating apertures:'
+
+    iap = 0
+    icount = 1
+    fcount = ''
+    print 'Processing files:'
+    for file in fits_files:
+        fcount = fcount + '  ' + file
+        if np.remainder(icount,5) == 0:
+            print fcount
+            fcount = ''
+        else:
+            if file == fits_files[-1]:
+                print fcount
+        icount = icount + 1
+
         # open FITS file
-        list = fits.open(fname)
+        list = fits.open(file)
         imdata = list[0].data
+
         hdr = list[0].header
+
         # Call aperture photometry routine. Get times, positions, and fluxes
+        # var2 contains the list [fluxc,skyc,fwhm])
+        # jd,svec,pvec,apvec,starr
+        # fluxc, skyc, and fwhm are all lists of length nstars
+        # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
         jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
         ndim = len(apvec)
+
         # First time through write header
         if icount == 2:
             head_write(efout,object,nstars)
-        # Write out results for all apertures
-        app_write(fname, efout,ndim,nstars,jd,apvec,svec,pvec,var2)
-    return None
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Reduce data for online analysis.")
-    parser.add_argument("--files",
-                        nargs='*',
-                        default=glob.glob(os.path.join(os.getcwd(), "*.fits")),
-                        help=("Input data files, .fits or .spe."
-                              +"Default: [all .fits in CWD]"))
-    parser.add_argument("--verbose",
-                        "-v",
-                        action='store_true',
-                        help=("Print 'INFO:' messages to stdout."))
-    args = parser.parse_args()
-    if args.verbose:
-        print "INFO: Arguments:"
-        for arg in args.__dict__:
-            print arg, args.__dict__[arg]
-    main(args)
+        # Write out results for all apertures
+        app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
+
