@@ -17,7 +17,10 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from lxml import objectify, etree
+try:
+    from lxml import objectify, etree
+except:
+    pass
 import datetime as dt
 
 class File(object):
