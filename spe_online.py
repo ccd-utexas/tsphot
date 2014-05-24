@@ -131,42 +131,43 @@ def aperture(image,hdr):
     #print starr
     return jd,svec,pvec,apvec,starr
 
-def combine(pattern,fileout):
-    files = glob.glob(pattern)
-    print 'files= ',files
-    n=0
-    print "  Combining frames: "
-    for file in files:
-        pa,fi = os.path.split(file)
-        print fi,
-        if ( (n+1)/4 )*4 == n+1:
-            print " "
-        list = fits.open(file)
-        imdata = list[0].data
-        hdr    = list[0].header
-        if n==0:
-            exptime0 = hdr['exptime']
-        exptime = hdr['exptime']
-        if exptime != exptime0:
-            print "\nError: Exposure time mismatch in",file,"\n"
-            exit()
-        if file == files[0]:
-            comb = imdata
-        else:
-            comb = comb + imdata
-        list.close()
-        n=n+1
+# Not called.
+# def combine(pattern,fileout):
+#     files = glob.glob(pattern)
+#     print 'files= ',files
+#     n=0
+#     print "  Combining frames: "
+#     for file in files:
+#         pa,fi = os.path.split(file)
+#         print fi,
+#         if ( (n+1)/4 )*4 == n+1:
+#             print " "
+#         list = fits.open(file)
+#         imdata = list[0].data
+#         hdr    = list[0].header
+#         if n==0:
+#             exptime0 = hdr['exptime']
+#         exptime = hdr['exptime']
+#         if exptime != exptime0:
+#             print "\nError: Exposure time mismatch in",file,"\n"
+#             exit()
+#         if file == files[0]:
+#             comb = imdata
+#         else:
+#             comb = comb + imdata
+#         list.close()
+#         n=n+1
 
-    print ""
-    comb = comb/float(n)
-    out = fits.open(files[0])
-    hdr = out[0].header
-    #hdr.rename_keyword('NTP:GPS','NTP-GPS')  # Argos
-    combdata = out[0].data
-    combdata = comb
-    out.writeto(fileout)
-    out.close()
-    return exptime, files, comb
+#     print ""
+#     comb = comb/float(n)
+#     out = fits.open(files[0])
+#     hdr = out[0].header
+#     #hdr.rename_keyword('NTP:GPS','NTP-GPS')  # Argos
+#     combdata = out[0].data
+#     combdata = comb
+#     out.writeto(fileout)
+#     out.close()
+#     return exptime, files, comb
 
 def head_write(ffile,object,nstars):
     dform0='#   Aperture reductions for target {0}. Total number of stars is {1}\n'.format(object,nstars)
@@ -229,25 +230,24 @@ if __name__ == '__main__':
         print "INFO: Arguments:"
         for arg in args.__dict__:
             print ' ', arg, args.__dict__[arg]
-    
+
+    # TODO: use classes to retain state information.
     global imdata, iap, nstars
 
-    # Get list of all FITS images for run
-    run_pattern = 'GD244-????.fits'
-    #fits_files = glob.glob('A????.????.fits')
-    fits_files = glob.glob(run_pattern)
-    # This is the first image
-    fimage = fits_files[0]
+    # # Get list of all FITS images for run
+    # run_pattern = 'GD244-????.fits'
+    # #fits_files = glob.glob('A????.????.fits')
+    # fits_files = glob.glob(run_pattern)
+    # # This is the first image
+    # fimage = fits_files[0]
 
-    #print "Dark correcting and flat-fielding files...\n"
-    list = fits.open(fimage)
-    hdr = list[0].header
-    object= hdr['object']
-    #run= hdr['run']
+    # #print "Dark correcting and flat-fielding files...\n"
+    # list = fits.open(fimage)
+    # hdr = list[0].header
+    # object= hdr['object']
+    # #run= hdr['run']
 
-    spe = read_spe.File(args.fpath)
-    print spe.get_num_frames()
-    
+    # TODO: use .csv and .txt. ".app" has special meaning on Mac OS.
     efout=open('lightcurve.app','w')
 
     #print 'Calculating apertures:'
@@ -255,35 +255,56 @@ if __name__ == '__main__':
     iap = 0
     icount = 1
     fcount = ''
+    
     print 'Processing files:'
-    for file in fits_files:
-        fcount = fcount + '  ' + file
+    # for file in fits_files:
+    # TODO: Fix namespace error so that don't need to call twice.
+    # TODO: Only reduce new frames, not all again.
+    spe = read_spe.File(args.fpath)
+    num_frames = spe.get_num_frames()
+    for idx in xrange(num_frames):
+        # fcount = fcount + '  ' + file
+        # Note: Frame index is Python indexed and begins at 0.
+        # frame_tracking_number from LightField begins at 1.
+        fcount = fcount + '  ' + ("frame_idx_{num}".format(num=idx))
         if np.remainder(icount,5) == 0:
             print fcount
             fcount = ''
         else:
-            if file == fits_files[-1]:
+            # if file == fits_files[-1]:
+            # If last frame.
+            if idx == num_frames - 1:
                 print fcount
         icount = icount + 1
 
-        # open FITS file
-        list = fits.open(file)
-        imdata = list[0].data
+        # # open FITS file
+        # list = fits.open(file)
+        # imdata = list[0].data
+        # Read SPE file
+        (imdata, metadata) = spe.get_frame(idx)
 
-        hdr = list[0].header
+        # hdr = list[0].header
 
         # Call aperture photometry routine. Get times, positions, and fluxes
         # var2 contains the list [fluxc,skyc,fwhm])
         # jd,svec,pvec,apvec,starr
         # fluxc, skyc, and fwhm are all lists of length nstars
         # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
-        jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
+        # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
+        # TODO: Give aperture a hdr dict with keys 'UTC-DATE', 'UTC-BEG'.
+        print metadata
+        exit()
+        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, hdr=)
         ndim = len(apvec)
 
         # First time through write header
         if icount == 2:
-            head_write(efout,object,nstars)
+            fname_base = os.path.basename(args.fpath)
+            # head_write(efout,object,nstars)
+            # TODO: object is a reserved word. Don't use.
+            head_write(efout, object=fname_base ,nstars)
 
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
 
+    spe.close()
