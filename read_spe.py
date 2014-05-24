@@ -67,12 +67,7 @@ class File(object):
         self.current_frame_idx = 0
         return None
 
-    def __del__(self):
-        """
-        Close the file.
-        """
-        self._fid.close()
-        return None
+    # TODO: make __del__ method to close file automatically.
 
     def _check_spe(self):
         """

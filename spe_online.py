@@ -11,6 +11,7 @@ import photutils
 import scipy.optimize as sco
 import numpy as np
 import argparse
+import sys
 import read_spe
 
 # Gaussian functional form assumed for PSF fits
@@ -293,8 +294,8 @@ if __name__ == '__main__':
         # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
         # TODO: Give aperture a hdr dict with keys 'UTC-DATE', 'UTC-BEG'.
         print metadata
-        exit()
-        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, hdr=)
+        sys.exit()
+        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, hdr=0)
         ndim = len(apvec)
 
         # First time through write header
@@ -302,7 +303,7 @@ if __name__ == '__main__':
             fname_base = os.path.basename(args.fpath)
             # head_write(efout,object,nstars)
             # TODO: object is a reserved word. Don't use.
-            head_write(efout, object=fname_base ,nstars)
+            head_write(efout,fname_base,nstars)
 
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
