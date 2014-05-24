@@ -251,6 +251,7 @@ if __name__ == '__main__':
     # fits_files = glob.glob('A????.????.fits')
     fits_files = glob.glob("*.fits")
     # This is the first image
+    print fits_files
     fimage = fits_files[0]
 
     # # STH: Don't do corrections

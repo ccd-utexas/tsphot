@@ -216,7 +216,7 @@ if __name__ == '__main__':
     global imdata, iap, nstars
 
     # Get list of all FITS images for run
-    run_pattern = 'GD244-????.fits'
+    run_pattern = "*.fits"
     #run_pattern = 'test_lightbox_10s*fits'
     #fits_files = glob.glob('A????.????.fits')
     fits_files = glob.glob(run_pattern)
@@ -224,7 +224,7 @@ if __name__ == '__main__':
     # This is the first image
     fimage = fits_files[0]
 
-    print "Dark correcting and flat-fielding files...\n"
+    # print "Dark correcting and flat-fielding files...\n"
     list = fits.open(fimage)
     hdr = list[0].header
     #object= hdr['object']
