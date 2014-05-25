@@ -17,6 +17,18 @@ import sys
 import read_spe
 import datetime as dt
 
+def check_spe(fpath):
+    """
+    Check that the data file exists and is .spe.
+    """
+    # TODO: check if ver 3.0, warn if not
+    if not os.path.isfile(self._fname):
+        raise IOError(("File does not exist: {fname}").format(fname=self._fname))
+    (fbase, fext) = os.path.splitext(self._fname)
+    if fext != '.spe':
+        raise IOError(("File extension not '.spe': {fname}").format(fname=self._fname))
+    return None
+
 # Gaussian functional form assumed for PSF fits
 def psf((xx,yy),s0,s1,x0,y0,w):
     elow = -50.
@@ -56,7 +68,7 @@ def der_center(xx):
     return der
 
 # TODO: separate computing aperture from calculating timestamps.
-def aperture(image, dt_expstart):
+def aperture(image, dt_expstart, fcoords):
     """
     The main function for doing aperture photometry on individual FITS files
     app = -1 means the results are for a PSF fit instead of aperture photometry
@@ -64,6 +76,10 @@ def aperture(image, dt_expstart):
     Arguments:
     image       = Image data as 2D numpy.ndarray
     dt_expstart = UTC timestamp of start of exposure as datetime.datetime object.
+    fcoords     = Text file with pixel coordinates for stars in first frame. Format:
+     targx targy
+     compx compy
+     compx compy
     """
     global iap, pguess_old, nstars, svec
     dnorm = 500.
@@ -77,7 +93,7 @@ def aperture(image, dt_expstart):
 
     # If first time through, read in "guesses" for locations of stars
     if iap == 0:
-        var = np.loadtxt('phot_coords')
+        var = np.loadtxt(fcoords)
         xvec = var[:,0]
         yvec = var[:,1]
         nstars = len(xvec)
@@ -235,10 +251,27 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Read .spe file and do aperture photometry.")
+    defaults = {}
+    defaults['fcoords'] = "phot_coords"
+    defaults['fout']    = "lightcurve.app"
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                     description=("Read .spe file and do aperture photometry."
+                                                  +" Output fixed-width-format text file."))
     parser.add_argument("--fpath",
                         required=True,
-                        help=("Input .spe file."))
+                        help=("Path to single input .spe file. Example: /path/to/file.spe"))
+    parser.add_argument("--fcoords",
+                        default=defaults['fcoords'],
+                        help=(("Input text file with pixel coordinates of stars in first frame.\n"
+                               +"Default: {fname}\n"
+                               +"Format:\n"
+                               +"targx targy\n"
+                               +"compx compy\n"
+                               +"compx compy\n").format(fname=defaults['fcoords'])))
+    parser.add_argument("--fout",
+                        default=defaults['fout'],
+                        help=(("Output text file with apertures in fixed-width-format.\n"
+                               +"Default: {fname}").format(fname=defaults['fout'])))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
                         help=("Print 'INFO:' messages to stdout."))
@@ -247,7 +280,9 @@ if __name__ == '__main__':
         print "INFO: Arguments:"
         for arg in args.__dict__:
             print ' ', arg, args.__dict__[arg]
-
+    if not os.path.isfile(args.fcoords):
+        raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
+    
     # TODO: use classes to retain state information.
     global imdata, iap, nstars
 
@@ -265,7 +300,7 @@ if __name__ == '__main__':
     # #run= hdr['run']
 
     # TODO: use .csv and .txt. ".app" has special meaning on Mac OS.
-    efout=open('lightcurve.app','w')
+    efout=open(args.fout,'w')
 
     #print 'Calculating apertures:'
 
@@ -329,7 +364,7 @@ if __name__ == '__main__':
         dt_expstart_rel = dt.timedelta(seconds=expstart_rel_sec)
         dt_expstart_abs = dt_fctime_abs + dt_expstart_rel
 
-        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs)
+        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs, fcoords=args.fcoords)
         ndim = len(apvec)
 
         # First time through write header
