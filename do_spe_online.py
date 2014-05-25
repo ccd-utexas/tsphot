@@ -36,7 +36,7 @@ def main(args):
                 +"file://"+os.path.join(cwd, args.flc_pdf)).format(fname=args.flc_pdf)
     stop_msg = ("INFO: To stop program, hit Ctrl-C\n"
                 +" If in IPython Notebook, click 'Interrupt Kernel'.")
-    sleep_time = 10 # seconds
+    sleep_time = 60 # seconds
     sleep_msg = ("INFO: Sleeping for {num} seconds.").format(num=sleep_time)
     while True:
         # Import main from spe_process, lc_online2 because not modularized.
