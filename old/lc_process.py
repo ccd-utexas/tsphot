@@ -4,17 +4,67 @@ matplotlib.use('Agg')
 import pylab as P
 from matplotlib.pyplot import *
 from matplotlib.transforms import offset_copy
-#import string
 import numpy as np
 from scipy import interpolate
 from scipy.signal import lombscargle
 from scipy.optimize import leastsq
 import glob
 import os 
-#from subprocess import call
-import itertools as it 
+from matplotlib.backends.backend_pdf import PdfPages
 
-#import utils
+
+# Make a plot of the optimal light curve file
+def lcplot(prfile):
+    vars = np.loadtxt(prfile)
+    time = vars[:,0]
+    target = vars[:,1]
+    comp = vars[:,2]
+    sky = vars[:,-1]
+    ratio = target/comp
+    ratio_norm = ratio/np.mean(ratio) - 1.
+    target_norm = target/np.mean(target) - 1.
+    comp_norm = comp/np.mean(comp) - 1.
+    sky_norm = sky/np.mean(sky) - 1.
+    ndata = len(time)
+    dt = time[1]-time[0]
+    fmax = 1./(2.*dt)
+    fmax = 0.01
+    df = 1./(5.*(time[-1]-time[0]))
+    fmin = df
+    df = (fmax-fmin)/1000.
+    farray = np.arange(fmin,fmax,df)
+    omarray = 2.* np.pi * farray
+    pow = lombscargle(time,ratio_norm,omarray)
+    pow = pow * 4/ndata
+    amp = np.sqrt(pow)
+
+    fig=figure(1,figsize=(16, 12),frameon=False)
+    ax1 = fig.add_subplot(411)
+    plot(time,ratio_norm)
+    ylabel(r'$\delta I/I$')
+
+    ax2 = fig.add_subplot(412,sharex=ax1)
+    plot(time,comp_norm)
+    ylabel(r'$\delta I/I$')
+
+    ax3 = fig.add_subplot(413,sharex=ax2)
+    plot(time,sky_norm)
+    ylabel(r'$\delta I/I$')
+    xlabel(r'${\rm time \, (sec)}$',size='x-large')
+
+    subplots_adjust(hspace = .001)
+
+    ax = fig.add_subplot(414)
+    freqs = farray * 1.e+6
+    plot(freqs,amp)
+    xlabel(r'Frequency ($\mu$Hz)')
+    ylabel('Amplitude')
+
+    filebase = 'lc.pdf'
+    #print fileout
+    savefig(filebase,transparent=True,bbox_inches='tight')
+    close()
+    exit()
 
 # ysig is normalized so that it represents the point-to-point 
 # scatter sigma_i, assuming uncorrelated, random noise
@@ -28,6 +78,9 @@ def scatter(lcvec):
     return ysig
 
 if __name__ == '__main__':
+
+    prfile = 'optimal_5.0.dat'
+    lcplot(prfile)
 
     lcfile = 'lightcurve.app'
 
@@ -100,12 +153,31 @@ if __name__ == '__main__':
             for ic in range(ns):
                 co = co + com[ic] * stars[:,ic+1]
 
-            conorm = co/np.mean(co)
+            ysig_ta = scatter(tanorm)
+
+            comean = np.mean(co)
+            print ' comean =', comean
+            if comean <= 0.:
+                ysig_co = 1.e+99
+                ysig_ra = 1.e+99
+                break
+
+            conorm = co/comean
+            if np.any(conorm <= 0.):
+                print '*** Problem ***'
+                ysig_co = 1.e+99
+                ysig_ra = 1.e+99
+                break
+
             tadivco = tanorm/conorm
 
-            ysig_ta = scatter(tanorm)
             ysig_co = scatter(conorm)
             ysig_ra = scatter(tadivco)
+
+            if np.isnan(ysig_ra)  :
+                print '*** Error ***'
+                print ysig_ra
+                exit()
 
             t1string = 'Aperture = {0} pixels, '.format(int(app))
             t4string = 'ysig_ta = {0:9.5f}, ysig_co = {1:9.5f}, ysig_ra = {2:9.5f}'.format(ysig_ta,ysig_co,ysig_ra)
@@ -137,6 +209,7 @@ if __name__ == '__main__':
     
 
     lab = 'C = '
+    pp = PdfPages('app_fits.pdf')
     for com in ucoms:
         mask = np.where((apps0 > 0.) & (coms == com)) 
         apps  =  apps0[mask]
@@ -147,11 +220,12 @@ if __name__ == '__main__':
         ind0 = mask[0][0]
         lcom = var[ind0,5:5+nstars-1]
         #tout = 'comp = {0}*comp1'.format(lcom[0])
-        tout = r'$C = {0}*C_1'.format(lcom[0])
+        tout = 'C = {0}*C_1'.format(lcom[0])
         for i in range(1,ncomps):
             #tout = tout + ' + {0}*comp{1}'.format(lcom[i],i+1)
             tout = tout + ' + {0}*C_{1}'.format(lcom[i],i+1)
-            tout = tout + '$'
+            #tout = tout + '$'
+        tout = r'$' + tout + '$'
         sigmin = yscat_ra.min()
         tout = tout + '\n' + r'$\sigma_{\rm min}=' + r'{0}$'.format(sigmin)
 
@@ -176,19 +250,21 @@ if __name__ == '__main__':
         ax.text(0.03, 0.11, tout, transform=ax.transAxes, fontsize=14,
         verticalalignment='top',horizontalalignment='left',size='x-small')
 
-        fileoutapp = 'app_fits_{0}.pdf'.format(com)
-        savefig(fileoutapp,transparent=True,bbox_inches='tight')
-        close()
+        #fileoutapp = 'app_fits_{0}.pdf'.format(com)
+        #savefig(fileoutapp,transparent=True,bbox_inches='tight')
+        pp.savefig(transparent=True,bbox_inches='tight')
+        cla()
 
+    pp.close()
     imin = yscat_ra0.argmin()
     com0 = coms[imin]
     app = apps0[imin]
-    sout  = '\nOptimal light curve has an aperture size of {0} pixels, an rms of {1}, \nand a composite comparison star comp = '.format(app,yscat_ra0[imin])
+    sout  = '\nOptimal light curve has an aperture size of {0} pixels, an rms of {1}, \nand a composite comparison star C = '.format(app,yscat_ra0[imin])
     sout3 = '# Optimal light curve has an aperture size of {0} pixels, an rms of {1}, \n# and a composite comparison star comp = '.format(app,yscat_ra0[imin])
     lcom = var[imin][5:5+nstars-1]
-    tout = '{0}*comp1'.format(lcom[0])
+    tout = '{0}*C1'.format(lcom[0])
     for i in range(1,ncomps):
-        tout = tout + ' + {0}*comp{1}'.format(lcom[i],i+1)
+        tout = tout + ' + {0}*C{1}'.format(lcom[i],i+1)
     sout2 = sout + tout + '\n'
     sout4 = sout3 + tout + '\n'
     print sout2
@@ -228,6 +304,7 @@ if __name__ == '__main__':
     savefig(fileoutapp,transparent=True,bbox_inches='tight')
     close()
 
+    # This writes out the optimal profile
     prfile='optimal_{0}.dat'.format(app)
     f=open(prfile,'w')
     f.write(sout4)
@@ -243,16 +320,21 @@ if __name__ == '__main__':
 
     f.close()
 
+    # Everything below this point merely creates a .wq file. You can comment 
+    # it out and just create it by hand if this doesn't work
+
     # Get list of all FITS images for run
-    fits_files = glob.glob("*.fits")
+    # fits_files = glob.glob('A????.????.fits')
+    fits_files = glob.glob('GD244-????.fits')
     fimage = fits_files[0]
-    com0 = 'whiff ' + fimage + ' -o mcdo'
+    com0 = 'whiff ' + fimage + ' -o mcd1'
     retvalue = os.system(com0)
 
-    header = glob.glob('mcdo*head')[0]
+    header = glob.glob('mcd1*head')[0]
     # This is the first image
-    run = fimage[1:5]
-    argos_out = 'a' + run + '.wq'
+    #run = fimage[1:5]
+    run = header[0:-5]
+    argos_out = run + '.wq'
 
     com1 = 'wqedit ' + header + ' -k Runname -v ' + run
     retvalue = os.system(com1)

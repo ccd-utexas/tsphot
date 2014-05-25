@@ -17,7 +17,10 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from lxml import objectify, etree
+try:
+    from lxml import objectify, etree
+except:
+    pass
 import datetime as dt
 
 class File(object):
@@ -56,21 +59,28 @@ class File(object):
         """
         # For online analysis, read metadata from binary header.
         # For final reductions, read more complete metadata from XML footer.
-        # TODO: check if ver 3.0, warn if not
-        self.current_frame_idx = 0
         self._fname = fname
+        self._check_spe()
         self._fid = open(fname, 'rb')
         self._load_header_metadata()
         self._load_footer_metadata()
+        self.current_frame_idx = 0
         return None
 
-    def __del__(self):
-        """
-        Close the file.
-        """
-        self._fid.close()
-        return None
+    # TODO: make __del__ method to close file automatically.
 
+    def _check_spe(self):
+        """
+        Check that the file exists and is .spe.
+        """
+        # TODO: check if ver 3.0, warn if not
+        if not os.path.isfile(self._fname):
+            raise IOError(("File does not exist: {fname}").format(fname=self._fname))
+        (fbase, fext) = os.path.splitext(self._fname)
+        if fext != '.spe':
+            raise IOError(("File extension not '.spe': {fname}").format(fname=self._fname))
+        return None
+    
     def _read_at(self, offset, size, ntype):
         """
         Seek to offset byte position then read size number of bytes in ntype format from file.
@@ -95,7 +105,6 @@ class File(object):
         # Header information from SPE 3.0 File Specification, Appendix A.
         # Read in CSV of header format without comments.
         ffmt = os.path.join(os.path.dirname(__file__), 'spe_30_header_format.csv')
-        print("ffmt = ", ffmt)
         ffmt_base, ext = os.path.splitext(ffmt)
         ffmt_nocmts = ffmt_base + '_temp' + ext
         if not os.path.isfile(ffmt):
@@ -137,12 +146,6 @@ class File(object):
             tf_mask = (self.header_metadata["Offset"] == offset)
             self.header_metadata["Value"].loc[tf_mask] = offset_to_value[offset][0]
         return None
-
-    def get_header_metadata(self):
-        """
-        Return header metadata from object attribute.
-        """
-        return self.header_metadata
     
     def _load_footer_metadata(self):
         """
@@ -155,19 +158,16 @@ class File(object):
         offset = self.header_metadata[tf_mask]["Value"].values[0]
         if offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
-                  +" {fname}").format(fname=self._fname), file=sys.stderr)
+                  +" {fname}").format(fname=self._fname))
         else:
-            self._fid.seek(offset)
-            # All XML footer metadata is contained within one line.
-            self.footer_metadata = objectify.fromstring(self._fid.read())
+	    try:
+            	self._fid.seek(offset)
+            	# All XML footer metadata is contained within one line.
+            	self.footer_metadata = objectify.fromstring(self._fid.read())
+	    except:
+		pass
         return None
 
-    def get_footer_metadata(self):
-        """
-        Return footer metadata from object attribute.
-        """
-        return self.footer_metadata
-    
     def _get_start_offset(self):
         """
         Return offset byte position of start of all data.
@@ -318,27 +318,21 @@ class File(object):
         # Ticks per second from XML footer metadata using previous LightField experiments:
         # 1 tick = 1 microsecond ; 1E6 ticks per second.
         # 0 ticks is when "Acquire" was first clicked on LightField.
-        # Assume "Acquire" was clicked when the .SPE file was created.
-        # File creation time is in seconds since epoch, Jan 1 1970 UTC.
-        # Note: Only relevant for online analysis. Not accurate for reductions.
         pixels_per_frame = self._get_pixels_per_frame()
         pixel_ntype = self._get_pixel_ntype()
         frame = self._read_at(frame_offset, pixels_per_frame, pixel_ntype)
         xdim = self._get_xdim()
         ydim = self._get_ydim()
         frame = frame.reshape((ydim, xdim))
-        fctime = dt.datetime.utcfromtimestamp(os.path.getctime(self._fname))
         mtsexpstart_offset = metadata_offset
         mtsexpend_offset = mtsexpstart_offset + bytes_per_metadata_elt
         mftracknum_offset = mtsexpend_offset + bytes_per_metadata_elt
         metadata = {}
-        mtsexpstart = dt.timedelta(
-            microseconds=(self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]).astype(int))
-        mtsexpend   = dt.timedelta(
-            microseconds=(self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]).astype(int))
+        mtsexpstart = self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]
+        mtsexpend   = self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]
         mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
-        metadata["time_stamp_exposure_started"] = fctime + mtsexpstart
-        metadata["time_stamp_exposure_ended"] = fctime + mtsexpend
+        metadata["time_stamp_exposure_started"] = mtsexpstart
+        metadata["time_stamp_exposure_ended"] = mtsexpend
         metadata["frame_tracking_number"] = mftracknum
         return (frame, metadata)
 

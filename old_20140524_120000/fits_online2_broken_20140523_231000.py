@@ -1,12 +1,15 @@
 #!/usr/bin/env python
+"""
+Reduce data for online analysis.
+"""
 
-import numpy as np
 from astropy.io import fits
 from astropy.time import Time
 import glob
 import os
 import photutils
 import scipy.optimize as sco
+import numpy as np
 
 # Gaussian functional form assumed for PSF fits
 def psf((xx,yy),s0,s1,x0,y0,w):
@@ -49,8 +52,9 @@ def der_center(xx):
 
 # The main function for doing aperture photometry on individual FITS files
 # app = -1 means the results are for a PSF fit instead of aperture photometry
-def aperture(image,hdr,dnorm):
+def aperture(image,hdr):
     global iap, pguess_old, nstars, svec
+    dnorm = 500.
     rann1 = 18.
     dann = 2.
     rann2 = rann1 + dann
@@ -58,13 +62,6 @@ def aperture(image,hdr,dnorm):
     app_max = 19.
     dapp = 1.
     app_sizes = np.arange(app_min,app_max,dapp)
-
-    # target= hdr['target']      # this header info exists for Argos .fits files
-    # comp  = hdr['compstar']    # this header info exists for Argos .fits files
-    # ts = target.split(',')
-    # cs = comp.split(',')
-    # xvec = map(float, [ ts[0], cs[0] ])
-    # yvec = map(float, [ ts[1], cs[1] ])
 
     # If first time through, read in "guesses" for locations of stars
     if iap == 0:
@@ -77,7 +74,6 @@ def aperture(image,hdr,dnorm):
         xvec = svec[:,0]
         yvec = svec[:,1]
 
-    #print nstars, xvec, yvec
     # Find locations of stars
     dxx0 = 10.
     for i in range(nstars):
@@ -92,52 +88,20 @@ def aperture(image,hdr,dnorm):
         xvec[i] = xx0[0]
         yvec[i] = xx0[1]
 
-    #print nstars, xvec, yvec
-    #exit()
 
     # Calculate sky around stars
     sky  = photutils.annulus_circular(image, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
 
     # Do psf fits to stars. Results are stored in arrays fwhm, pflux, psky, psf_x, and psf_y
-    nx=10
-    ny=nx
-    psky  = np.zeros(nstars)
-    psf_x = np.zeros(nstars)
-    psf_y = np.zeros(nstars)
     fwhm  = np.zeros(nstars)
-    pflux = np.zeros(nstars)
-    if iap == 0:
-        pguess_old = np.zeros((nstars,5))
-    for i in range(nstars):
-        xc = int(xvec[i])
-        yc = int(yvec[i])
-        x=range(xc-nx,xc+nx+1)
-        y=range(yc-ny,yc+ny+1)
-        x, y = np.meshgrid(x,y)
-        img = image[y,x]
-        # Make 2D array into 1D array so it can be fed to curve_fit()
-        imgr = img.ravel()
-        if iap == 0:
-            pvals = [ dnorm, 2000., .3, nstars]
-            pguess=np.array([ dnorm, 2000., xvec[i], yvec[i], .3])
-        else:
-            pguess = pguess_old[i]
-        pguess[2]=xvec[i]
-        pguess[3]=yvec[i]
-        popt, pcov = sco.curve_fit(psf, (x, y), imgr, p0=pguess)
-        pguess_old[i,:] = popt
-        dlevel = popt[0]
-        fwhm[i], pflux[i] = psf_flux(*popt)
-        psky[i]  = np.pi * (2.*fwhm[i])**2 * dlevel
-        psf_x[i] = popt[2]
-        psf_y[i] = popt[3]
 
     # Make stacked array of star positions from aperture photometry
     svec = np.dstack((xvec,yvec))[0]
     #print svec
 
     # Make stacked array of star positions from PSF fitting
-    pvec = np.dstack((psf_x,psf_y))[0]
+    # pvec = np.dstack((psf_x,psf_y))[0]
+    pvec = svec
 
     iap = iap + 1
 
@@ -145,12 +109,11 @@ def aperture(image,hdr,dnorm):
     apvec = []
     app=-1.0
 
-    starr.append([pflux,psky,fwhm])
-    apvec.append(app)
-
     # Get time of observation from the header
-    date = hdr['DATE-OBS']
-    utc  = hdr['UTC']
+    #date = hdr['DATE-OBS']   # for Argos files
+    #utc  = hdr['UTC']         # for Argos files
+    date = hdr['UTC-DATE']    # for Pro-EM files
+    utc  = hdr['UTC-BEG']     # for Pro-EM files
     times = date + "  " + utc
     t = Time(times, format='iso', scale='utc')
     # Calculate Julian Date of observation
@@ -168,7 +131,7 @@ def aperture(image,hdr,dnorm):
 
 def combine(pattern,fileout):
     files = glob.glob(pattern)
-    #print 'files= ',files
+    print 'files= ',files
     n=0
     print "  Combining frames: "
     for file in files:
@@ -196,60 +159,16 @@ def combine(pattern,fileout):
     comb = comb/float(n)
     out = fits.open(files[0])
     hdr = out[0].header
-    hdr.rename_keyword('NTP:GPS','NTP-GPS')
+    #hdr.rename_keyword('NTP:GPS','NTP-GPS')  # Argos
     combdata = out[0].data
     combdata = comb
     out.writeto(fileout)
     out.close()
     return exptime, files, comb
 
-
-if __name__ == '__main__':
-
-    global imdata, iap, nstars
-
-    # Make master Dark file
-    darks_pattern = 'd17apr5/*.fits'
-    print '\nComputing master darks for',darks_pattern
-    dexptime, dfiles, master_dark = combine(darks_pattern,'Dark.fits')
-    dnorm = np.mean(master_dark)
-    print 'Avg dark pixel = ',dnorm,' counts'
-
-    # Make master Flat file
-    flats_pattern = 'f17apr10/*.fits'
-    print '\nComputing master flats for',flats_pattern
-    fexptime, ffiles, master_flat = combine(flats_pattern,'Flat.fits')
-
-    if dexptime != fexptime:
-        print '\nWarning: Exposure times for darks and flats do not match.\n' 
-        #print '\nWarning: Exposure times for darks and flats do not match. You must either provide bias files '
-        #print 'or dark and flat files with matching exposure times.\n'
-        #exit()
-    master_flat_c = master_flat - master_dark
-    fnorm = np.mean(master_flat)
-    print 'Avg flat pixel = ',fnorm,' counts\n'
-    master_flat_n = master_flat_c/fnorm
-    arg_probs = np.argwhere(master_flat_n <= 0.0)
-    master_flat_n[master_flat_n <= 0.0] = 1.0
-
-    # Get list of all FITS images for run
-    fits_files = glob.glob('A????.????.fits')
-    # This is the first image
-    fimage = fits_files[0]
-
-    print "Dark correcting and flat-fielding files...\n"
-    list = fits.open(fimage)
-    hdr = list[0].header
-    object= hdr['object']
-    run= hdr['run']
-    fout=open('lightcurve_old.app','w')
-    efout=open('lightcurve.app','w')
-    nstars = 3
-    dform0='#   Aperture reductions for run {0} on target {1}. Total number of stars is {2}\n'.format(run,object,nstars)
-    dform='#    time (JD)      App (pix)   Target Counts    Comparison Counts     Sky Counts     Target Position    Comp Position    FWHM        Fits File\n'
-    fout.write(dform0)
-    efout.write(dform0)
-    fout.write(dform)
+def head_write(ffile,object,nstars):
+    dform0='#   Aperture reductions for target {0}. Total number of stars is {1}\n'.format(object,nstars)
+    ffile.write(dform0)
 
     # Format header for the general case of nstars stars
     eform0='#    time (JD)      App (pix)   Target Counts'
@@ -266,8 +185,63 @@ if __name__ == '__main__':
     for i in range(1,nstars):
         eform0 = eform0 + ' Comp {0} FWHM'.format(i)
     eform0 = eform0 + '   FITS File\n'
-    #print eform0
-    efout.write(eform0)
+    ffile.write(eform0)
+
+def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
+    for i in range(0,ndim):
+        if apvec[i] >= 0.0:
+            eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
+            for j in range(0,nstars):
+                eform = eform + '{0:17.8f}  '.format(var2[i,0,j])
+            for j in range(0,nstars):
+                eform = eform + '{0:17.8f}  '.format(var2[i,1,j])
+            for j in range(0,nstars):
+                eform = eform + '{0:8.2f} {1:7.2f} '.format(svec[j,0],svec[j,1])
+            for j in range(0,nstars):
+                eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
+            eform = eform + file + '\n'
+        else:
+            eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
+            for j in range(0,nstars):
+                eform = eform + '{0:17.8f}  '.format(var2[i,0,j])
+            for j in range(0,nstars):
+                eform = eform + '{0:17.8f}  '.format(var2[i,1,j])
+            for j in range(0,nstars):
+                eform = eform + '{0:8.2f} {1:7.2f} '.format(pvec[j,0],pvec[j,1])
+            for j in range(0,nstars):
+                eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
+            eform = eform + file + '\n'
+        efout.write(eform)
+
+def get_spe():
+    pass
+        
+
+if __name__ == '__main__':
+
+    # TODO: add argparse
+    global imdata, iap, nstars
+
+    # Get list of all FITS images for run
+    run_pattern = "*.fits"
+    #run_pattern = 'test_lightbox_10s*fits'
+    #fits_files = glob.glob('A????.????.fits')
+    fits_files = glob.glob(run_pattern)
+    print fits_files
+    # This is the first image
+    fimage = fits_files[0]
+
+    # print "Dark correcting and flat-fielding files...\n"
+    list = fits.open(fimage)
+    hdr = list[0].header
+    #object= hdr['object']
+    object= 'object'
+    #run= hdr['run']
+
+    # TODO: WARNING: efout left open, never explicitly closed
+    # can't use implicit close "with open as" otherwise
+    # head_write breaks. head_write depends on efout being open.
+    efout = open('lightcurve.app','w')
 
     #print 'Calculating apertures:'
 
@@ -275,6 +249,7 @@ if __name__ == '__main__':
     icount = 1
     fcount = ''
     print 'Processing files:'
+    # TODO: file is a protected name. don't use.
     for file in fits_files:
         fcount = fcount + '  ' + file
         if np.remainder(icount,5) == 0:
@@ -284,57 +259,26 @@ if __name__ == '__main__':
             if file == fits_files[-1]:
                 print fcount
         icount = icount + 1
-        # Create modified file name for "corrected" FITS files
-        s=file.split('.')
-        filec = s[0] + 'c.' + s[1] + '.' + s[2]
+
         # open FITS file
         list = fits.open(file)
         imdata = list[0].data
-        # Dark and Flat correct the data
-        imdata = imdata - master_dark
-        imdata = imdata/master_flat_n
+
         hdr = list[0].header
-        # Replace offending ":" character wrt the FITS standard with the accepted "-" character
-        hdr.rename_keyword('NTP:GPS','NTP-GPS')
-        # Write out corrected FITS file
-        list.writeto(filec)
-        list.close()
 
         # Call aperture photometry routine. Get times, positions, and fluxes
         # var2 contains the list [fluxc,skyc,fwhm])
         # jd,svec,pvec,apvec,starr
         # fluxc, skyc, and fwhm are all lists of length nstars
-        jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
+        # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
+        jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
         ndim = len(apvec)
 
-        # loop over apertures
-        for i in range(0,ndim):
-            if apvec[i] >= 0.0:
-                dform = '{0:18.8f}  {1:7.2f} {2:17.8f}  {3:17.8f}  {4:17.8f}    {5:6.2f} {6:6.2f} {7:10.2f} {8:6.2f} {9:8.3f}    {10}\n'.format(jd,apvec[i],var2[i,0,0],var2[i,0,1],var2[i,1,0], svec[0,0], svec[0,1], svec[1,0], svec[1,1], var2[2,2,0], file)     
-                eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
-                for j in range(0,nstars):
-                    eform = eform + '{0:17.8f}  '.format(var2[i,0,j])
-                for j in range(0,nstars):
-                    eform = eform + '{0:17.8f}  '.format(var2[i,1,j])
-                for j in range(0,nstars):
-                    eform = eform + '{0:8.2f} {1:7.2f} '.format(svec[j,0],svec[j,1])
-                for j in range(0,nstars):
-                    eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
-                eform = eform + file + '\n'
-            else:
-                eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
-                for j in range(0,nstars):
-                    eform = eform + '{0:17.8f}  '.format(var2[i,0,j])
-                for j in range(0,nstars):
-                    eform = eform + '{0:17.8f}  '.format(var2[i,1,j])
-                for j in range(0,nstars):
-                    eform = eform + '{0:8.2f} {1:7.2f} '.format(pvec[j,0],pvec[j,1])
-                for j in range(0,nstars):
-                    eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
-                eform = eform + file + '\n'
-            fout.write(dform)
-            efout.write(eform)
-            #print eform,
+        # First time through write header
+        if icount == 2:
+            head_write(efout,object,nstars)
 
-
-    fout.close()
+        # TODO: WARNING: namespace dependency in app_write on "file"
+        # Write out results for all apertures
+        app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
+        
