@@ -318,29 +318,19 @@ class File(object):
         # Ticks per second from XML footer metadata using previous LightField experiments:
         # 1 tick = 1 microsecond ; 1E6 ticks per second.
         # 0 ticks is when "Acquire" was first clicked on LightField.
-        # Assume "Acquire" was clicked when the .SPE file was created.
-        # File creation time is in seconds since epoch, Jan 1 1970 UTC.
-        # Note: Only relevant for online analysis. Not accurate for reductions.
         pixels_per_frame = self._get_pixels_per_frame()
         pixel_ntype = self._get_pixel_ntype()
         frame = self._read_at(frame_offset, pixels_per_frame, pixel_ntype)
         xdim = self._get_xdim()
         ydim = self._get_ydim()
         frame = frame.reshape((ydim, xdim))
-        fctime = dt.datetime.utcfromtimestamp(os.path.getctime(self._fname))
         mtsexpstart_offset = metadata_offset
         mtsexpend_offset = mtsexpstart_offset + bytes_per_metadata_elt
         mftracknum_offset = mtsexpend_offset + bytes_per_metadata_elt
         metadata = {}
-#        mtsexpstart = dt.timedelta(
-#            microseconds=(self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]).astype(int))
-#        mtsexpend   = dt.timedelta(
-#            microseconds=(self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]).astype(int))
         mtsexpstart = self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]
         mtsexpend   = self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]
         mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
-#        metadata["time_stamp_exposure_started"] = fctime + mtsexpstart
-#        metadata["time_stamp_exposure_ended"] = fctime + mtsexpend
         metadata["time_stamp_exposure_started"] = mtsexpstart
         metadata["time_stamp_exposure_ended"] = mtsexpend
         metadata["frame_tracking_number"] = mftracknum

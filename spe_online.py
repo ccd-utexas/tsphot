@@ -2,6 +2,7 @@
 """
 Read .spe file and do aperture photometry.
 """
+from __future__ import division
 
 from astropy.io import fits
 from astropy.time import Time
@@ -10,9 +11,11 @@ import os
 import photutils
 import scipy.optimize as sco
 import numpy as np
+
 import argparse
 import sys
 import read_spe
+import datetime as dt
 
 # Gaussian functional form assumed for PSF fits
 def psf((xx,yy),s0,s1,x0,y0,w):
@@ -52,10 +55,16 @@ def der_center(xx):
     der[1] = (fyp1-fym1)/(2.*eps)
     return der
 
-
-# The main function for doing aperture photometry on individual FITS files
-# app = -1 means the results are for a PSF fit instead of aperture photometry
-def aperture(image,hdr):
+# TODO: separate computing aperture from calculating timestamps.
+def aperture(image, dt_expstart):
+    """
+    The main function for doing aperture photometry on individual FITS files
+    app = -1 means the results are for a PSF fit instead of aperture photometry
+    
+    Arguments:
+    image       = Image data as 2D numpy.ndarray
+    dt_expstart = UTC timestamp of start of exposure as datetime.datetime object.
+    """
     global iap, pguess_old, nstars, svec
     dnorm = 500.
     rann1 = 18.
@@ -115,10 +124,17 @@ def aperture(image,hdr):
     # Get time of observation from the header
     #date = hdr['DATE-OBS']   # for Argos files
     #utc  = hdr['UTC']         # for Argos files
-    date = hdr['UTC-DATE']    # for Pro-EM files
-    utc  = hdr['UTC-BEG']     # for Pro-EM files
-    times = date + "  " + utc
-    t = Time(times, format='iso', scale='utc')
+    # date = hdr['UTC-DATE']    # for Pro-EM files
+    # utc  = hdr['UTC-BEG']     # for Pro-EM files
+    # times = date + "  " + utc
+    # t = Time(times, format='iso', scale='utc')
+    # TODO: astropy 0.3.2 fully supports datetime objects
+    # When we can upgrade photutils and thus numpy, use datetime objects.
+    try:
+        t = Time(dt_expstart, scale='utc')
+    # ValueError if we haven't upgraded astropy.
+    except ValueError:
+        t = Time(dt_expstart.isoformat(), format='isot', scale='utc')
     # Calculate Julian Date of observation
     jd  = t.jd
     for app in app_sizes:
@@ -203,7 +219,7 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
                 eform = eform + '{0:8.2f} {1:7.2f} '.format(svec[j,0],svec[j,1])
             for j in range(0,nstars):
                 eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
-            eform = eform + file + '\n'
+            eform = eform + fname_base + '\n'
         else:
             eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
             for j in range(0,nstars):
@@ -214,7 +230,7 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
                 eform = eform + '{0:8.2f} {1:7.2f} '.format(pvec[j,0],pvec[j,1])
             for j in range(0,nstars):
                 eform = eform + '{0:8.3f}    '.format(var2[i,2,j])
-            eform = eform + file + '\n'
+            eform = eform + fname_base + '\n'
         efout.write(eform)
 
 
@@ -263,7 +279,10 @@ if __name__ == '__main__':
     # TODO: Only reduce new frames, not all again.
     spe = read_spe.File(args.fpath)
     num_frames = spe.get_num_frames()
+    is_first_iter = True
     for idx in xrange(num_frames):
+        if is_first_iter:
+            fname_base = os.path.basename(args.fpath)
         # fcount = fcount + '  ' + file
         # Note: Frame index is Python indexed and begins at 0.
         # frame_tracking_number from LightField begins at 1.
@@ -292,20 +311,36 @@ if __name__ == '__main__':
         # fluxc, skyc, and fwhm are all lists of length nstars
         # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
         # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
-        # TODO: Give aperture a hdr dict with keys 'UTC-DATE', 'UTC-BEG'.
-        print metadata
-        sys.exit()
-        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, hdr=0)
+
+        # Give aperture a hdr dict with keys 'UTC-DATE', 'UTC-BEG'.
+        # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
+        # Ticks per second from XML footer metadata using previous LightField experiments:
+        # 1 tick = 1 microsecond ; 1E6 ticks per second.
+        # 0 ticks is when "Acquire" was first clicked on LightField.
+        # Without footer metadata, assume "Acquire" was clicked when the .SPE file was created.
+        # File creation time is in seconds since epoch, Jan 1 1970 UTC.
+        # Note: Only relevant for online analysis. Not accurate for reductions.
+        if is_first_iter:
+            dt_fctime_abs = dt.datetime.utcfromtimestamp(os.path.getctime(args.fpath))
+        ticks_per_second = 1000000.
+        expstart_rel_sec = metadata["time_stamp_exposure_started"] / ticks_per_second
+        # Convert ticks from ProEM to seconds since timer-counter card in ProEM
+        # counts higher than microseconds argument in datetime.timedelta
+        dt_expstart_rel = dt.timedelta(seconds=expstart_rel_sec)
+        dt_expstart_abs = dt_fctime_abs + dt_expstart_rel
+
+        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs)
         ndim = len(apvec)
 
         # First time through write header
         if icount == 2:
-            fname_base = os.path.basename(args.fpath)
             # head_write(efout,object,nstars)
             # TODO: object is a reserved word. Don't use.
             head_write(efout,fname_base,nstars)
 
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
+
+        is_first_iter = False
 
     spe.close()
