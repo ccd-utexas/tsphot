@@ -6,14 +6,14 @@ import numpy as np
 import scipy 
 from scipy.signal import lombscargle
 import matplotlib.gridspec as gridspec
-
+import os
 
 def list_powerset2(lst):
     return reduce(lambda result, x: result + [subset + [x] for subset in result], lst, [[]])
 
 # Make a plot of light curve scatter versus aperture size
-def applot(aplist,sigvec,apmin):
-    apfile = 'aperture.pdf'
+def applot(fap_pdf, aplist,sigvec,apmin):
+    apfile = fap_pdf
     fig=figure(1)
     ax1 = fig.add_subplot()
     plot(aplist,sigvec,'-o')
@@ -28,7 +28,7 @@ def applot(aplist,sigvec,apmin):
     print 'Aperture optimization stored in',apfile
     
 # Make a plot of the optimal light curve file
-def lcplot(time,target,comp,sky):
+def lcplot(flc_pdf, time,target,comp,sky):
     ratio = target/comp
     ratio_norm = ratio/np.mean(ratio) - 1.
     #scipy.convolve(y, ones(N)/N)
@@ -92,7 +92,7 @@ def lcplot(time,target,comp,sky):
     leg=ax5.legend(['FT'],'best',fancybox=True,shadow=False,handlelength=0.0)
     leg.draw_frame(False)
 
-    filebase = 'lc.pdf'
+    filebase = flc_pdf
     savefig(filebase,transparent=True,bbox_inches='tight')
     close()
     print 'Optimal light curve plot stored in',filebase,'\n'
@@ -107,12 +107,12 @@ def scatter(lcvec):
     ysig  = np.sqrt(np.dot(dy,dy)/(2.*(ndata-1.)))
     return ysig
 
-if __name__ == '__main__':
-
-    lcfile = 'lightcurve.app'
-
+def main(args):
+    """
+    Read lightcurve file and create plots.
+    """
     # Get number of stars
-    f = open(lcfile,'r')
+    f = open(args.flc,'r')
     line = f.readline()
     s = line.split()
     nstars = int(s[-1])
@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     cols=range(0,3*nstars+1)
     cols=range(0,3*nstars+1)
-    var = np.loadtxt(lcfile,usecols=cols)
+    var = np.loadtxt(args.flc,usecols=cols)
 
     jdarr  = var[:,0]
     aparr  = var[:,1]
@@ -225,7 +225,7 @@ if __name__ == '__main__':
 
     # Make plot of scatter versus aperture size
     sigvec = ysigarr[:,ncmin]
-    applot(aplist,sigvec,apmin)
+    applot(args.fap_pdf, aplist,sigvec,apmin)
 
     time = 86400.*(jd-jd[0])
     target = targs[:,iapmin]
@@ -233,4 +233,37 @@ if __name__ == '__main__':
     sky0 = skyvals[:,iapmin]
 
     # Make online plot of lightcurves, sky, and the FT
-    lcplot(time,target,compstar,sky0)
+    lcplot(args.flc_pdf, time,target,compstar,sky0)
+    return None
+
+if __name__ == '__main__':
+    defaults = {}
+    defaults['flc'] = "lightcurve.app"
+    defaults['flc_pdf'] = "lc.pdf"
+    defaults['fap_pdf'] = "aperture.pdf"
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                     description=("Read lightcurve file and create plots."))
+    parser.add_argument("--flc",
+                        default=defaults['flc'],
+                        help=(("Input fixed-width-format text file"
+                               +" with columns of star intensities by aperture size.\n"
+                               +"Default: {fname}").format(fname=defaults['flc'])))
+    parser.add_argument("--flc_pdf",
+                        default=defaults['flc_pdf'],
+                        help=(("Output .pdf file with plots of the lightcurve.\n"
+                              +"Default: {fname}").format(fname=defaults['flc_pdf'])))
+    parser.add_argument("--fap_pdf",
+                        default=defaults['fap_pdf'],
+                        help=(("Output .pdf file with plot of scatter vs aperture size.\n"
+                               +"Default: {fname}").format(fname=defaults['fap_pdf'])))
+    parser.add_argument("--verbose", "-v",
+                        action='store_true',
+                        help=("Print 'INFO:' messages to stdout."))
+    args = parser.parse_args()
+    if args.verbose:
+        print "INFO: Arguments:"
+        for arg in args.__dict__:
+            print ' ', arg, args.__dict__[arg]
+    if not os.path.isfile(args.flc):
+        raise IOError(("File does not exist: {fname}").format(fname=args.flc))
+    main(args=args)
