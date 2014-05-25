@@ -44,9 +44,12 @@ def main(args):
         try:
             spe_process.main(args)
             lc_online2.main(args)
-        # IndexError can be raised by lc_online2 due to namespace conflicts with spe_process.
+        # IndexError or ValueError can be raised by lc_online2 due to namespace conflicts with spe_process.
         # TODO: Resolve namespace issues by sharing state info within modules using classes.
         except IndexError:
+            spe_process.main(args)
+            lc_online2.main(args)
+        except ValueError:
             spe_process.main(args)
             lc_online2.main(args)
         if args.verbose:
