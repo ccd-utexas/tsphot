@@ -249,42 +249,13 @@ def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
             eform = eform + fname_base + '\n'
         efout.write(eform)
 
-
-if __name__ == '__main__':
-    defaults = {}
-    defaults['fcoords'] = "phot_coords"
-    defaults['fout']    = "lightcurve.app"
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
-                                     description=("Read .spe file and do aperture photometry."
-                                                  +" Output fixed-width-format text file."))
-    parser.add_argument("--fpath",
-                        required=True,
-                        help=("Path to single input .spe file. Example: /path/to/file.spe"))
-    parser.add_argument("--fcoords",
-                        default=defaults['fcoords'],
-                        help=(("Input text file with pixel coordinates of stars in first frame.\n"
-                               +"Default: {fname}\n"
-                               +"Format:\n"
-                               +"targx targy\n"
-                               +"compx compy\n"
-                               +"compx compy\n").format(fname=defaults['fcoords'])))
-    parser.add_argument("--fout",
-                        default=defaults['fout'],
-                        help=(("Output text file with apertures in fixed-width-format.\n"
-                               +"Default: {fname}").format(fname=defaults['fout'])))
-    parser.add_argument("--verbose", "-v",
-                        action='store_true',
-                        help=("Print 'INFO:' messages to stdout."))
-    args = parser.parse_args()
-    if args.verbose:
-        print "INFO: Arguments:"
-        for arg in args.__dict__:
-            print ' ', arg, args.__dict__[arg]
-    if not os.path.isfile(args.fcoords):
-        raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
-    
+def main(args):
+    """
+    Do aperture photometry and write out lightcurve.
+    """
+    # TODO: Make spe_online.py more modular so don't have to import main.
     # TODO: use classes to retain state information.
-    global imdata, iap, nstars
+    global imdata, iap, nstars, fname_base
 
     # # Get list of all FITS images for run
     # run_pattern = 'GD244-????.fits'
@@ -300,7 +271,7 @@ if __name__ == '__main__':
     # #run= hdr['run']
 
     # TODO: use .csv and .txt. ".app" has special meaning on Mac OS.
-    efout=open(args.fout,'w')
+    efout=open(args.flc,'w')
 
     #print 'Calculating apertures:'
 
@@ -379,3 +350,40 @@ if __name__ == '__main__':
         is_first_iter = False
 
     spe.close()
+    return None
+
+if __name__ == '__main__':
+    defaults = {}
+    defaults['fcoords'] = "phot_coords"
+    defaults['flc']    = "lightcurve.app"
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                     description=("Read .spe file and do aperture photometry."
+                                                  +" Output fixed-width-format text file."))
+    parser.add_argument("--fpath",
+                        required=True,
+                        help=("Path to single input .spe file.\n"
+                              +"Example: /path/to/file.spe"))
+    parser.add_argument("--fcoords",
+                        default=defaults['fcoords'],
+                        help=(("Input text file with pixel coordinates of stars in first frame.\n"
+                               +"Default: {fname}\n"
+                               +"Format:\n"
+                               +"targx targy\n"
+                               +"compx compy\n"
+                               +"compx compy\n").format(fname=defaults['fcoords'])))
+    parser.add_argument("--flc",
+                        default=defaults['flc'],
+                        help=(("Output fixed-width-format text file"
+                               +" with columns of star intensities by aperture size.\n"
+                               +"Default: {fname}").format(fname=defaults['flc'])))
+    parser.add_argument("--verbose", "-v",
+                        action='store_true',
+                        help=("Print 'INFO:' messages to stdout."))
+    args = parser.parse_args()
+    if args.verbose:
+        print "INFO: Arguments:"
+        for arg in args.__dict__:
+            print ' ', arg, args.__dict__[arg]
+    if not os.path.isfile(args.fcoords):
+        raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
+    main(args=args)
