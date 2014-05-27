@@ -324,7 +324,7 @@ def main(args):
     sky0 = skyvals[:,iapmin]
 
     # Make online plot of lightcurves, sky, and the FT
-    lcplot(args.flc_pdf, time,target,compstar,sky0)
+    lcplot(args.flc_pdf, time,target,compstar,sky0,cstring)
 
     for i in np.arange(-4,0):
         apvec = targs[i,:]
