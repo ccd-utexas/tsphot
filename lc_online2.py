@@ -22,14 +22,14 @@ def fwhm_fit2(aplist,targs):
         aplist2 = np.concatenate([ [0],aplist])
         apvec2 = np.concatenate([ [0],apvec])
         dapvec2 = (apvec2[ip]-apvec2[i])/(aplist2[ip]**2-aplist2[i]**2)
-        aplist_shifted = 0.5*(aplist2[ip]+aplist2[i])
+        aplist_shifted = (2./3.)*(aplist2[ip]**3-aplist2[i]**3)/(aplist2[ip]**2-aplist2[i]**2)
         s0 = 10.
         s1 = dapvec2[0]
         w = 3.
         pinitial = np.array([ s0, s1, w ])
         popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
         w = popt[2]
-        fwhm = 2. * w * np.sqrt(np.log(2.))
+        fwhm = 2. * np.sqrt(2.*np.log(2.)) * w
         fwhm_vec.append(fwhm)
 
     fwhm_vec = np.array(fwhm_vec)
@@ -101,10 +101,11 @@ def fwhm_fit(aplist,apvec):
 # Gaussian functional form assumed for PSF fits
 def psf((rr),s0,s1,w):
     elow = -50.
-    arg = - (rr/w)**2
+    #arg = - (rr/w)**2
+    arg = - rr**2/(2.*w**2)
     arg[arg <= elow] = elow
     intensity = s0 + s1 * np.exp( arg )
-    fwhm = 2. * w * np.sqrt(np.log(2.))
+    fwhm = 2. * np.sqrt(2.*np.log(2.)) * w
     return intensity
 
 # Total integrated flux and fwhm for the assumed Gaussian PSF
@@ -338,8 +339,6 @@ def main(args):
 
         iap = iap + 1
 
-    # print ysigarr
-
     # Find optimal aperture and its index
     sigmin = np.amin(ysigarr)
     isigmin = np.argmin(ysigarr)
@@ -364,9 +363,17 @@ def main(args):
     compstar = comps[:,iapmin,ncmin]
     sky0 = skyvals[:,iapmin]
 
-    # Test comment 2
+    # Calculate scatter for composite comparison star
+    ncompstar = compstar/np.mean(compstar) - 1.0
+    comp_ysig = scatter(ncompstar)
+    print 'Scatter: target=',sigmin,' Comparison=',comp_ysig
+
     # Do FWHM fits for target star at all points of light curve
-    fwhm_vec = fwhm_fit2(aplist,targs)
+    # Choose comparison or target star based on lower level of scatter.
+    if comp_ysig <= sigmin:
+        fwhm_vec = fwhm_fit2(aplist,comps[:,:,ncmin])   # FWHM of composite comparison star
+    else:
+        fwhm_vec = fwhm_fit2(aplist,targs)   # FWHM of target star
 
     # Make online plot of lightcurves, sky, and the FT
     lcplot(args.flc_pdf, time,target,compstar,sky0,fwhm_vec,cstring)
