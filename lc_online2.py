@@ -10,6 +10,53 @@ import scipy.optimize as sco
 import matplotlib.gridspec as gridspec
 import os
 
+def fwhm_fit2(aplist,targs):
+    nlc = len(targs[:,0])
+    fwhm_vec = []
+    for j in np.arange(nlc):
+        apvec = targs[j,:]
+        f = apvec
+        ndim = len(f)
+        i = np.arange(ndim)
+        ip = i + 1
+        aplist2 = np.concatenate([ [0],aplist])
+        apvec2 = np.concatenate([ [0],apvec])
+        dapvec2 = (apvec2[ip]-apvec2[i])/(aplist2[ip]**2-aplist2[i]**2)
+        aplist_shifted = 0.5*(aplist2[ip]+aplist2[i])
+        s0 = 10.
+        s1 = dapvec2[0]
+        w = 3.
+        pinitial = np.array([ s0, s1, w ])
+        popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
+        w = popt[2]
+        fwhm = 2. * w * np.sqrt(np.log(2.))
+        fwhm_vec.append(fwhm)
+
+    fwhm_vec = np.array(fwhm_vec)
+    apfine = np.arange(0,max(aplist),0.1)
+    psf_fit = psf((apfine),*popt)
+    print 'FWHM = ',fwhm
+    fig=figure(3)
+    ax1 = fig.add_subplot()
+    plot(aplist_shifted,dapvec2,'o')
+    plot(apfine,psf_fit,'-')
+    xlabel('radius (pixels)')
+    ylabel('profile')
+    tstring = 'FWHM is {0:.3f} pixels\n'.format(fwhm)
+    totstring = tstring 
+    x1,x2=xlim()
+    y1,y2=ylim()
+    xs=0.5
+    ys=0.8
+    xpos = x1 + xs*(x2-x1)
+    ypos = y1 + ys*(y2-y1)
+    text(xpos,ypos,totstring, horizontalalignment='center', verticalalignment='center')
+
+    psffile='psf_fit.pdf'
+    savefig(psffile,transparent=True,bbox_inches='tight')
+    close()
+    print 'PSF fit stored in',psffile,'\n'
+    return fwhm_vec
 def fwhm_fit(aplist,apvec):
     f = apvec
     ndim = len(f)
@@ -19,22 +66,13 @@ def fwhm_fit(aplist,apvec):
     apvec2 = np.concatenate([ [0],apvec])
     dapvec2 = (apvec2[ip]-apvec2[i])/(aplist2[ip]**2-aplist2[i]**2)
     aplist_shifted = 0.5*(aplist2[ip]+aplist2[i])
-    #print aplist_shifted, dapvec2
-    #print len(aplist_shifted),len(dapvec2)
-    #norm = aplist/apvec**2
-    #print aplist
-    #print apvec
-    #print daplist
-    #print dapvec
     s0 = 10.
     s1 = dapvec2[0]
     w = 3.
     pinitial = np.array([ s0, s1, w ])
-    #print pinitial
     popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
     w = popt[2]
     fwhm = 2. * w * np.sqrt(np.log(2.))
-    #print popt
     apfine = np.arange(0,max(aplist),0.1)
     psf_fit = psf((apfine),*popt)
     print 'FWHM = ',fwhm
@@ -66,7 +104,6 @@ def psf((rr),s0,s1,w):
     arg[arg <= elow] = elow
     intensity = s0 + s1 * np.exp( arg )
     fwhm = 2. * w * np.sqrt(np.log(2.))
-    # Turn 2D intensity array into 1D array
     return intensity
 
 # Total integrated flux and fwhm for the assumed Gaussian PSF
@@ -107,7 +144,6 @@ def applot(fap_pdf, aplist,sigvec,apmin,cstring):
     ypos = y1 + ys*(y2-y1)
     text(xpos,ypos,totstring, horizontalalignment='center', verticalalignment='center')
 
-    #ax1.set_title(tstring)
     savefig(apfile,transparent=True,bbox_inches='tight')
     close()
     print 'Aperture optimization stored in',apfile
@@ -162,10 +198,19 @@ def lcplot(flc_pdf, time,target,comp,sky,cstring):
     leg.draw_frame(False)
 
     ax4 = fig.add_subplot(gs1[3])
-    plot(time,sky_norm)
-    ylabel(r'$I/I_{\rm min}$',size='x-large')
+    pl1=ax4.plot(time,sky_norm,label = 'Sky')
+    ylabel('Sky',size='large')
     xlabel(r'${\rm time \, (sec)}$',size='x-large')
-    leg=ax4.legend(['sky'],'best',fancybox=True,shadow=False,handlelength=0.0)
+    fwhm_string = 'FWHM={0:.3f}'.format(fwhm_vec[-1])
+    ax6 = ax4.twinx()
+    pl2 = ax6.plot(time, fwhm_vec, 'r-',label = fwhm_string)
+    pls = pl1 + pl2
+    ax6.set_ylabel('FWHM', color='r')
+    for tl in ax6.get_yticklabels():
+        tl.set_color('r')
+
+    labs = [l.get_label() for l in pls]
+    leg=ax4.legend(pls, labs, 'best', loc=0)
     leg.draw_frame(False)
 
     gs2 = gridspec.GridSpec(4, 1,hspace=0.1)
@@ -178,7 +223,7 @@ def lcplot(flc_pdf, time,target,comp,sky,cstring):
     leg=ax5.legend(['FT'],'best',fancybox=True,shadow=False,handlelength=0.0)
     leg.draw_frame(False)
 
-    filebase = flc_pdf
+    filebase = 'lc.pdf'
     savefig(filebase,transparent=True,bbox_inches='tight')
     close()
     print 'Optimal light curve plot stored in',filebase,'\n'
@@ -233,8 +278,6 @@ def main(args):
     del pset[0]
 
     # Now that we've got the list of comparison stars, let's find the optimal aperture
-
-    sigvec = []
 
     # create arrays to store lightcurves for different apertures
     # Use median aperture for this
@@ -302,9 +345,6 @@ def main(args):
     iarg = np.unravel_index(isigmin,(nap,ncom))
     iapmin, ncmin = iarg
     combs = pset[ncmin]
-    #print 'term=',combs
-    #print nap, ncom
-    #print ysigarr[iarg], iapmin, ncmin
 
     apmin = aplist[iapmin]
     report  = '\nThe optimal aperture is {0} pixels, the point-to-point scatter is {1:0.5f},'.format(apmin,sigmin)
@@ -323,12 +363,12 @@ def main(args):
     compstar = comps[:,iapmin,ncmin]
     sky0 = skyvals[:,iapmin]
 
+    # Do FWHM fits for target star at all points of light curve
+    fwhm_vec = fwhm_fit2(aplist,targs)
+
     # Make online plot of lightcurves, sky, and the FT
     lcplot(args.flc_pdf, time,target,compstar,sky0,cstring)
 
-    for i in np.arange(-4,0):
-        apvec = targs[i,:]
-        fwhm_fit(aplist,apvec)
     return None
 
 if __name__ == '__main__':
