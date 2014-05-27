@@ -2,33 +2,118 @@
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib.pyplot import *
+from matplotlib.transforms import offset_copy
 import numpy as np
 import scipy 
 from scipy.signal import lombscargle
+import scipy.optimize as sco
 import matplotlib.gridspec as gridspec
 import os
+
+def fwhm_fit(aplist,apvec):
+    f = apvec
+    ndim = len(f)
+    i = np.arange(ndim)
+    ip = i + 1
+    aplist2 = np.concatenate([ [0],aplist])
+    apvec2 = np.concatenate([ [0],apvec])
+    dapvec2 = (apvec2[ip]-apvec2[i])/(aplist2[ip]**2-aplist2[i]**2)
+    aplist_shifted = 0.5*(aplist2[ip]+aplist2[i])
+    #print aplist_shifted, dapvec2
+    #print len(aplist_shifted),len(dapvec2)
+    #norm = aplist/apvec**2
+    #print aplist
+    #print apvec
+    #print daplist
+    #print dapvec
+    s0 = 10.
+    s1 = dapvec2[0]
+    w = 3.
+    pinitial = np.array([ s0, s1, w ])
+    #print pinitial
+    popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
+    w = popt[2]
+    fwhm = 2. * w * np.sqrt(np.log(2.))
+    #print popt
+    apfine = np.arange(0,max(aplist),0.1)
+    psf_fit = psf((apfine),*popt)
+    print 'FWHM = ',fwhm
+    fig=figure(3)
+    ax1 = fig.add_subplot()
+    plot(aplist_shifted,dapvec2,'o')
+    plot(apfine,psf_fit,'-')
+    xlabel('radius (pixels)')
+    ylabel('profile')
+    tstring = 'FWHM is {0:.3f} pixels\n'.format(fwhm)
+    totstring = tstring 
+    x1,x2=xlim()
+    y1,y2=ylim()
+    xs=0.5
+    ys=0.8
+    xpos = x1 + xs*(x2-x1)
+    ypos = y1 + ys*(y2-y1)
+    text(xpos,ypos,totstring, horizontalalignment='center', verticalalignment='center')
+
+    psffile='psf_fit.pdf'
+    savefig(psffile,transparent=True,bbox_inches='tight')
+    close()
+    print 'PSF fit stored in',psffile,'\n'
+
+# Gaussian functional form assumed for PSF fits
+def psf((rr),s0,s1,w):
+    elow = -50.
+    arg = - (rr/w)**2
+    arg[arg <= elow] = elow
+    intensity = s0 + s1 * np.exp( arg )
+    fwhm = 2. * w * np.sqrt(np.log(2.))
+    # Turn 2D intensity array into 1D array
+    return intensity
+
+# Total integrated flux and fwhm for the assumed Gaussian PSF
+def psf_flux(s0,s1,x0,y0,w):
+    flux = np.pi * s1/np.abs(w)
+    fwhm = 2. * np.sqrt(np.log(2.)/np.abs(w))
+    return fwhm, flux
+
+def comb_string(combs):
+    ic = 0
+    for i in combs:
+        if ic == 0:
+            cstring = str(i)
+        else:
+            cstring = cstring + ' + ' + str(i)
+        ic = ic + 1
+    return cstring
 
 def list_powerset2(lst):
     return reduce(lambda result, x: result + [subset + [x] for subset in result], lst, [[]])
 
 # Make a plot of light curve scatter versus aperture size
-def applot(fap_pdf, aplist,sigvec,apmin):
+def applot(fap_pdf, aplist,sigvec,apmin,cstring):
     apfile = fap_pdf
     fig=figure(1)
     ax1 = fig.add_subplot()
     plot(aplist,sigvec,'-o')
     xlabel('Aperture size')
     ylabel('Scatter')
-    tstring = 'Optimal Aperture is {0}'.format(apmin)
-    #fig.suptitle(tstring, fontsize=13)
-    title(tstring, fontsize=16)
+    tstring = 'optimal aperture is {0} pixels\n'.format(apmin)
+    cstring = 'optimal comparison star =\n' + cstring
+    totstring = tstring + '\n' + cstring
+    x1,x2=xlim()
+    y1,y2=ylim()
+    xs=0.5
+    ys=0.8
+    xpos = x1 + xs*(x2-x1)
+    ypos = y1 + ys*(y2-y1)
+    text(xpos,ypos,totstring, horizontalalignment='center', verticalalignment='center')
+
     #ax1.set_title(tstring)
     savefig(apfile,transparent=True,bbox_inches='tight')
     close()
     print 'Aperture optimization stored in',apfile
-    
+
 # Make a plot of the optimal light curve file
-def lcplot(flc_pdf, time,target,comp,sky):
+def lcplot(flc_pdf, time,target,comp,sky,cstring):
     ratio = target/comp
     ratio_norm = ratio/np.mean(ratio) - 1.
     #scipy.convolve(y, ones(N)/N)
@@ -72,7 +157,8 @@ def lcplot(flc_pdf, time,target,comp,sky):
     ax3 = fig.add_subplot(gs1[2],sharex=ax1)
     plot(time,comp_norm)
     ylabel(r'$\delta I/I$',size='x-large')
-    leg=ax3.legend(['comparison'],'best',fancybox=True,shadow=False,handlelength=0.0)
+    comstring = 'comparison\n' + '= ' + cstring
+    leg=ax3.legend([comstring],'best',fancybox=True,shadow=False,handlelength=0.0)
     leg.draw_frame(False)
 
     ax4 = fig.add_subplot(gs1[3])
@@ -215,7 +301,9 @@ def main(args):
     isigmin = np.argmin(ysigarr)
     iarg = np.unravel_index(isigmin,(nap,ncom))
     iapmin, ncmin = iarg
-    print nap, ncom
+    combs = pset[ncmin]
+    #print 'term=',combs
+    #print nap, ncom
     #print ysigarr[iarg], iapmin, ncmin
 
     apmin = aplist[iapmin]
@@ -223,9 +311,12 @@ def main(args):
     print report
     print 'and the optimal comparison star combination is',pset[ncmin],'\n'
 
+    # Store "combination string" for the optimal combination of comparison stars
+    cstring = comb_string(combs)
+
     # Make plot of scatter versus aperture size
     sigvec = ysigarr[:,ncmin]
-    applot(args.fap_pdf, aplist,sigvec,apmin)
+    applot(args.fap_pdf, aplist,sigvec,apmin,cstring)
 
     time = 86400.*(jd-jd[0])
     target = targs[:,iapmin]
@@ -234,6 +325,10 @@ def main(args):
 
     # Make online plot of lightcurves, sky, and the FT
     lcplot(args.flc_pdf, time,target,compstar,sky0)
+
+    for i in np.arange(-4,0):
+        apvec = targs[i,:]
+        fwhm_fit(aplist,apvec)
     return None
 
 if __name__ == '__main__':
