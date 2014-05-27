@@ -364,6 +364,7 @@ def main(args):
     compstar = comps[:,iapmin,ncmin]
     sky0 = skyvals[:,iapmin]
 
+    # Test comment 2
     # Do FWHM fits for target star at all points of light curve
     fwhm_vec = fwhm_fit2(aplist,targs)
 
