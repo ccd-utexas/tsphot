@@ -95,8 +95,8 @@ if __name__ == '__main__':
                         help=(("Output .pdf file with plot of scatter vs aperture size.\n"
                                +"Default: {fname}").format(fname=defaults['fap_pdf'])))
     parser.add_argument("--sleep", "-s",
-                        type=int,
                         default=defaults['sleep'],
+                        type=float,
                         help=(("Number of seconds to sleep before reducing new frames.\n"
                                +"Default: {num}").format(num=defaults['sleep'])))
     parser.add_argument("--verbose", "-v",
