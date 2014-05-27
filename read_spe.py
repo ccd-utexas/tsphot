@@ -5,6 +5,8 @@ Read .SPE file into numpy array.
 Adapted from http://wiki.scipy.org/Cookbook/Reading_SPE_files
 Offsets and names taken as from SPE 3.0 File Format Specification:
 ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
+For the XML footer, see
+ftp://ftp.princetoninstruments.com/public/Manuals/Princeton%20Instruments/Experiment%20XML%20Specification.pdf
 
 Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """

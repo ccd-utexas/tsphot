@@ -36,7 +36,7 @@ def main(args):
                 +"file://"+os.path.join(cwd, args.flc_pdf)).format(fname=args.flc_pdf)
     stop_msg = ("INFO: To stop program, hit Ctrl-C\n"
                 +" If in IPython Notebook, click 'Interrupt Kernel'.")
-    sleep_time = 60 # seconds
+    sleep_time = args.sleep # seconds
     sleep_msg = ("INFO: Sleeping for {num} seconds.").format(num=sleep_time)
     while True:
         # Import main from spe_process, lc_online2 because not modularized.
@@ -62,9 +62,10 @@ def main(args):
 if __name__ == '__main__':
     defaults = {}
     defaults['fcoords'] = "phot_coords"
-    defaults['flc']    = "lightcurve.app"
+    defaults['flc']     = "lightcurve.app"
     defaults['flc_pdf'] = "lc.pdf"
     defaults['fap_pdf'] = "aperture.pdf"
+    defaults['sleep']   = 60
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Continuously read .spe file and do aperture photometry."
                                                   +" Output fixed-width-format text file."))
@@ -93,6 +94,11 @@ if __name__ == '__main__':
                         default=defaults['fap_pdf'],
                         help=(("Output .pdf file with plot of scatter vs aperture size.\n"
                                +"Default: {fname}").format(fname=defaults['fap_pdf'])))
+    parser.add_argument("--sleep", "-s",
+                        default=defaults['sleep'],
+                        type=float,
+                        help=(("Number of seconds to sleep before reducing new frames.\n"
+                               +"Default: {num}").format(num=defaults['sleep'])))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
                         help=("Print 'INFO:' messages to stdout."))
