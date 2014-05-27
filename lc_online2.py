@@ -57,6 +57,7 @@ def fwhm_fit2(aplist,targs):
     close()
     print 'PSF fit stored in',psffile,'\n'
     return fwhm_vec
+
 def fwhm_fit(aplist,apvec):
     f = apvec
     ndim = len(f)
@@ -149,7 +150,7 @@ def applot(fap_pdf, aplist,sigvec,apmin,cstring):
     print 'Aperture optimization stored in',apfile
 
 # Make a plot of the optimal light curve file
-def lcplot(flc_pdf, time,target,comp,sky,cstring):
+def lcplot(flc_pdf, time,target,comp,sky,fwhm_vec,cstring):
     ratio = target/comp
     ratio_norm = ratio/np.mean(ratio) - 1.
     #scipy.convolve(y, ones(N)/N)
@@ -367,7 +368,7 @@ def main(args):
     fwhm_vec = fwhm_fit2(aplist,targs)
 
     # Make online plot of lightcurves, sky, and the FT
-    lcplot(args.flc_pdf, time,target,compstar,sky0,cstring)
+    lcplot(args.flc_pdf, time,target,compstar,sky0,fwhm_vec,cstring)
 
     return None
 
