@@ -19,11 +19,6 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-try:
-    from lxml import objectify, etree
-except:
-    pass
-import datetime as dt
 
 class File(object):
     """
@@ -151,7 +146,7 @@ class File(object):
     
     def _load_footer_metadata(self):
         """
-        Load SPE metadata from XML footer as an lxml object
+        Load SPE metadata from XML footer as a string
         and save as an object attribute.
         Use metadata from footer for final reductions
         since XML footer is more complete.
@@ -162,12 +157,9 @@ class File(object):
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
         else:
-	    try:
-            	self._fid.seek(offset)
-            	# All XML footer metadata is contained within one line.
-            	self.footer_metadata = objectify.fromstring(self._fid.read())
-	    except:
-		pass
+            self._fid.seek(offset)
+            # All XML footer metadata is contained within one line.
+            self.footer_metadata = self._fid.read()
         return None
 
     def _get_start_offset(self):
