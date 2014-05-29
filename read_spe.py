@@ -19,11 +19,6 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-try:
-    from lxml import objectify, etree
-except:
-    pass
-import datetime as dt
 
 class File(object):
     """
@@ -75,7 +70,6 @@ class File(object):
         """
         Check that the file exists and is .spe.
         """
-        # TODO: check if ver 3.0, warn if not
         if not os.path.isfile(self._fname):
             raise IOError(("File does not exist: {fname}").format(fname=self._fname))
         (fbase, fext) = os.path.splitext(self._fname)
@@ -147,27 +141,30 @@ class File(object):
         for offset in File._spe_30_required_offsets:
             tf_mask = (self.header_metadata["Offset"] == offset)
             self.header_metadata["Value"].loc[tf_mask] = offset_to_value[offset][0]
+        # Check for SPE 3.0
+        tf_mask = (self.header_metadata["Type_Name"] == "file_header_ver")
+        version = self.header_metadata[tf_mask]["Value"].values[0]
+        if version != 3:
+            print(("WARNING: File is not SPE version 3.\n"
+                   +" SPE version: {ver}").format(ver=version), file=sys.stderr)
         return None
     
     def _load_footer_metadata(self):
         """
-        Load SPE metadata from XML footer as an lxml object
+        Load SPE metadata from XML footer as a string
         and save as an object attribute.
         Use metadata from footer for final reductions
         since XML footer is more complete.
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
-        offset = self.header_metadata[tf_mask]["Value"].values[0]
-        if offset == 0:
+        xml_offset = self.header_metadata[tf_mask]["Value"].values[0]
+        if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
         else:
-	    try:
-            	self._fid.seek(offset)
-            	# All XML footer metadata is contained within one line.
-            	self.footer_metadata = objectify.fromstring(self._fid.read())
-	    except:
-		pass
+            self._fid.seek(xml_offset)
+            # All XML footer metadata is contained within one line.
+            self.footer_metadata = self._fid.read()
         return None
 
     def _get_start_offset(self):
