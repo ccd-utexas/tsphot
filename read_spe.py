@@ -157,12 +157,12 @@ class File(object):
         since XML footer is more complete.
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
-        offset = self.header_metadata[tf_mask]["Value"].values[0]
-        if offset == 0:
+        xml_offset = self.header_metadata[tf_mask]["Value"].values[0]
+        if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
         else:
-            self._fid.seek(offset)
+            self._fid.seek(xml_offset)
             # All XML footer metadata is contained within one line.
             self.footer_metadata = self._fid.read()
         return None
