@@ -12,24 +12,10 @@ import lc_online2
 
 def main(args):
     """
-    Call modules to aperture photmetry then plot results.
+    Call modules to do aperture photmetry then plot results.
     """
-    # TODO: Display with ds9
-    # import ds9
-    # ds9_target = "Online_Analysis"
-    # ds9_obj = ds9.ds9(target=ds9_target)
-    # If the window was closed, open another named window
-    # and load the frame.
-    # try:
-    #     ds9_obj.set_np2arr(frame)
-    # except ValueError:
-    #     print(("INFO: DS9 SAOImage {targ} window was closed.\n"
-    #           +" Opening another window.").format(targ=ds9_target))
-    #     ds9_obj = ds9.ds9(target=ds9_target)
-    #     ds9_obj.set_np2arr(frame)
-
-    # TODO: make plot dynamic. use matplotlib animate.
     if args.focus:
+        # TODO: call modules for focusing
         pass
     else:
         cwd  = os.getcwd()
