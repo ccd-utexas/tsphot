@@ -103,11 +103,17 @@ def aperture(image, dt_expstart, fcoords):
         yvec = svec[:,1]
 
     # Find locations of stars
+    print 'TEST: finding locations of stars'
     dxx0 = 10.
+    print 'nstars = ', nstars
     for i in range(nstars):
+        print 'i = ', i
         xx0 = [xvec[i], yvec[i]]
+        print 'xx0 = ', xx0
         xbounds = (xx0[0]-dxx0,xx0[0]+dxx0)
+        print 'xbounds = ', xbounds
         ybounds = (xx0[1]-dxx0,xx0[1]+dxx0)
+        print 'ybounds = ', ybounds
         #res = sco.minimize(center, xx0, method='BFGS', jac=der_center)
         #res = sco.fmin_tnc(center, xx0, bounds=(xbounds,ybounds))
         #res = sco.minimize(center, xx0, method='tnc', bounds=(xbounds,ybounds))
@@ -262,34 +268,24 @@ def main(args):
 
     iap = 0
     icount = 1
-    fcount = ''
     
-    if args.verbose: print 'Processing files:'
+    if args.verbose: print 'INFO: Processing file:'
     spe = read_spe.File(args.fpath)
     num_frames = spe.get_num_frames()
     is_first_iter = True
-    for idx in xrange(num_frames):
+    # frame_idx is Python indexed and begins at 0.
+    # frame_tracking_number from LightField begins at 1.
+    for frame_idx in xrange(num_frames):
+        if args.verbose: print "INFO: frame_idx {num}".format(num=frame_idx)
         if is_first_iter:
             fname_base = os.path.basename(args.fpath)
-        # fcount = fcount + '  ' + file
-        # Note: Frame index is Python indexed and begins at 0.
-        # frame_tracking_number from LightField begins at 1.
-        fcount = fcount + '  ' + ("frame_idx_{num}".format(num=idx))
-        if np.remainder(icount,5) == 0:
-            print fcount
-            fcount = ''
-        else:
-            # if file == fits_files[-1]:
-            # If last frame.
-            if idx == num_frames - 1:
-                print fcount
         icount = icount + 1
 
         # # open FITS file
         # list = fits.open(file)
         # imdata = list[0].data
         # Read SPE file
-        (imdata, metadata) = spe.get_frame(idx)
+        (imdata, metadata) = spe.get_frame(frame_idx)
 
         # hdr = list[0].header
 
@@ -365,7 +361,7 @@ if __name__ == '__main__':
     if args.verbose:
         print "INFO: Arguments:"
         for arg in args.__dict__:
-            print ' ', arg, args.__dict__[arg]
+            print '  ', arg, args.__dict__[arg]
     if not os.path.isfile(args.fcoords):
         raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
     main(args)
