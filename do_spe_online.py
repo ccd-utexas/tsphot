@@ -7,54 +7,40 @@ from __future__ import print_function
 import os
 import time
 import argparse
-import spe_process
-import lc_online2
+import new_spe_process
+import new_lc_online2
 
 def main(args):
     """
-    Call modules to aperture photmetry then plot results.
+    Call modules to do aperture photmetry then plot results.
     """
-    # TODO: Display with ds9
-    # import ds9
-    # ds9_target = "Online_Analysis"
-    # ds9_obj = ds9.ds9(target=ds9_target)
-    # If the window was closed, open another named window
-    # and load the frame.
-    # try:
-    #     ds9_obj.set_np2arr(frame)
-    # except ValueError:
-    #     print(("INFO: DS9 SAOImage {targ} window was closed.\n"
-    #           +" Opening another window.").format(targ=ds9_target))
-    #     ds9_obj = ds9.ds9(target=ds9_target)
-    #     ds9_obj.set_np2arr(frame)
-
-    # TODO: make plot dynamic. use matplotlib animate.
     if args.focus:
+        # TODO: call modules for focusing
         pass
     else:
         cwd  = os.getcwd()
         view_msg = ("INFO: To view {fname}, open Chrome to:\n"
-                    +"file:///path/to/file.pdf\n"
-                    +"If using default --flc_pdf option, open Chrome to:\n"
-                    +"file://"+os.path.join(cwd, args.flc_pdf)).format(fname=args.flc_pdf)
+                    +"  file:///path/to/file.pdf\n"
+                    +"  If using default --flc_pdf option, open Chrome to:\n"
+                    +"  file://"+os.path.join(cwd, args.flc_pdf)).format(fname=args.flc_pdf)
         stop_msg = ("INFO: To stop program, hit Ctrl-C\n"
-                    +" If in IPython Notebook, click 'Interrupt Kernel'.")
+                    +"  If in IPython Notebook, click 'Interrupt Kernel'.")
         sleep_time = args.sleep # seconds
         sleep_msg = ("INFO: Sleeping for {num} seconds.").format(num=sleep_time)
         while True:
             # Import main from spe_process, lc_online2 because not modularized.
             # TODO: break spe_process into more functions/class
             try:
-                spe_process.main(args)
-                lc_online2.main(args)
+                new_spe_process.main(args)
+                new_lc_online2.main(args)
             # IndexError or ValueError can be raised by lc_online2 due to namespace conflicts with spe_process.
             # TODO: Resolve namespace issues by sharing state info within modules using classes.
             except IndexError:
-                spe_process.main(args)
-                lc_online2.main(args)
+                new_spe_process.main(args)
+                new_lc_online2.main(args)
             except ValueError:
-                spe_process.main(args)
-                lc_online2.main(args)
+                new_spe_process.main(args)
+                new_lc_online2.main(args)
             if args.verbose:
                 print(view_msg)
                 print(stop_msg)
