@@ -74,6 +74,9 @@ To issue a new code release into production. Use semantic versioning from http:/
 - - - Tag the release with the version number at https://github.com/ccd-utexas/tsphot/releases
 
 - Admin: Make a backup of tsphot:
-
-
-    base: 
+- - Fork tsphot from your own GitHub account and rename to tsphot_BACKUP.
+- - Update your backup by clicking "Compare, review, create a pull request" (circular branch symbol)
+- - Click "Edit"
+- - Set:
+    base fork: ccd-utexas/photutils base: master
+    head fork: astropy/photutils compare: master
