@@ -51,7 +51,7 @@ Follow this section when you are finished editing your version of the code and a
 
 **Note:** Clicking "Merge Branches" does not sync the merged "develop" branch back to GitHub.
 
-- - After resolving any code conflicts, make "develop" your active, click "Changes", click "Commit & Sync".
+- - After resolving any code conflicts, make "develop" your active branch, click "Changes", click "Commit & Sync" (and/or "Sync" if there are unsynced commits).
 - - All of your code changes in your branch have now been merged into "develop". Delete your branch now that your miniproject is complete. Make "develop" your active branch, click the down-arrow on your branch, click "Delete", confirm that you want to delete your branch.
 
 **Warning:** Never delete "develop" or "master".
