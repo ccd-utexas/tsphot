@@ -18,3 +18,5 @@ To do online reduction of an SPE file:
 ```
 $ python do_spe_online.py --fpath /path/to/data.spe --sleep 5 --verbose
 ```
+
+## How to contribute
