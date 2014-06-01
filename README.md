@@ -67,6 +67,7 @@ To issue a new code release into production. Use semantic versioning from http:/
 - - - Set:
     base: master
     compare: release_v1.0.0
+- - - This will merge release_v1.0.0 into master
 - - - Click "Send pull request"
 - - - An ccd-utexas owner will review the changes and click "Confirm".
 - - Admin: 
@@ -78,5 +79,7 @@ To issue a new code release into production. Use semantic versioning from http:/
 - - Update your backup by clicking "Compare, review, create a pull request" (circular branch symbol)
 - - Click "Edit"
 - - Set:
-    base fork: ccd-utexas/photutils base: master
-    head fork: astropy/photutils compare: master
+    base fork: ccd-utexas/tsphot base: master
+    head fork: your_account/tsphot_BACKUP compare: master
+- - This will merge your_account/tsphot_BACKUP:master into ccd-utexas/tsphot:master
+- - Complete the pull request and merge.
