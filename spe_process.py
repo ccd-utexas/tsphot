@@ -48,8 +48,8 @@ def psf_flux(s0,s1,x0,y0,w):
 def center(xx):
     global imdata
     # The aperture size for finding the location of the stars is arbitrarily set here
-    app = 7.    
-    flux = -photutils.aperture_circular(imdata, xx[0], xx[1], app, method='exact',subpixels=10)
+    app = [photutils.CircularAperture(7.)]
+    flux = -photutils.aperture_photometry(imdata, xx[0], xx[1], app, method='exact',subpixels=10)
     return flux
 
 # The derivative of the Gaussian PSF with respect to x and y in pixels. eps = 0.2 pixels
@@ -92,40 +92,41 @@ def aperture(image, dt_expstart, fcoords):
     app_sizes = np.arange(app_min,app_max,dapp)
 
     # If first time through, read in "guesses" for locations of stars
+    # TODO: just read a csv
     if iap == 0:
         var = np.loadtxt(fcoords)
         xvec = var[:,0]
         yvec = var[:,1]
         nstars = len(xvec)
-        #print app_sizes,'\n'
     else:
         xvec = svec[:,0]
         yvec = svec[:,1]
 
     # Find locations of stars
+    # dxx0 is size of bounding box around star location.
+    # Box edge is 2*dxx0
+    # TODO: make dxx0 = prelim guess of fwhm
     dxx0 = 10.
     for i in range(nstars):
         xx0 = [xvec[i], yvec[i]]
         xbounds = (xx0[0]-dxx0,xx0[0]+dxx0)
         ybounds = (xx0[1]-dxx0,xx0[1]+dxx0)
-        #res = sco.minimize(center, xx0, method='BFGS', jac=der_center)
-        #res = sco.fmin_tnc(center, xx0, bounds=(xbounds,ybounds))
-        #res = sco.minimize(center, xx0, method='tnc', bounds=(xbounds,ybounds))
+        # TODO: when next released by photutils, use:
+        # centroid = photutils.detection.morphology.centroid_2dg()
         res = sco.minimize(center, xx0, method='L-BFGS-B', bounds=(xbounds,ybounds),jac=der_center)
         xx0=res.x
         xvec[i] = xx0[0]
         yvec[i] = xx0[1]
 
-
     # Calculate sky around stars
-    sky  = photutils.annulus_circular(image, xvec, yvec, rann1, rann2, method='exact',subpixels=10)
+    anns = [photutils.CircularAnnulus(rann1, rann2)] * len(xvec)
+    sky  = photutils.aperture_photometry(image, xvec, yvec, anns, method='exact',subpixels=10)
 
     # Do psf fits to stars. Results are stored in arrays fwhm, pflux, psky, psf_x, and psf_y
     fwhm  = np.zeros(nstars)
 
     # Make stacked array of star positions from aperture photometry
     svec = np.dstack((xvec,yvec))[0]
-    #print svec
 
     # Make stacked array of star positions from PSF fitting
     # pvec = np.dstack((psf_x,psf_y))[0]
@@ -153,15 +154,17 @@ def aperture(image, dt_expstart, fcoords):
         t = Time(dt_expstart.isoformat(), format='isot', scale='utc')
     # Calculate Julian Date of observation
     jd  = t.jd
-    for app in app_sizes:
-        flux = photutils.aperture_circular(image, xvec, yvec, app, method='exact',subpixels=10)
-        skyc = sky*app**2/(rann2**2 - rann1**2)
+    # TODO: As of 2014-06-01, photutils allows vectors of apertures. Use them. STH
+    for radius in app_sizes:
+        app = [photutils.CircularAperture(radius)]
+        flux = [photutils.aperture_photometry(image, x, y, app, method='exact',subpixels=10)
+                for (x, y) in zip(xvec, yvec)]
+        skyc = sky*radius**2/(rann2**2 - rann1**2)
         fluxc = flux  - skyc
         starr.append([fluxc,skyc,fwhm])
-        apvec.append(app)
+        apvec.append(radius)
     starr = np.array(starr)
     apvec = np.array(apvec)
-    #print starr
     return jd,svec,pvec,apvec,starr
 
 # Not called.
@@ -253,23 +256,8 @@ def main(args):
     """
     Do aperture photometry and write out lightcurve.
     """
-    # TODO: Make spe_online.py more modular so don't have to import main.
     # TODO: use classes to retain state information.
     global imdata, iap, nstars, fname_base
-
-    # # Get list of all FITS images for run
-    # run_pattern = 'GD244-????.fits'
-    # #fits_files = glob.glob('A????.????.fits')
-    # fits_files = glob.glob(run_pattern)
-    # # This is the first image
-    # fimage = fits_files[0]
-
-    # #print "Dark correcting and flat-fielding files...\n"
-    # list = fits.open(fimage)
-    # hdr = list[0].header
-    # object= hdr['object']
-    # #run= hdr['run']
-
     # TODO: use .csv and .txt. ".app" has special meaning on Mac OS.
     efout=open(args.flc,'w')
 
@@ -277,37 +265,23 @@ def main(args):
 
     iap = 0
     icount = 1
-    fcount = ''
     
-    print 'Processing files:'
-    # for file in fits_files:
-    # TODO: Fix namespace error so that don't need to call twice.
-    # TODO: Only reduce new frames, not all again.
     spe = read_spe.File(args.fpath)
     num_frames = spe.get_num_frames()
     is_first_iter = True
-    for idx in xrange(num_frames):
+    # frame_idx is Python indexed and begins at 0.
+    # frame_tracking_number from LightField begins at 1.
+    for frame_idx in xrange(num_frames):
+        if args.verbose: print "INFO: Processing frame_idx: {num}".format(num=frame_idx)
         if is_first_iter:
             fname_base = os.path.basename(args.fpath)
-        # fcount = fcount + '  ' + file
-        # Note: Frame index is Python indexed and begins at 0.
-        # frame_tracking_number from LightField begins at 1.
-        fcount = fcount + '  ' + ("frame_idx_{num}".format(num=idx))
-        if np.remainder(icount,5) == 0:
-            print fcount
-            fcount = ''
-        else:
-            # if file == fits_files[-1]:
-            # If last frame.
-            if idx == num_frames - 1:
-                print fcount
         icount = icount + 1
 
         # # open FITS file
         # list = fits.open(file)
         # imdata = list[0].data
         # Read SPE file
-        (imdata, metadata) = spe.get_frame(idx)
+        (imdata, metadata) = spe.get_frame(frame_idx)
 
         # hdr = list[0].header
 
@@ -355,7 +329,7 @@ def main(args):
 if __name__ == '__main__':
     defaults = {}
     defaults['fcoords'] = "phot_coords"
-    defaults['flc']    = "lightcurve.app"
+    defaults['flc']     = "lightcurve.app"
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Read .spe file and do aperture photometry."
                                                   +" Output fixed-width-format text file."))
@@ -374,7 +348,7 @@ if __name__ == '__main__':
     parser.add_argument("--flc",
                         default=defaults['flc'],
                         help=(("Output fixed-width-format text file"
-                               +" with columns of star intensities by aperture size.\n"
+                               +" with columns of star intensities by aperture radius.\n"
                                +"Default: {fname}").format(fname=defaults['flc'])))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
@@ -383,7 +357,7 @@ if __name__ == '__main__':
     if args.verbose:
         print "INFO: Arguments:"
         for arg in args.__dict__:
-            print ' ', arg, args.__dict__[arg]
+            print '   ', arg, args.__dict__[arg]
     if not os.path.isfile(args.fcoords):
         raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
-    main(args=args)
+    main(args)
