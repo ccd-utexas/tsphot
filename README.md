@@ -30,13 +30,13 @@ For additional information on collaborating: https://help.github.com/categories/
 **Warning:** Never delete "develop" or "master" branches.
 
 - Set up your GitHub account:
-- - Create a github account.
-- - Have an existing ccd-utexas member add you to the organization. See the stache entry on the ccd-utexas GitHub organization for details.
-- - Install the github application: e.g. https://mac.github.com/
-- - Sign in with your github credentials
-- - Under "Repositories", open the "ccd-utexas" account.
-- - By "ccd-utexas/tsphot" click "Clone to Computer"
-- - Click the arrow to open the repository.
+  - Create a github account.
+  - Have an existing ccd-utexas member add you to the organization. See the stache entry on the ccd-utexas GitHub organization for details.
+  - Install the github application: e.g. https://mac.github.com/
+  - Sign in with your github credentials
+  - Under "Repositories", open the "ccd-utexas" account.
+  - By "ccd-utexas/tsphot" click "Clone to Computer"
+  - Click the arrow to open the repository.
 
 - Create your branch from "develop" and edit:
 - - Make the "develop" branch active by double clicking.
