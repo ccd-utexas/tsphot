@@ -46,7 +46,9 @@ For additional information on collaborating: https://help.github.com/categories/
   - Commit your changes to your branch often in case you need to revert back. To commit changes: Click "Changes", type a summary and description of your changes, click "+" to enable syncing, click "Commit & Sync".
 
 - Merge your branch back into "develop" and delete your branch:
+
 Follow this section when you are finished editing your version of the code and are ready to merge your changes back into "develop".
+
   - Make "develop" your active branch.
   - Click "Sync Branch" in case someone else commited to "develop" while you were editing your verison.
   - Merge your changes into "develop": Click "Branches" > click "Merge View" > drag your branch into the left-hand box (the branch you're merging from), drag develop into the right-hand box (the branch you're merging into). The display will show "your_branch" => "develop" > click "Merge Branches". Make "develop" your active branch and resolve any conflicts in your text editer.
@@ -58,17 +60,22 @@ Follow this section when you are finished editing your version of the code and a
 
 **Warning:** Never delete "develop" or "master" branches.
 
-- Merge develop into master:
-To issue a new code release into production. Use semantic versioning from http://semver.org/
-  - Create a new release branch from develop, e.g. release_v1.0.0
+- Merge create a release branch from "develop" and merge into "master":
+
+Follow these instructions to issue a new code release into production. Use semantic versioning from http://semver.org/
+
+  - Create a new release branch from develop, e.g. "release_v1.0.0"
   - Test the release branch.
   - Issue a pull request to merge from the release branch into master:
     - Navigate to https://github.com/ccd-utexas/tsphot
     - Make "master" the active branch.
     - By "release_v1.0.0", click "Compare and pull request" > click "Edit".
     - Set:
+	
     base: master
+	
     compare: release_v1.0.0
+	
     - This will merge release_v1.0.0 into master
     - Click "Send pull request"
     - An ccd-utexas owner will review the changes and click "Confirm".
@@ -81,7 +88,10 @@ To issue a new code release into production. Use semantic versioning from http:/
   - Update your backup by clicking "Compare, review, create a pull request" (circular branch symbol)
   - Click "Edit"
   - Set:
+  
     base fork: ccd-utexas/tsphot base: master
+	
     head fork: your_account/tsphot_BACKUP compare: master
+	
   - This will merge your_account/tsphot_BACKUP:master into ccd-utexas/tsphot:master
   - Complete the pull request and merge.
