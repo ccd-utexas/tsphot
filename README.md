@@ -78,9 +78,9 @@ Follow these instructions to issue a new code release into production. Use seman
 	
   - This will merge release_v1.0.0 into master
   - Click "Send pull request"
-  - An ccd-utexas owner will review the changes and click "Confirm".
+  - A ccd-utexas owner will review the changes and click "Confirm". After the pull request is confirmed, your branch "release_v1.0.0" on GitHub will be deleted. Withing the GitHub application, "release_v1.0.0" will become unpublished. Delete "release_v1.0.0" within the GitHub application.
 - Admin: 
-  - Once the pull request has been merged, delete the branch "release_v1.0.0".
+  - Once the pull request has been merged, delete the branch "release_v1.0.0" on GitHub.
   - Tag the release with the version number at https://github.com/ccd-utexas/tsphot/releases
 
 ### Admin: Make a backup of tsphot
@@ -89,9 +89,9 @@ Follow these instructions to issue a new code release into production. Use seman
 - Click "Edit"
 - Set:
   
-  base fork: ccd-utexas/tsphot base: master
-	
-  head fork: your_account/tsphot_BACKUP compare: master
-	
-- This will merge your_account/tsphot_BACKUP:master into ccd-utexas/tsphot:master
+  base fork: your_account/tsphot_BACKUP compare: master
+
+  head fork: ccd-utexas/tsphot base: master
+
+- This will merge ccd-utexas/tsphot:master into your_account/tsphot_BACKUP:master
 - Complete the pull request and merge.
