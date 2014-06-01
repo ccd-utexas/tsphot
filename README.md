@@ -8,7 +8,7 @@ Top level script: do_spe_online.py
 
 ## Examples
 
-To display help text:
+To display help text: 
 ```
 $ python do_spe_online.py --help
 [...displays help text...]
