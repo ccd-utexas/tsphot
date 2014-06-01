@@ -92,6 +92,7 @@ def aperture(image, dt_expstart, fcoords):
     app_sizes = np.arange(app_min,app_max,dapp)
 
     # If first time through, read in "guesses" for locations of stars
+    # TODO: just read a csv
     if iap == 0:
         var = np.loadtxt(fcoords)
         xvec = var[:,0]
@@ -104,6 +105,9 @@ def aperture(image, dt_expstart, fcoords):
 
     # Find locations of stars
     print 'TEST: finding locations of stars'
+    # dxx0 is size of bounding box around star location.
+    #   Box edge is 2*dxx0
+    # TODO: make dxx0 = prelim guess of fwhm
     dxx0 = 10.
     print 'nstars = ', nstars
     for i in range(nstars):
@@ -114,10 +118,9 @@ def aperture(image, dt_expstart, fcoords):
         print 'xbounds = ', xbounds
         ybounds = (xx0[1]-dxx0,xx0[1]+dxx0)
         print 'ybounds = ', ybounds
-        #res = sco.minimize(center, xx0, method='BFGS', jac=der_center)
-        #res = sco.fmin_tnc(center, xx0, bounds=(xbounds,ybounds))
-        #res = sco.minimize(center, xx0, method='tnc', bounds=(xbounds,ybounds))
-        res = sco.minimize(center, xx0, method='L-BFGS-B', bounds=(xbounds,ybounds),jac=der_center)
+        # TODO: when next released by photutils, use:
+        # centroid = photutils.detection.morphology.centroid_2dg()
+        # res = sco.minimize(center, xx0, method='L-BFGS-B', bounds=(xbounds,ybounds),jac=der_center)
         xx0=res.x
         xvec[i] = xx0[0]
         yvec[i] = xx0[1]
