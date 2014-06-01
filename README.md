@@ -27,6 +27,8 @@ Follow this model for contributing: http://nvie.com/posts/a-successful-git-branc
 
 For additional information on collaborating: https://help.github.com/categories/63/articles
 
+**Warning:** Never delete "develop" or "master" branches.
+
 - Set up your GitHub account:
 - - Create a github account.
 - - Have an existing ccd-utexas member add you to the organization. See the stache entry on the ccd-utexas GitHub organization for details.
@@ -52,9 +54,9 @@ Follow this section when you are finished editing your version of the code and a
 **Note:** Clicking "Merge Branches" does not sync the merged "develop" branch back to GitHub.
 
 - - After resolving any code conflicts, make "develop" your active branch, click "Changes", click "Commit & Sync" (and/or "Sync" if there are unsynced commits).
-- - All of your code changes in your branch have now been merged into "develop". Delete your branch now that your miniproject is complete. Make "develop" your active branch, click the down-arrow on your branch, click "Delete", confirm that you want to delete your branch.
+- - All of your code changes in your branch have now been merged into "develop". Delete your branch now that your miniproject is complete. Make "develop" your active branch. Click the down-arrow on your branch, click "Delete", confirm that you want to delete your branch.
 
-**Warning:** Never delete "develop" or "master".
+**Warning:** Never delete "develop" or "master" branches.
 
 - Merge develop into master:
 To issue a new code release into production. Use semantic versioning from http://semver.org/
