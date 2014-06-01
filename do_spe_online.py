@@ -7,8 +7,8 @@ from __future__ import print_function
 import os
 import time
 import argparse
-import new_spe_process
-import new_lc_online2
+import spe_process
+import lc_online2
 
 def main(args):
     """
@@ -31,16 +31,16 @@ def main(args):
             # Import main from spe_process, lc_online2 because not modularized.
             # TODO: break spe_process into more functions/class
             try:
-                new_spe_process.main(args)
-                new_lc_online2.main(args)
+                spe_process.main(args)
+                lc_online2.main(args)
             # IndexError or ValueError can be raised by lc_online2 due to namespace conflicts with spe_process.
             # TODO: Resolve namespace issues by sharing state info within modules using classes.
             except IndexError:
-                new_spe_process.main(args)
-                new_lc_online2.main(args)
+                spe_process.main(args)
+                lc_online2.main(args)
             except ValueError:
-                new_spe_process.main(args)
-                new_lc_online2.main(args)
+                spe_process.main(args)
+                lc_online2.main(args)
             if args.verbose:
                 print(view_msg)
                 print(stop_msg)

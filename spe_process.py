@@ -156,10 +156,6 @@ def aperture(image, dt_expstart, fcoords):
     jd  = t.jd
     # TODO: As of 2014-06-01, photutils allows vectors of apertures. Use them. STH
     for radius in app_sizes:
-        print "TEST:"
-        print "radius = ", radius
-        print "xvec = ", xvec
-        print "yvec = ", yvec
         app = [photutils.CircularAperture(radius)]
         flux = [photutils.aperture_photometry(image, x, y, app, method='exact',subpixels=10)
                 for (x, y) in zip(xvec, yvec)]
