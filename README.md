@@ -2,6 +2,8 @@
 
 Time series photometry using astropy.
 
+**Note:** As of 2014-06-01, photutils must be installed from https://github.com/ccd-utexas/photutils
+
 Top level script: do_spe_online.py
 
 ## Examples
