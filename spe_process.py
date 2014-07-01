@@ -86,8 +86,13 @@ def aperture(image, dt_expstart, fcoords):
     rann1 = 18.
     dann = 2.
     rann2 = rann1 + dann
-    app_min = 1.
-    app_max = 19.
+    # variable apertures fail for data on 2014-07-01
+    # restricting apertures to 4 pix for now
+    # STH, 2014-07-01
+    # app_min = 1.
+    # app_max = 19.
+    app_min = 3.
+    app_max = 8.
     dapp = 1.
     app_sizes = np.arange(app_min,app_max,dapp)
 
