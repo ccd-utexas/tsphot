@@ -27,7 +27,13 @@ def fwhm_fit2(aplist,targs):
         s1 = dapvec2[0]
         w = 3.
         pinitial = np.array([ s0, s1, w ])
-        popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
+        # Hack to get around non convergence for non-first frame
+        # STH, 2014-07-04
+        try:
+            popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
+            (popt_old, pcov_old) = (popt, pcov)
+        except RuntimeError:
+            (popt, pcov) = (popt_old, pcov_old)
         w = popt[2]
         fwhm = 2. * np.sqrt(2.*np.log(2.)) * w
         fwhm_vec.append(fwhm)
