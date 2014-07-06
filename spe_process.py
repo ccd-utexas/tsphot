@@ -334,8 +334,8 @@ def main(args):
 
 if __name__ == '__main__':
     defaults = {}
-    defaults['fcoords'] = "phot_coords"
-    defaults['flc']     = "lightcurve.app"
+    defaults['fcoords'] = "phot_coords.txt"
+    defaults['flc']     = "lightcurve.txt"
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Read .spe file and do aperture photometry."
                                                   +" Output fixed-width-format text file."))
