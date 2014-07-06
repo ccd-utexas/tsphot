@@ -275,7 +275,7 @@ def main(args):
     # frame_tracking_number from LightField begins at 1.
     # TODO: to run incrementally, reduce duplication between top-level main script
     # and imorted modules.
-    # replace: is_first_iter = True
+    is_first_iter = True
     spe = read_spe.File(args.fpath)
     num_frames = spe.get_num_frames()
     # Hack to get around replotting
