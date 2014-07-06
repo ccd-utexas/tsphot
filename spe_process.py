@@ -333,9 +333,12 @@ def main(args):
     return None
 
 if __name__ == '__main__':
-    defaults = {}
-    defaults['fcoords'] = "phot_coords.txt"
-    defaults['flc']     = "lightcurve.txt"
+    # TODO: read parameters from config file,, STH.
+    arg_default_map = {}
+    arg_default_map['fcoords'] = "phot_coords.txt"
+    arg_default_map['flc']     = "lightcurve.txt"
+    arg_default_map['frame_start'] = 0
+    arg_default_map['frame_end'] = -1
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Read .spe file and do aperture photometry."
                                                   +" Output fixed-width-format text file."))
@@ -344,18 +347,28 @@ if __name__ == '__main__':
                         help=("Path to single input .spe file.\n"
                               +"Example: /path/to/file.spe"))
     parser.add_argument("--fcoords",
-                        default=defaults['fcoords'],
+                        default=arg_default_map['fcoords'],
                         help=(("Input text file with pixel coordinates of stars in first frame.\n"
                                +"Default: {fname}\n"
                                +"Format:\n"
                                +"targx targy\n"
                                +"compx compy\n"
-                               +"compx compy\n").format(fname=defaults['fcoords'])))
+                               +"compx compy\n").format(fname=arg_default_map['fcoords'])))
     parser.add_argument("--flc",
-                        default=defaults['flc'],
+                        default=arg_default_map['flc'],
                         help=(("Output fixed-width-format text file"
                                +" with columns of star intensities by aperture radius.\n"
-                               +"Default: {fname}").format(fname=defaults['flc'])))
+                               +"Default: {fname}").format(fname=arg_default_map['flc'])))
+    parser.add_argument("--frame_start",
+                        default=arg_default_map['frame_start'],
+                        type=int,
+                        help=(("Index of first frame to read. 0 is first frame.\n"
+                               +"Default: {default}").format(default=arg_default_map['frame_start'])))
+    parser.add_argument("--frame_end",
+                        default=arg_default_map['frame_end'],
+                        type=int,
+                        help=(("Index of first frame to read. -1 is last frame.\n"
+                               +"Default: {default}").format(default=arg_default_map['frame_end'])))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
                         help=("Print 'INFO:' messages to stdout."))
