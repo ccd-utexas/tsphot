@@ -268,16 +268,20 @@ def main(args):
     efout=open(args.flc,'w')
 
     #print 'Calculating apertures:'
-
     iap = 0
     icount = 1
     
-    spe = read_spe.File(args.fpath)
-    num_frames = spe.get_num_frames()
     is_first_iter = True
     # frame_idx is Python indexed and begins at 0.
     # frame_tracking_number from LightField begins at 1.
-    for frame_idx in xrange(num_frames):
+    # TODO: to run incrementally, reduce duplication between top-level main script
+    # and imorted modules.
+    spe = read_spe.File(args.fpath)
+    num_frames = spe.get_num_frames()
+    if args.frame_end == -1:
+        args.frame_end = num_frames - 1
+    # Add one to frame_end since python indexing is non-inclusive for end index.
+    for frame_idx in xrange(args.frame_start, args.frame_end + 1):
         if args.verbose: print "INFO: Processing frame_idx: {num}".format(num=frame_idx)
         if is_first_iter:
             fname_base = os.path.basename(args.fpath)
@@ -288,16 +292,15 @@ def main(args):
         # imdata = list[0].data
         # Read SPE file
         (imdata, metadata) = spe.get_frame(frame_idx)
-
         # hdr = list[0].header
-
+        #####
         # Call aperture photometry routine. Get times, positions, and fluxes
         # var2 contains the list [fluxc,skyc,fwhm])
         # jd,svec,pvec,apvec,starr
         # fluxc, skyc, and fwhm are all lists of length nstars
         # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
         # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
-
+        #####
         # Give aperture a hdr dict with keys 'UTC-DATE', 'UTC-BEG'.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
         # Ticks per second from XML footer metadata using previous LightField experiments:
@@ -314,21 +317,16 @@ def main(args):
         # counts higher than microseconds argument in datetime.timedelta
         dt_expstart_rel = dt.timedelta(seconds=expstart_rel_sec)
         dt_expstart_abs = dt_fctime_abs + dt_expstart_rel
-
         (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs, fcoords=args.fcoords)
         ndim = len(apvec)
-
         # First time through write header
         if icount == 2:
             # head_write(efout,object,nstars)
             # TODO: object is a reserved word. Don't use.
             head_write(efout,fname_base,nstars)
-
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
-
         is_first_iter = False
-
     spe.close()
     return None
 
@@ -338,7 +336,7 @@ if __name__ == '__main__':
     arg_default_map['fcoords'] = "phot_coords.txt"
     arg_default_map['flc']     = "lightcurve.txt"
     arg_default_map['frame_start'] = 0
-    arg_default_map['frame_end'] = -1
+    arg_default_map['frame_end']   = -1
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Read .spe file and do aperture photometry."
                                                   +" Output fixed-width-format text file."))
@@ -367,7 +365,7 @@ if __name__ == '__main__':
     parser.add_argument("--frame_end",
                         default=arg_default_map['frame_end'],
                         type=int,
-                        help=(("Index of first frame to read. -1 is last frame.\n"
+                        help=(("Index of last frame to read. -1 is last frame.\n"
                                +"Default: {default}").format(default=arg_default_map['frame_end'])))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
