@@ -131,4 +131,9 @@ if __name__ == '__main__':
             print(' ', arg, args.__dict__[arg])
     if not os.path.isfile(args.fcoords):
         raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
+    if os.path.isfile(args.flc):
+        print(("INFO: Overwriting lightcurve file:\n"
+               +" {flc}").format(flc=args.flc))
+        # TODO: Just rename with timestamp
+        os.remove(args.flc)
     main(args)
