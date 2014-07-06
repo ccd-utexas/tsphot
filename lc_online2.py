@@ -387,25 +387,25 @@ def main(args):
     return None
 
 if __name__ == '__main__':
-    defaults = {}
-    defaults['flc'] = "lightcurve.app"
-    defaults['flc_pdf'] = "lc.pdf"
-    defaults['fap_pdf'] = "aperture.pdf"
+    arg_default_map = {}
+    arg_default_map['flc'] = "lightcurve.txt"
+    arg_default_map['flc_pdf'] = "lc.pdf"
+    arg_default_map['fap_pdf'] = "aperture.pdf"
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Read lightcurve file and create plots."))
     parser.add_argument("--flc",
-                        default=defaults['flc'],
+                        default=arg_default_map['flc'],
                         help=(("Input fixed-width-format text file"
                                +" with columns of star intensities by aperture size.\n"
-                               +"Default: {fname}").format(fname=defaults['flc'])))
+                               +"Default: {fname}").format(fname=arg_default_map['flc'])))
     parser.add_argument("--flc_pdf",
-                        default=defaults['flc_pdf'],
+                        default=arg_default_map['flc_pdf'],
                         help=(("Output .pdf file with plots of the lightcurve.\n"
-                              +"Default: {fname}").format(fname=defaults['flc_pdf'])))
+                              +"Default: {fname}").format(fname=arg_default_map['flc_pdf'])))
     parser.add_argument("--fap_pdf",
-                        default=defaults['fap_pdf'],
+                        default=arg_default_map['fap_pdf'],
                         help=(("Output .pdf file with plot of scatter vs aperture size.\n"
-                               +"Default: {fname}").format(fname=defaults['fap_pdf'])))
+                               +"Default: {fname}").format(fname=arg_default_map['fap_pdf'])))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
                         help=("Print 'INFO:' messages to stdout."))
