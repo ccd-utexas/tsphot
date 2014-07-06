@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Run online analysis for a .spe file.
+Run online analysis.
 """
 
 from __future__ import print_function
@@ -24,12 +24,12 @@ def main(args):
                     +"  If using default --flc_pdf option, open Chrome to:\n"
                     +"  file://"+os.path.join(cwd, args.flc_pdf)).format(fname=args.flc_pdf)
         stop_msg = ("INFO: To stop program, hit Ctrl-C\n"
-                    +"  If in IPython Notebook, click 'Interrupt Kernel'.")
+                    +"  If in IPython Notebook, click \'Interrupt Kernel\'.")
         sleep_time = args.sleep # seconds
         sleep_msg = ("INFO: Sleeping for {num} seconds.").format(num=sleep_time)
         while True:
-            # Import main from spe_process, lc_online2 because not modularized.
-            # TODO: break spe_process into more functions/class
+            # TODO: for incrementally_run
+            # get num frames, get last frame, send to spe_process
             try:
                 spe_process.main(args)
                 lc_online2.main(args)

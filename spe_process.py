@@ -232,6 +232,7 @@ def head_write(ffile,object,nstars):
     ffile.write(eform0)
 
 def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
+    # TODO: use pandas and write out to csv. STH 2014-07-05
     for i in range(0,ndim):
         if apvec[i] >= 0.0:
             eform = '{0:18.8f}  {1:7.2f} '.format(jd,apvec[i])
