@@ -271,13 +271,20 @@ def main(args):
     iap = 0
     icount = 1
     
-    is_first_iter = True
     # frame_idx is Python indexed and begins at 0.
     # frame_tracking_number from LightField begins at 1.
     # TODO: to run incrementally, reduce duplication between top-level main script
     # and imorted modules.
+    # replace: is_first_iter = True
     spe = read_spe.File(args.fpath)
     num_frames = spe.get_num_frames()
+    # Hack to get around replotting
+    # must be redone for blocking out clouds.
+    # STH, 2014-07-06
+    if args.frame_start == 0:
+        bool_write_lc_hdr = True
+    else:
+        bool_write_lc_hdr = False
     if args.frame_end == -1:
         args.frame_end = num_frames - 1
     # Add one to frame_end since python indexing is non-inclusive for end index.
@@ -286,7 +293,7 @@ def main(args):
         if is_first_iter:
             fname_base = os.path.basename(args.fpath)
         icount = icount + 1
-
+        #####
         # # open FITS file
         # list = fits.open(file)
         # imdata = list[0].data
@@ -320,7 +327,7 @@ def main(args):
         (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs, fcoords=args.fcoords)
         ndim = len(apvec)
         # First time through write header
-        if icount == 2:
+        if bool_write_lc_hdr:
             # head_write(efout,object,nstars)
             # TODO: object is a reserved word. Don't use.
             head_write(efout,fname_base,nstars)
