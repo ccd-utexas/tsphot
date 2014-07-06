@@ -328,7 +328,11 @@ def main(args):
         (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs, fcoords=args.fcoords)
         ndim = len(apvec)
         # First time through write header
-        if bool_write_lc_hdr:
+        # TODO: Hack for autoguiding. make this file modular to avoid hack
+        # end of lightcurve.txt file has many repeats of the last data point with this hack
+        # until more data is acquired
+        # STH, 2014-07-06
+        if is_first_iter and bool_write_lc_hdr:
             head_write(efout,fname_base,nstars)
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
