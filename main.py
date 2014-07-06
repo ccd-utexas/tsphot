@@ -39,9 +39,8 @@ def main(args):
             if args.frame_end == -1:
                 args.frame_end = num_frames - 1
             if not is_first_iter:
-                if num_frames_old != num_frames:
-                    args.frame_start = frame_end_old
-                    args.frame_end = num_frames - 1
+                args.frame_start = frame_end_old
+                args.frame_end = num_frames - 1
             try:
                 spe_process.main(args)
                 lc_online2.main(args)
