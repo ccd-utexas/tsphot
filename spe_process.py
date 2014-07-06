@@ -264,8 +264,8 @@ def main(args):
     """
     # TODO: use classes to retain state information.
     global imdata, iap, nstars, fname_base
-    # TODO: use .csv and .txt. ".app" has special meaning on Mac OS.
-    efout=open(args.flc,'w')
+    # TODO: use .csv
+    efout=open(args.flc,'a')
 
     #print 'Calculating apertures:'
     iap = 0
