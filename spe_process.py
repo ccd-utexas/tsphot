@@ -230,6 +230,7 @@ def head_write(ffile,object,nstars):
         eform0 = eform0 + ' Comp {0} FWHM'.format(i)
     eform0 = eform0 + '   FITS File\n'
     ffile.write(eform0)
+    return None
 
 def app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2):
     # TODO: use pandas and write out to csv. STH 2014-07-05
@@ -328,8 +329,6 @@ def main(args):
         ndim = len(apvec)
         # First time through write header
         if bool_write_lc_hdr:
-            # head_write(efout,object,nstars)
-            # TODO: object is a reserved word. Don't use.
             head_write(efout,fname_base,nstars)
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
