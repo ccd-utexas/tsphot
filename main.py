@@ -39,9 +39,8 @@ def main(args):
             if args.frame_end == -1:
                 args.frame_end = num_frames - 1
             if not is_first_iter:
-                if num_frames_old != num_frames:
-                    args.frame_start = frame_end_old
-                    args.frame_end = num_frames - 1
+                args.frame_start = frame_end_old
+                args.frame_end = num_frames - 1
             try:
                 spe_process.main(args)
                 lc_online2.main(args)
@@ -132,4 +131,9 @@ if __name__ == '__main__':
             print(' ', arg, args.__dict__[arg])
     if not os.path.isfile(args.fcoords):
         raise IOError(("File does not exist: {fname}").format(fname=args.fcoords))
+    if os.path.isfile(args.flc):
+        print(("INFO: Overwriting lightcurve file:\n"
+               +" {flc}").format(flc=args.flc))
+        # TODO: Just rename with timestamp
+        os.remove(args.flc)
     main(args)
