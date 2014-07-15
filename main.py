@@ -30,6 +30,7 @@ def main(args):
         spe = read_spe.File(args.fpath)
         #TODO: make open method in read_spe so that 'with open() as f' works to close file safely.
         is_first_iter = True
+        # TODO: if doing online analysis then while true. STH 2014-07-15
         while True:
             # TODO: to run incrementally, reduce duplication between top-level main script
             # and imorted modules.
@@ -41,14 +42,6 @@ def main(args):
                 args.frame_start = frame_end_old
                 args.frame_end = num_frames - 1
             try:
-                image_process.main(args)
-                lc_online.main(args)
-            # IndexError or ValueError can be raised by lc_online due to namespace conflicts with image_process.
-            # TODO: Resolve namespace issues by sharing state info within modules using classes.
-            except IndexError:
-                image_process.main(args)
-                lc_online.main(args)
-            except ValueError:
                 image_process.main(args)
                 lc_online.main(args)
             if args.verbose:
@@ -64,7 +57,8 @@ def main(args):
     return None
 
 if __name__ == '__main__':
-    # TODO: read config file from configparser, STH
+    # TODO: read config file from configparser, STH, 2014-07-15
+    # TODO: need do_online flag to signal doing online analysis. STH, 2014-07-15
     arg_default_map = {}
     arg_default_map['fcoords'] = "phot_coords.txt"
     arg_default_map['flc']     = "lightcurve.txt"
