@@ -17,34 +17,6 @@ import sys
 import read_spe
 import datetime as dt
 
-def check_spe(fpath):
-    """
-    Check that the data file exists and is .spe.
-    """
-    # TODO: check if ver 3.0, warn if not
-    if not os.path.isfile(self._fname):
-        raise IOError(("File does not exist: {fname}").format(fname=self._fname))
-    (fbase, fext) = os.path.splitext(self._fname)
-    if fext != '.spe':
-        raise IOError(("File extension not '.spe': {fname}").format(fname=self._fname))
-    return None
-
-# Gaussian functional form assumed for PSF fits
-def psf((xx,yy),s0,s1,x0,y0,w):
-    elow = -50.
-    arg = - w * ( (xx-x0)**2 + (yy-y0)**2 )
-    arg[arg <= elow] = elow
-    intensity = s0 + s1 * np.exp( arg )
-    fwhm = 2. * np.sqrt(np.log(2.)/np.abs(w))
-    # Turn 2D intensity array into 1D array
-    return intensity.ravel()
-
-# Total integrated flux and fwhm for the assumed Gaussian PSF
-def psf_flux(s0,s1,x0,y0,w):
-    flux = np.pi * s1/np.abs(w)
-    fwhm = 2. * np.sqrt(np.log(2.)/np.abs(w))
-    return fwhm, flux
-
 def center(xx):
     global imdata
     # The aperture size for finding the location of the stars is arbitrarily set here
@@ -128,6 +100,7 @@ def aperture(image, dt_expstart, fcoords):
     sky  = photutils.aperture_photometry(image, xvec, yvec, anns, method='exact',subpixels=10)
 
     # Do psf fits to stars. Results are stored in arrays fwhm, pflux, psky, psf_x, and psf_y
+    # TODO: Move FWHM calculation here, from lc_online. STH, 2014-07-15
     fwhm  = np.zeros(nstars)
 
     # Make stacked array of star positions from aperture photometry
@@ -171,44 +144,6 @@ def aperture(image, dt_expstart, fcoords):
     starr = np.array(starr)
     apvec = np.array(apvec)
     return jd,svec,pvec,apvec,starr
-
-# Not called.
-# def combine(pattern,fileout):
-#     files = glob.glob(pattern)
-#     print 'files= ',files
-#     n=0
-#     print "  Combining frames: "
-#     for file in files:
-#         pa,fi = os.path.split(file)
-#         print fi,
-#         if ( (n+1)/4 )*4 == n+1:
-#             print " "
-#         list = fits.open(file)
-#         imdata = list[0].data
-#         hdr    = list[0].header
-#         if n==0:
-#             exptime0 = hdr['exptime']
-#         exptime = hdr['exptime']
-#         if exptime != exptime0:
-#             print "\nError: Exposure time mismatch in",file,"\n"
-#             exit()
-#         if file == files[0]:
-#             comb = imdata
-#         else:
-#             comb = comb + imdata
-#         list.close()
-#         n=n+1
-
-#     print ""
-#     comb = comb/float(n)
-#     out = fits.open(files[0])
-#     hdr = out[0].header
-#     #hdr.rename_keyword('NTP:GPS','NTP-GPS')  # Argos
-#     combdata = out[0].data
-#     combdata = comb
-#     out.writeto(fileout)
-#     out.close()
-#     return exptime, files, comb
 
 def head_write(ffile,object,nstars):
     dform0='#   Aperture reductions for target {0}. Total number of stars is {1}\n'.format(object,nstars)
@@ -325,7 +260,15 @@ def main(args):
         # counts higher than microseconds argument in datetime.timedelta
         dt_expstart_rel = dt.timedelta(seconds=expstart_rel_sec)
         dt_expstart_abs = dt_fctime_abs + dt_expstart_rel
-        (jd, svec, pvec, apvec, var2) = aperture(image=imdata, dt_expstart=dt_expstart_abs, fcoords=args.fcoords)
+        # Hack to get around non convergence for non-first frame. STH, 2014-07-15
+        # TODO: Change this pending output of photutils function when clouds happen.
+        try:
+            (jd, svec, pvec, apvec, var2) = aperture(image=imdata,
+                                                     dt_expstart=dt_expstart_abs,
+                                                     fcoords=args.fcoords)
+            (jd_old, svec_old, pvec_old, apvec_old, var2_old) = (jd, svec, pvec, apvec, var2)
+        except RuntimeError:
+            (jd, svec, pvec, apvec, var2) = (jd_old, svec_old, pvec_old, apvec_old, var2_old)            
         ndim = len(apvec)
         # First time through write header
         # TODO: Hack for autoguiding. make this file modular to avoid hack

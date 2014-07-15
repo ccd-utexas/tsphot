@@ -3,7 +3,7 @@
 Run online analysis.
 """
 
-from __future__ import print_function
+from __future__ import print_function, division
 import os
 import time
 import argparse
