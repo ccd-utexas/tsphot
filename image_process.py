@@ -198,6 +198,9 @@ def main(args):
     """
     Do aperture photometry and write out lightcurve.
     """
+    # TODO: if file ext is .spe, use spe funcs; if fits then fits funcs
+    # STH 2014-07-15
+    
     # TODO: use classes to retain state information.
     global imdata, iap, nstars, fname_base
     # TODO: use .csv
