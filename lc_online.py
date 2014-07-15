@@ -1,13 +1,19 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
+"""
+Compute lightcurve as part of online analysis.
+"""
+
 import matplotlib
 matplotlib.use('Agg')
+# TODO: Don't import *. Confuses namespace. STH 2014-07-15
+# TODO: Only import once: import matplotlib as mpl
 from matplotlib.pyplot import *
 from matplotlib.transforms import offset_copy
+import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy 
 from scipy.signal import lombscargle
 import scipy.optimize as sco
-import matplotlib.gridspec as gridspec
 import os
 
 def fwhm_fit2(aplist,targs):
@@ -27,13 +33,12 @@ def fwhm_fit2(aplist,targs):
         s1 = dapvec2[0]
         w = 3.
         pinitial = np.array([ s0, s1, w ])
-        # Hack to get around non convergence for non-first frame
-        # STH, 2014-07-04
+        # Hack to get around non convergence for non-first frame. STH, 2014-07-15
         try:
             popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
-            (popt_old, pcov_old) = (popt, pcov)
+            popt_old, pcov_old = popt, pcov
         except RuntimeError:
-            (popt, pcov) = (popt_old, pcov_old)
+            popt, pcov = popt_old, pcov_old
         w = popt[2]
         fwhm = 2. * np.sqrt(2.*np.log(2.)) * w
         fwhm_vec.append(fwhm)
@@ -64,46 +69,6 @@ def fwhm_fit2(aplist,targs):
     print 'PSF fit stored in',psffile,'\n'
     return fwhm_vec
 
-def fwhm_fit(aplist,apvec):
-    f = apvec
-    ndim = len(f)
-    i = np.arange(ndim)
-    ip = i + 1
-    aplist2 = np.concatenate([ [0],aplist])
-    apvec2 = np.concatenate([ [0],apvec])
-    dapvec2 = (apvec2[ip]-apvec2[i])/(aplist2[ip]**2-aplist2[i]**2)
-    aplist_shifted = 0.5*(aplist2[ip]+aplist2[i])
-    s0 = 10.
-    s1 = dapvec2[0]
-    w = 3.
-    pinitial = np.array([ s0, s1, w ])
-    popt, pcov = sco.curve_fit(psf, aplist_shifted, dapvec2, p0=pinitial)
-    w = popt[2]
-    fwhm = 2. * w * np.sqrt(np.log(2.))
-    apfine = np.arange(0,max(aplist),0.1)
-    psf_fit = psf((apfine),*popt)
-    print 'FWHM = ',fwhm
-    fig=figure(3)
-    ax1 = fig.add_subplot()
-    plot(aplist_shifted,dapvec2,'o')
-    plot(apfine,psf_fit,'-')
-    xlabel('radius (pixels)')
-    ylabel('profile')
-    tstring = 'FWHM is {0:.3f} pixels\n'.format(fwhm)
-    totstring = tstring 
-    x1,x2=xlim()
-    y1,y2=ylim()
-    xs=0.5
-    ys=0.8
-    xpos = x1 + xs*(x2-x1)
-    ypos = y1 + ys*(y2-y1)
-    text(xpos,ypos,totstring, horizontalalignment='center', verticalalignment='center')
-
-    psffile='psf_fit.pdf'
-    savefig(psffile,transparent=True,bbox_inches='tight')
-    close()
-    print 'PSF fit stored in',psffile,'\n'
-
 # Gaussian functional form assumed for PSF fits
 def psf((rr),s0,s1,w):
     elow = -50.
@@ -111,14 +76,7 @@ def psf((rr),s0,s1,w):
     arg = - rr**2/(2.*w**2)
     arg[arg <= elow] = elow
     intensity = s0 + s1 * np.exp( arg )
-    fwhm = 2. * np.sqrt(2.*np.log(2.)) * w
     return intensity
-
-# Total integrated flux and fwhm for the assumed Gaussian PSF
-def psf_flux(s0,s1,x0,y0,w):
-    flux = np.pi * s1/np.abs(w)
-    fwhm = 2. * np.sqrt(np.log(2.)/np.abs(w))
-    return fwhm, flux
 
 def comb_string(combs):
     ic = 0
@@ -263,6 +221,8 @@ def main(args):
     cols=range(0,3*nstars+1)
     var = np.loadtxt(args.flc,usecols=cols)
 
+    # TODO: use pandas column labels to undo hard-coded positional
+    # arguments for columns. STH 2014-07-15
     jdarr  = var[:,0]
     aparr  = var[:,1]
     fluxes = var[:,2:2+nstars]
@@ -376,10 +336,16 @@ def main(args):
 
     # Do FWHM fits for target star at all points of light curve
     # Choose comparison or target star based on lower level of scatter.
-    if comp_ysig <= sigmin:
-        fwhm_vec = fwhm_fit2(aplist,comps[:,:,ncmin])   # FWHM of composite comparison star
-    else:
-        fwhm_vec = fwhm_fit2(aplist,targs)   # FWHM of target star
+    # TODO: Move calculation of FWHM to spe_process. STH, 2014-07-15
+    # Hack to get around non convergence for non-first frame. STH, 2014-07-15
+    try:
+        if comp_ysig <= sigmin:
+            fwhm_vec = fwhm_fit2(aplist,comps[:,:,ncmin])   # FWHM of composite comparison star
+        else:
+            fwhm_vec = fwhm_fit2(aplist,targs)   # FWHM of target star
+        fwhm_vec_old = fwhm_vec
+    except RuntimeError:
+        fwhm_vec = fwhm_vec_old
 
     # Make online plot of lightcurves, sky, and the FT
     lcplot(args.flc_pdf, time,target,compstar,sky0,fwhm_vec,cstring)

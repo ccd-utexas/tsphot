@@ -3,13 +3,13 @@
 Run online analysis.
 """
 
-from __future__ import print_function
+from __future__ import print_function, division
 import os
 import time
 import argparse
 import read_spe
 import spe_process
-import lc_online2
+import lc_online
 
 def main(args):
     """
@@ -43,15 +43,15 @@ def main(args):
                 args.frame_end = num_frames - 1
             try:
                 spe_process.main(args)
-                lc_online2.main(args)
-            # IndexError or ValueError can be raised by lc_online2 due to namespace conflicts with spe_process.
+                lc_online.main(args)
+            # IndexError or ValueError can be raised by lc_online due to namespace conflicts with spe_process.
             # TODO: Resolve namespace issues by sharing state info within modules using classes.
             except IndexError:
                 spe_process.main(args)
-                lc_online2.main(args)
+                lc_online.main(args)
             except ValueError:
                 spe_process.main(args)
-                lc_online2.main(args)
+                lc_online.main(args)
             if args.verbose:
                 print(view_msg)
                 print(stop_msg)
