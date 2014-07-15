@@ -41,9 +41,9 @@ def main(args):
             if not is_first_iter:
                 args.frame_start = frame_end_old
                 args.frame_end = num_frames - 1
-            try:
-                image_process.main(args)
-                lc_online.main(args)
+            # TODO: test for exception handling. STH 2014-07-15
+            image_process.main(args)
+            lc_online.main(args)
             if args.verbose:
                 print(view_msg)
                 print(stop_msg)
