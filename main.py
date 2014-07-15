@@ -8,24 +8,23 @@ import os
 import time
 import argparse
 import read_spe
-import spe_process
+import image_process
 import lc_online
 
 def main(args):
     """
     Call modules to do aperture photmetry then plot results.
     """
-    if args.focus:
-        # TODO: call modules for focusing
+    if False:
+        # TODO: if focusing, call modules for focusing.
         pass
     else:
         cwd  = os.getcwd()
         view_msg = ("INFO: To view {fname}, open Chrome to:\n"
-                    +"  file:///path/to/file.pdf\n"
-                    +"  If using default --flc_pdf option, open Chrome to:\n"
-                    +"  file://"+os.path.join(cwd, args.flc_pdf)).format(fname=args.flc_pdf)
+                    +"  {fname}".format(fname=os.path.abspath(args.flc_pdf))
         stop_msg = ("INFO: To stop program, hit Ctrl-C\n"
                     +"  If in IPython Notebook, click \'Interrupt Kernel\'.")
+        # TODO: use exposure time as sleep time. STH 2014-07-15
         sleep_time = args.sleep # seconds
         sleep_msg = ("INFO: Sleeping for {num} seconds.").format(num=sleep_time)
         spe = read_spe.File(args.fpath)
@@ -34,7 +33,7 @@ def main(args):
         while True:
             # TODO: to run incrementally, reduce duplication between top-level main script
             # and imorted modules.
-            # get num frames, get last frame, send to spe_process
+            # get num frames, get last frame, send to image_process
             num_frames = spe.get_num_frames()
             if args.frame_end == -1:
                 args.frame_end = num_frames - 1
@@ -42,15 +41,15 @@ def main(args):
                 args.frame_start = frame_end_old
                 args.frame_end = num_frames - 1
             try:
-                spe_process.main(args)
+                image_process.main(args)
                 lc_online.main(args)
-            # IndexError or ValueError can be raised by lc_online due to namespace conflicts with spe_process.
+            # IndexError or ValueError can be raised by lc_online due to namespace conflicts with image_process.
             # TODO: Resolve namespace issues by sharing state info within modules using classes.
             except IndexError:
-                spe_process.main(args)
+                image_process.main(args)
                 lc_online.main(args)
             except ValueError:
-                spe_process.main(args)
+                image_process.main(args)
                 lc_online.main(args)
             if args.verbose:
                 print(view_msg)
@@ -117,10 +116,11 @@ if __name__ == '__main__':
                         type=float,
                         help=(("Number of seconds to sleep before reducing new frames.\n"
                                +"Default: {num}").format(num=arg_default_map['sleep'])))
-    parser.add_argument("--focus",
-                        action='store_true',
-                        help=("Report the FWHM of the brightest star for focusing.\n"
-                              +"Give 'fpath' arg to temporary focus file."))
+    # TODO: give flag for focusing. STH 2014-07-15
+    # parser.add_argument("--focus",
+    #                     action='store_true',
+    #                     help=("Report the FWHM of the brightest star for focusing.\n"
+    #                           +"Give 'fpath' arg to temporary focus file."))
     parser.add_argument("--verbose", "-v",
                         action='store_true',
                         help=("Print 'INFO:' messages to stdout."))
