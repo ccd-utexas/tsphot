@@ -21,7 +21,7 @@ def main(args):
     else:
         cwd  = os.getcwd()
         view_msg = ("INFO: To view {fname}, open Chrome to:\n"
-                    +"  {fname}".format(fname=os.path.abspath(args.flc_pdf))
+                    +"  file://{fname}".format(fname=os.path.abspath(args.flc_pdf)))
         stop_msg = ("INFO: To stop program, hit Ctrl-C\n"
                     +"  If in IPython Notebook, click \'Interrupt Kernel\'.")
         # TODO: use exposure time as sleep time. STH 2014-07-15
