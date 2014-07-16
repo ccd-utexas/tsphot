@@ -20,4 +20,4 @@ If you **are** part of the ccd-utexas organization (i.e. you're at UT Austin und
 - Release and tag stable versions from the "master" branch using semantic versioning: http://semver.org/
 - For admin: Backup the repo by forking to your own GitHub account.
   - Rename the forked repo with the suffix "_BACKUP_YYYYMMDD".
-  - It's easiest to update backups by simply creating new backups with different datestamps and then deleting outdated versions.
+  - It's easiest to update backups by simply creating new backups with different datestamps and then deleting outdated backup repos.
