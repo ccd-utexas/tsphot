@@ -19,4 +19,4 @@ See the wiki for additional examples: https://github.com/ccd-utexas/tsphot/wiki
 This proto-package requires:
 - Install Anaconda Python distribution.
 - Install latest stable, tagged version of https://github.com/astropy/ccdproc
-- Install latest stable, tagged version of https://github.com/astropy/ccdproc
+- Install latest stable, tagged version of https://github.com/astropy/photutils  As of 2014-07-15, no tagged version exists. Use https://github.com/ccd-utexas/photutils instead.
