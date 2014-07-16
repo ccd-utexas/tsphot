@@ -262,6 +262,7 @@ def main(args):
         # Hack to get around non convergence for non-first frame. STH, 2014-07-15
         # TODO: Change this pending output of photutils function when clouds happen.
         try:
+            # old version
             (jd, svec, pvec, apvec, var2) = aperture(image=imdata,
                                                      dt_expstart=dt_expstart_abs,
                                                      fcoords=args.fcoords)
@@ -271,6 +272,11 @@ def main(args):
             print "TEST: apvec = {apvec}".format(apvec=apvec)
             print "TEST: var2 = {var2}".format(var2=var2)
             (jd_old, svec_old, pvec_old, apvec_old, var2_old) = (jd, svec, pvec, apvec, var2)
+            # new version
+            # TODO: check that julian date from astropy.Time is barycentric corrected. STH 2014-07-16
+            jul_date = Time(dt_expstart_abs, scale='utc').jd
+            print "TEST: jul_date = {jul_date}".format(jul_date=jul_date)
+            var = np.loadtxt(fcoords)
         except RuntimeError:
             (jd, svec, pvec, apvec, var2) = (jd_old, svec_old, pvec_old, apvec_old, var2_old)            
         ndim = len(apvec)
