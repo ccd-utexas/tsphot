@@ -252,15 +252,24 @@ def main(args):
         dt_expstart_rel = dt.timedelta(seconds=expstart_rel_sec)
         dt_expstart_abs = dt_fctime_abs + dt_expstart_rel
         # Call aperture photometry routine. Get times, positions, and fluxes
-        # var2 contains the list [fluxc,skyc,fwhm])
-        # jd,svec,pvec,apvec,starr
-        # fluxc, skyc, and fwhm are all lists of length nstars
+        # jd = "Julian Date"
+        # svec = "star vector", ndarray with positions of stars.
+        # pvec = "position vector", ndarray with positions of stars from PSF fitting.
+        # apvec = "aperture vector", ndarray with range of apertures for photometry.
+        # var2 = "variables (2)", 3-nested lists with flux counts, sky counts, fwhm (not calculated)
+        #   for each star by aperture. var2 contains the list [fluxc,skyc,fwhm])
+        #   fluxc, skyc, and fwhm are all lists of length nstars.
         # Hack to get around non convergence for non-first frame. STH, 2014-07-15
         # TODO: Change this pending output of photutils function when clouds happen.
         try:
             (jd, svec, pvec, apvec, var2) = aperture(image=imdata,
                                                      dt_expstart=dt_expstart_abs,
                                                      fcoords=args.fcoords)
+            print "TEST: jd = {jd}".format(jd=jd)
+            print "TEST: svec = {svec}".format(svec=svec)
+            print "TEST: pvec = {pvec}".format(pvec=pvec)
+            print "TEST: apvec = {apvec}".format(apvec=apvec)
+            print "TEST: var2 = {var2}".format(var2=var2)
             (jd_old, svec_old, pvec_old, apvec_old, var2_old) = (jd, svec, pvec, apvec, var2)
         except RuntimeError:
             (jd, svec, pvec, apvec, var2) = (jd_old, svec_old, pvec_old, apvec_old, var2_old)            
