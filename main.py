@@ -61,7 +61,7 @@ if __name__ == '__main__':
     # TODO: need do_online flag to signal doing online analysis. STH, 2014-07-15
     arg_default_map = {}
     arg_default_map['fcoords'] = "phot_coords.txt"
-    arg_default_map['flc']     = "lightcurve.txt"
+    arg_default_map['flc']     = "lightcurve.csv"
     arg_default_map['frame_start'] = 0
     arg_default_map['frame_end']   = -1
     arg_default_map['flc_pdf'] = "lc.pdf"
@@ -84,8 +84,7 @@ if __name__ == '__main__':
                                +"compx compy\n").format(fname=arg_default_map['fcoords'])))
     parser.add_argument("--flc",
                         default=arg_default_map['flc'],
-                        help=(("Output fixed-width-format text file"
-                               +" with columns of star intensities by aperture size.\n"
+                        help=(("Output file with columns of star intensities by aperture radius and timestamp.\n"
                                +"Default: {fname}").format(fname=arg_default_map['flc'])))
     parser.add_argument("--frame_start",
                         default=arg_default_map['frame_start'],

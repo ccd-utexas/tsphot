@@ -354,15 +354,14 @@ def main(args):
 
 if __name__ == '__main__':
     arg_default_map = {}
-    arg_default_map['flc'] = "lightcurve.txt"
+    arg_default_map['flc'] = "lightcurve.csv"
     arg_default_map['flc_pdf'] = "lc.pdf"
     arg_default_map['fap_pdf'] = "aperture.pdf"
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
                                      description=("Read lightcurve file and create plots."))
     parser.add_argument("--flc",
                         default=arg_default_map['flc'],
-                        help=(("Input fixed-width-format text file"
-                               +" with columns of star intensities by aperture size.\n"
+                        help=(("Output file with columns of star intensities by aperture radius and timestamp.\n"
                                +"Default: {fname}").format(fname=arg_default_map['flc'])))
     parser.add_argument("--flc_pdf",
                         default=arg_default_map['flc_pdf'],

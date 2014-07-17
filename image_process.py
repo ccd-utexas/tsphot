@@ -2,6 +2,7 @@
 """
 Read .spe file and do aperture photometry.
 """
+
 from __future__ import division
 
 from astropy.io import fits
@@ -16,6 +17,8 @@ import argparse
 import sys
 import read_spe
 import datetime as dt
+import pandas as pd
+import csv
 
 def center(xx):
     global imdata
@@ -212,8 +215,6 @@ def main(args):
     
     # frame_idx is Python indexed and begins at 0.
     # frame_tracking_number from LightField begins at 1.
-    # TODO: to run incrementally, reduce duplication between top-level main script
-    # and imorted modules.
     is_first_iter = True
     spe = read_spe.File(args.fpath)
     num_frames = spe.get_num_frames()
@@ -232,22 +233,9 @@ def main(args):
         if is_first_iter:
             fname_base = os.path.basename(args.fpath)
         icount = icount + 1
-        #####
-        # # open FITS file
-        # list = fits.open(file)
-        # imdata = list[0].data
+        print "TEST: icount = {icount}".format(icount=icount)
         # Read SPE file
         (imdata, metadata) = spe.get_frame(frame_idx)
-        # hdr = list[0].header
-        #####
-        # Call aperture photometry routine. Get times, positions, and fluxes
-        # var2 contains the list [fluxc,skyc,fwhm])
-        # jd,svec,pvec,apvec,starr
-        # fluxc, skyc, and fwhm are all lists of length nstars
-        # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr,dnorm)
-        # jd, svec, pvec, apvec, var2 = aperture(imdata,hdr)
-        #####
-        # Give aperture a hdr dict with keys 'UTC-DATE', 'UTC-BEG'.
         # Time_stamps from the ProEM's internal timer-counter card are in 1E6 ticks per second.
         # Ticks per second from XML footer metadata using previous LightField experiments:
         # 1 tick = 1 microsecond ; 1E6 ticks per second.
@@ -263,13 +251,32 @@ def main(args):
         # counts higher than microseconds argument in datetime.timedelta
         dt_expstart_rel = dt.timedelta(seconds=expstart_rel_sec)
         dt_expstart_abs = dt_fctime_abs + dt_expstart_rel
+        # Call aperture photometry routine. Get times, positions, and fluxes
+        # jd = "Julian Date"
+        # svec = "star vector", ndarray with positions of stars.
+        # pvec = "position vector", ndarray with positions of stars from PSF fitting.
+        # apvec = "aperture vector", ndarray with range of apertures for photometry.
+        # var2 = "variables (2)", 3-nested lists with flux counts, sky counts, fwhm (not calculated)
+        #   for each star by aperture. var2 contains the list [fluxc,skyc,fwhm])
+        #   fluxc, skyc, and fwhm are all lists of length nstars.
         # Hack to get around non convergence for non-first frame. STH, 2014-07-15
         # TODO: Change this pending output of photutils function when clouds happen.
         try:
+            # old version
             (jd, svec, pvec, apvec, var2) = aperture(image=imdata,
                                                      dt_expstart=dt_expstart_abs,
                                                      fcoords=args.fcoords)
+            print "TEST: jd = {jd}".format(jd=jd)
+            print "TEST: svec = {svec}".format(svec=svec)
+            print "TEST: pvec = {pvec}".format(pvec=pvec)
+            print "TEST: apvec = {apvec}".format(apvec=apvec)
+            print "TEST: var2 = {var2}".format(var2=var2)
             (jd_old, svec_old, pvec_old, apvec_old, var2_old) = (jd, svec, pvec, apvec, var2)
+            # new version
+            # TODO: check that julian date from astropy.Time is barycentric corrected. STH 2014-07-16
+            jul_date = Time(dt_expstart_abs, scale='utc').jd
+            print "TEST: jul_date = {jul_date}".format(jul_date=jul_date)
+            var = np.loadtxt(fcoords)
         except RuntimeError:
             (jd, svec, pvec, apvec, var2) = (jd_old, svec_old, pvec_old, apvec_old, var2_old)            
         ndim = len(apvec)
@@ -282,15 +289,16 @@ def main(args):
             head_write(efout,fname_base,nstars)
         # Write out results for all apertures
         app_write(efout,ndim,nstars,jd,apvec,svec,pvec,var2)
+        # df.to_csv(path_or_buf=efout, quoting=csv.QUOTE_NONNUMERIC)
         is_first_iter = False
     spe.close()
     return None
 
 if __name__ == '__main__':
-    # TODO: read parameters from config file,, STH.
+    # TODO: read parameters from config file. STH, 2014-07-15
     arg_default_map = {}
     arg_default_map['fcoords'] = "phot_coords.txt"
-    arg_default_map['flc']     = "lightcurve.txt"
+    arg_default_map['flc']     = "lightcurve.csv"
     arg_default_map['frame_start'] = 0
     arg_default_map['frame_end']   = -1
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
@@ -310,8 +318,7 @@ if __name__ == '__main__':
                                +"compx compy\n").format(fname=arg_default_map['fcoords'])))
     parser.add_argument("--flc",
                         default=arg_default_map['flc'],
-                        help=(("Output fixed-width-format text file"
-                               +" with columns of star intensities by aperture radius.\n"
+                        help=(("Output file with columns of star intensities by aperture radius and timestamp.\n"
                                +"Default: {fname}").format(fname=arg_default_map['flc'])))
     parser.add_argument("--frame_start",
                         default=arg_default_map['frame_start'],
