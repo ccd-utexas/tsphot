@@ -56,3 +56,84 @@ footer_xml = BeautifulSoup(master.meta['footer_xml'], 'xml')
 #   by writing to file with json dumps then using https://docs.python.org/2/library/filecmp.html
 # TODO: verify against leapseconds.
 
+# Define common tolerances and required values for verifying timestamps.
+# - For integer-second exposures with minimal deadtime, triggered per-frame,
+#   use an upper bound for the ProEM shortcut for non-integer expsosure times, 0.02 seconds.
+# - For the ProEM's internal counter/timer card, a typical drift is ~ -6 us/s.
+#   Counter/timer card drifts are temperature dependent. +/- 20 us/s is a safe upper bound tolerance.
+# - For the first frame to be triggered from the GPS receiver,
+#   the trigger response must be "ReadoutPerTrigger" or "StartOnSingleTrigger"
+# - For *all* frames to be triggered from the GPS reciever,
+#   the trigger response must be "ReadoutPerTrigger".
+
+required_values = {}
+required_values['td_shortcut_tol'] = np.timedelta64(20, 'ms')
+required_values['td_ctrtmr_tol'] = np.timedelta64(20, 'us') # Use as us/s, not absolute.
+required_values['first_frame_trig'] = ['ReadoutPerTrigger', 'StartOnSingleTrigger']
+required_values['all_frame_trig'] = ['ReadoutPerTrigger']
+print(required_values)
+trig_response = footer_xml.find(name='TriggerResponse').contents[0]
+print(trig_response)
+
+# Verify absolute timestamp within a tolerance.
+# - The absolute timestamp and resolution are from the SPE file's XML footer.
+# - Verify that the absolute timestamp is within a tolerance of NTP.
+#   From Domain Time Client, 99% of timestamps are within 0.01 sec of NTP. 0.02 sec is a safe upper bound.
+#   If the timestamp is more than 0.5 sec off from NTP, the timestamps should be manually inspected.
+
+# TODO: test with created time "2014-05-31T01:23:19.9380367Z" STH 2014-07-18
+ts_begin = np.datetime64(footer_xml.find(name='TimeStamp', event='ExposureStarted').attrs['absoluteTime'])
+resolution = int(footer_xml.find(name='TimeStamp', event='ExposureStarted').attrs['resolution'])
+# TODO: get DTC uncertainty in timestamp. Look for both types of DTC logs. 2014-07-21, STH.
+# TODO: verify if w/in 0.02 seconds of NTP with required_values['td_shortcut_tol']
+
+#  Create dataframe of timestamps.
+# - Compute per-frame datetimes from elapsed timedeltas for each exposure. 
+#   Elapsed timedeltas are from per-frame metadata
+#   and were created by the ProEM's internal counter/timer card.
+df_metadata = pd.DataFrame.from_dict(master.meta['fidx_meta'], orient='index')
+df_metadata = df_metadata.set_index(keys='frame_tracking_number')
+df_metadata = df_metadata[['time_stamp_exposure_started', 'time_stamp_exposure_ended']].applymap(lambda x: ts_begin + np.timedelta64(dt.timedelta(seconds = (x / resolution))))
+
+# Verify that all frames exposed for the programmed exposure time within a tolerance.
+# - The programmed exposure time and resolution are from the SPE file's XML footer.
+# - Compute acutal exposure time from exposure timestamps: exp_end - exp_start
+# - Compute the offsets between actual exposure time and programmed exposure time: exp_actual - exp_prog
+# - Exposure time resolution is from the shutter resolution, 1000 ticks per second. Exposure time 
+#   can be defined as precisely as the internal counter/timer card, 1E6 ticks per second.
+# - Verify that abs(exp_actual - exp_prog) are within a tolerance.
+#   Offsets between actual and programmed exposure times are limited
+#   by the ProEM's shortcut for non-integer exposures, 0.02 sec.
+exp_prog = int(footer_xml.find(name='ExposureTime').contents[0])
+exp_prog_res = int(footer_xml.find(name='DelayResolution').contents[0])
+td_exp_prog = np.timedelta64(dt.timedelta(seconds=(exp_prog / exp_prog_res)))
+df_metadata['exp_actual'] = df_metadata['time_stamp_exposure_ended'] - df_metadata['time_stamp_exposure_started']
+df_metadata['diff_exp_actual-prog'] = df_metadata['exp_actual'] - td_exp_prog
+df_metadata['exp_verified'] = abs(df_metadata['diff_exp_actual-prog']) <= required_values['td_shortcut_tol']
+print(("INFO: Programmed exposure time: {exp}").format(exp=str(td_exp_prog)))
+
+# Verify that no triggers were missed. Assuming triggers are from GPS receiver.
+# - Check that trigger response is "ReadoutPerTrigger" from the SPE file's XML footer.
+# - Compute deadtime between successive frames as timedeltas between exposure timestamps: exp_start1 - exp_end0
+#   "NaT" for first frame in sequence.
+# - Verify trigger response and that deadtime is within a tolerance.
+#   Deadtime is limited by the ProEM's shortcut for non-integer exposures, 0.02 sec.
+#   Long deadtime indicates pulse may have been missed.
+df_metadata['deadtime'] = df_metadata['time_stamp_exposure_started'] - df_metadata['time_stamp_exposure_ended'].shift()
+df_metadata['trig_verified'] = np.NaN
+# If the first frame exists, it was triggered.
+if trig_response in required_values['first_frame_trig']:
+    df_metadata['trig_verified'].iloc[0] = True
+else:
+    df_metadata['trig_verified'].iloc[0] = False
+# Check that subsequent frames were triggered at the correct times.
+if trig_response in required_values['all_frame_trig']:
+    for (fnum, td_dtime) in df_metadata[1:][['deadtime']].itertuples():
+        if td_dtime <= required_values['td_shortcut_tol']:
+            df_metadata.loc[fnum, 'trig_verified'] = True
+        else:
+            df_metadata.loc[fnum, 'trig_verified'] = False
+else:
+    df_metadata['trig_verified'].iloc[1:] = False
+    
+
