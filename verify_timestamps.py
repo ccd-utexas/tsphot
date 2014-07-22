@@ -136,4 +136,250 @@ if trig_response in required_values['all_frame_trig']:
 else:
     df_metadata['trig_verified'].iloc[1:] = False
     
+# Verify computer-camera delay of first triggered frame within a tolerance and correct all frames.
+# Assuming trigger is from GPS.
+# - Offset of first timestamp from UTC is caused by delay between fetching computer system timestamp
+#   and beginning ProEM internal counter/timer card. delay = LF_timestamp - ctrtmr_begin.
+# - Verify that the computer-camera delay is within a tolerance. A typical upper bound for the delay is 0.02 sec.
+# - Subtract computer-camera delay from all timestamps.
+# TODO: When converting to Python 3, use division, multiplication, modulus for numpy.timedeltas.
+# TODO: check that dtc verified utc. round to nearest millisecond.
+td_0s  = np.timedelta64(dt.timedelta(seconds = (0.0*resolution / resolution)))
+td_05s = np.timedelta64(dt.timedelta(seconds = (0.5*resolution / resolution)))
+td_1s  = np.timedelta64(dt.timedelta(seconds = (1.0*resolution / resolution)))
+if trig_response in required_values['first_frame_trig']:
+    ts_firstframestart = df_metadata['time_stamp_exposure_started'].iloc[0]
+    # Computer timestamp has default precision of 500 nanoseconds.
+    td_remainder = np.timedelta64(ts_firstframestart.microsecond, 'us') + np.timedelta64(ts_firstframestart.nanosecond, 'ns')
+    if not ((td_0s <= td_remainder) and (td_remainder < td_1s)):
+        raise AssertionError(("Timestamps are not being verified correctly.\n"
+                              +"Required:\n"
+                              +"  0s <= td_remainder < 1s\n"
+                              +"Actual:\n"
+                              +"  td_0s        = {td_0s}\n"
+                              +"  td_remainder = {td_rem}\n"
+                              +"  td_1s        = {td_1s}").format(td_0s=td_0s,
+                                                                    td_rem=td_remainder,
+                                                                    td_1s=td_1s))
+    ts_floor = ts_firstframestart - td_remainder
+    ts_ceil = ts_floor + td_1s
+    if td_remainder <= td_05s:
+        print("ProEM counter/timer started before system time fetched.")
+        ts_corrected = ts_floor
+        td_correction = -1*td_remainder
+        if not ((ts_floor ==  ts_corrected)
+                and (ts_corrected <=  ts_firstframestart)
+                and (ts_firstframestart < ts_floor + td_05s)
+                and (ts_floor + td_05s < ts_ceil)):
+            raise AssertionError(("Timestamps are not being verified correctly.\n"
+                          +"Required:\n"
+                          +"  ts_floor\n"
+                          +"    == ts_corrected\n"
+                          +"    <= ts_firstframestart\n"
+                          +"    <  ts_floor + td_05s\n"
+                          +"    <  ts_ceil\n"
+                          +"Actual:\n"
+                          +"  ts_floor           = {ts0}\n"
+                          +"  ts_corrected       = {ts1}\n"
+                          +"  ts_firstframestart = {ts2}\n"
+                          +"  ts_floor + td_05s  = {ts3}\n"
+                          +"  ts_ceil            = {ts4}").format(ts0=ts_floor,
+                                                                ts1=ts_corrected,
+                                                                ts2=ts_firstframestart,
+                                                                ts3=(ts_floor + td_05s),
+                                                                ts4=ts_ceil))
+    else: # then td_remainder > td_05s:
+        # TODO: test.
+        print("System time fetched before ProEM counter/timer started.")
+        ts_corrected = ts_ceil
+        td_correction = td_1s - td_remainder
+        if not ((ts_floor <  ts_floor + td_05s)
+                and (ts_floor + td_05s <= ts_firstframestart)
+                and (ts_firstframestart <= ts_corrected)
+                and (ts_corrected == ts_ceil)):
+            raise AssertionError(("Timestamps are not being verified correctly.\n"
+                          +"Required:\n"
+                          +"  ts_floor\n"
+                          +"    <  ts_floor + td_05s\n"
+                          +"    <= ts_firstframestart\n"
+                          +"    <= ts_corrected\n"
+                          +"    == ts_ceil\n"
+                          +"Actual:\n"
+                          +"  ts_floor           = {ts0}\n"
+                          +"  ts_floor + td_05s  = {ts1}\n"
+                          +"  ts_firstframestart = {ts2}\n"
+                          +"  ts_corrected       = {ts3}\n"
+                          +"  ts_ceil            = {ts4}").format(ts0=ts_floor,
+                                                                ts1=(ts_floor + td_05s),
+                                                                ts2=ts_firstframestart,
+                                                                ts3=ts_corrected,
+                                                                ts4=ts_ceil))
+    if abs(td_correction) <= required_values['td_shortcut_tol']:
+        df_metadata['delay_verified'] = True
+        df_metadata['expstart_corr_delay'] = df_metadata['time_stamp_exposure_started'] + td_correction
+        df_metadata['expended_corr_delay'] = df_metadata['time_stamp_exposure_ended'] + td_correction
+    else:
+        df_metadata['delay_verified'] = False
+        print(("WARNING: Computer-camera timestamp delay was outside expected tolerance.\n"
+               +"  No correction was applied for computer-camera timestamp delay.\n"
+               +"  Required tolerance: +/-{req}\n"
+               +"  Actual delay:       {act}").format(req=required_values['td_shortcut_tol'],
+                                                      act=td_correction), file=sys.stderr)
+else:
+    print(("WARNING: First frame was not triggered. No correction was applied for computer-camera timestamp delay."
+           +"  Required trigger responses: {req}\n"
+           +"  Actual trigger response:    {act}").format(req=required_values['first_frame_trig'],
+                                                      act=trig_response), file=sys.stderr)
+                                                      
+# Verify counter/timer card drift of triggered frames within a tolerance and correct all frames.
+# - After correcting for computer-camera delay, offsets of subsequent triggered frames 
+#   from integer UTC timestamps are due to drift from the ProEM's internal counter/timer card.
+# - Typical drifts from counter/timer cards are ~ -6 us/s and are temperature dependent.
+# - Verify that the counter/timer card drift is within a tolerance.
+#   +/- 20 us/s is a safe upper bound tolerance for counter/timer card drift.
+# - Subtract the counter/timer card drift from all timestamps after the first frame.
+# Note: Numpy will omit nanoseconds when doing datetime - datetime.
+#       Only do timedelta - timedelta to compute timedeltas to nearest integer seconds.
+df_metadata['drift_verified'] = np.NaN
+df_metadata['expstart_corr_drift'] = np.NaN
+df_metadata['expended_corr_drift'] = np.NaN
+if trig_response in required_values['all_frame_trig']:
+    # Both tolerance and corrections are cumulative to account for cumulative drift.
+    # Define cumulative tolerance.
+    td_tot_tol = np.timedelta64(0, 's')
+    # TODO: For pandas v0.14, there is a bug with pandas row-wise operations and type conversions.
+    #   The bug has been patched and will be in the 0.15 release.
+    # Code for pandas v0.15:
+    # for (fnum, row) in df_metadata.iterrows():
+    for fnum in df_metadata.index:
+        row = df_metadata.loc[fnum]
+        if row['delay_verified'] == True:
+            ts_framestart = row['expstart_corr_delay']
+            td_remainder = np.timedelta64(ts_framestart.microsecond, 'us') + np.timedelta64(ts_framestart.nanosecond, 'ns')
+            if not ((td_0s <= td_remainder) and (td_remainder < td_1s)):
+                raise AssertionError(("Timestamps are not being verified correctly.\n"
+                              +"Required:\n"
+                              +"  0s <= td_remainder < 1s\n"
+                              +"Actual:\n"
+                              +"  td_0s        = {td_0s}\n"
+                              +"  td_remainder = {td_rem}\n"
+                              +"  td_1s        = {td_1s}").format(td_0s=td_0s,
+                                                                    td_rem=td_remainder,
+                                                                    td_1s=td_1s))
+            ts_floor = ts_framestart - td_remainder
+            ts_ceil = ts_floor + td_1s
+            # ProEM counter/timer card drift >= 0 us/s.
+            if td_remainder <= td_05s:
+                ts_corrected = ts_floor
+                td_correction = -1*td_remainder
+                if not ((ts_floor ==  ts_corrected)
+                        and (ts_corrected <=  ts_framestart)
+                        and (ts_framestart < ts_floor + td_05s)
+                        and (ts_floor + td_05s < ts_ceil)):
+                    raise AssertionError(("Timestamps are not being verified correctly.\n"
+                          +"Required:\n"
+                          +"  ts_floor\n"
+                          +"    == ts_corrected\n"
+                          +"    <= ts_framestart\n"
+                          +"    <  ts_floor + td_05s\n"
+                          +"    <  ts_ceil\n"
+                          +"Actual:\n"
+                          +"  ts_floor           = {ts0}\n"
+                          +"  ts_corrected       = {ts1}\n"
+                          +"  ts_framestart      = {ts2}\n"
+                          +"  ts_floor + td_05s  = {ts3}\n"
+                          +"  ts_ceil            = {ts4}").format(ts0=ts_floor,
+                                                                ts1=ts_corrected,
+                                                                ts2=ts_framestart,
+                                                                ts3=(ts_floor + td_05s),
+                                                                ts4=ts_ceil))
+            # ProEM counter/timer card drift < 0 us/s.
+            else: # then td_remainder > td_05s:
+                ts_corrected = ts_ceil
+                td_correction = td_1s - td_remainder
+                if not ((ts_floor <  ts_floor + td_05s)
+                    and (ts_floor + td_05s <= ts_framestart)
+                    and (ts_framestart <= ts_corrected)
+                    and (ts_corrected == ts_ceil)):
+                    raise AssertionError(("Timestamps are not being verified correctly.\n"
+                          +"Required:\n"
+                          +"  ts_floor\n"
+                          +"    <  ts_floor + td_05s\n"
+                          +"    <= ts_framestart\n"
+                          +"    <= ts_corrected\n"
+                          +"    == ts_ceil\n"
+                          +"Actual:\n"
+                          +"  ts_floor           = {ts0}\n"
+                          +"  ts_floor + td_05s  = {ts1}\n"
+                          +"  ts_framestart      = {ts2}\n"
+                          +"  ts_corrected       = {ts3}\n"
+                          +"  ts_ceil            = {ts4}").format(ts0=ts_floor,
+                                                                ts1=(ts_floor + td_05s),
+                                                                ts2=ts_framestart,
+                                                                ts3=ts_corrected,
+                                                                ts4=ts_ceil))
+
+            # Calculate allowed tolerance for new frame from actual exposure time.
+            # Compare cumulative timestamp correction with cumulative tolerance
+            # including tolerance estimate for new frame.
+            td_exp_actual = row['exp_actual']
+            td_new_tol = ((td_exp_actual / td_1s) * required_values['td_ctrtmr_tol'])
+            if abs(td_correction) <= td_new_tol + td_tot_tol:
+                df_metadata['drift_verified'].loc[fnum] = True
+                df_metadata['expstart_corr_drift'].loc[fnum] = df_metadata['expstart_corr_delay'].loc[fnum] + td_correction
+                df_metadata['expended_corr_drift'].loc[fnum] = df_metadata['expended_corr_delay'].loc[fnum] + td_correction
+                # Update cumulative tolerance with last permitted correction.
+                td_tot_tol += td_correction
+            else:
+                # TODO: test
+                df_metadata['drift_verified'].loc[fnum] = False
+                print(("WARNING: Counter/timer card drift was outside expected tolerance.\n"
+                   +"  Stopped applying corrections at frame tracking number: {fnum}\n"
+                   +"  Required tolerance: +/-{req}\n"
+                   +"  Actual drift:       {act}").format(fnum=fnum,
+                                                          req=str(td_tol),
+                                                          act=str(td_correction), file=sys.stderr))
+                break
+        else:
+            # TODO: test
+            df_metadata['drift_verified'].loc[fnum] = False
+            print(("WARNING: Computer-camera delay was not previously corrected."
+                   +"  Stopped applying counter/timer drift corrections at frame tracking number: {fnum}\n"
+                   +"  Required: drift_verified = True\n"
+                   +"  Actual:   drift_verified = False").format(fnum=fnum), file=sys.stderr)
+            break
+else:
+    print(("WARNING: Not all frames were triggered. No correction was applied for counter/timer card timestamp drift."
+           +"  Actual trigger response: {tr}"
+           +"  Required trigger response: {rtr}").format(tr=trig_response,
+                                                       rtr=required_values['all_frame_trig']), file=sys.stderr)
+                                                       
+# TODO:
+# - redo timestamp correction so that time_stamp_exposure_started/ended are just raw values
+# - expstart, expended are timedeltas
+# - exp_actual, diff_exp_actual-prog, exp_verified are ok
+# - deadtime, trig_verified are ok
+# - delay_verified, expstart/ended_corr_delay are timedeltas
+# - drift_verified, expstart/ended_corr_drift are timedeltas
+# - did a leapsecond occur while taking data? see http://www.ietf.org/timezones/data/leap-seconds.list
+#   if so, add to all timestamps after it occurred. test with 2012.
+
+# todo: convert programmed exptime, expstart, expended to int
+# todo: check expstart + exptime == expended
+# todo: check expended_0 == expstart_1
+# tood: check expstart_0 + num_frames*exptime = expended_n
+
+# how to do unix time
+print(ts_framestart)
+np.datetime64(ts_framestart).astype('uint64')/10**6
+
+# TODO: Make module to add to FITS files:
+#   KEYWORD  VALUE                # COMMENT  
+#   FRAMENUM 10                   # Frame tracking number.
+#   VERIFYTS TRUE                 # Verified timestamps (T/F).
+#   EXPSTART YYYYMMDDTHHMMSS.SSSZ # Timestamp of exposure start (ISO 8601, UTC).
+#   EXPEND   YYYYMMDDTHHMMSS.SSSZ # Timestamp of exposure end (ISO 8601, UTC).
+#   USE ARGOS KEYWORDS FOR BEG, END EXPOSURE.
+#   EXPTIME  5                    # Exposure time in integer seconds.
+#   UNIXTIME 1347782351.SSS       # Unix timestamp of exposure start.
 
