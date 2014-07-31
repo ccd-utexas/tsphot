@@ -9,7 +9,7 @@ Top level script: [main.py](main.py)
 This proto-package requires:
 - Install the [Anaconda Python](http://continuum.io/downloads) distribution.
 - Install the latest release of [ccdproc](https://github.com/astropy/ccdproc).  As of 2014-07-30, v0.2. Example on MacOS X: ```$ CC=clang pip install ccdproc``` Note for future: When ccdproc is eventually merged with astropy, modify code to use astropy.ccdproc.
-- Install latest stable, tagged version of [photutils](https://github.com/astropy/photutils).  As of 2014-07-15, no tagged version exists. Install from https://github.com/ccd-utexas/photutils instead. Note for future: When photutils is eventually merged with astropy, modify code to use astropy.photutils.
+- Install latest stable, tagged version of [photutils](https://github.com/astropy/photutils).  As of 2014-07-30, no tagged version exists. Install from https://github.com/ccd-utexas/photutils instead. Note for future: When photutils is eventually merged with astropy, modify code to use astropy.photometry.
 
 ## Examples
 
