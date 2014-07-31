@@ -2,7 +2,7 @@
 
 Time series photometry using astropy.
 
-Top level script: main.py
+Top level script: [main.py](main.py)
 
 ## Install requirements
 
