@@ -55,3 +55,13 @@ def create_master_calib(dobj):
     for key in noncombiner_list:
         ccddata.meta[key] = dobj[key]
     return ccddata
+
+def get_exptime_prog(spe_footer_xml):
+    """
+    Get the programmed exposure time in seconds
+    from the string XML footer of an SPE file.
+    """
+    footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
+    exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
+    exptime_prog_res = int(footer_xml.find(name='DelayResolution').contents[0])
+    return (exptime_prog / exptime_prog_res)
