@@ -2,7 +2,14 @@
 
 Time series photometry using astropy.
 
-Top level script: main.py
+Top level script: [main.py](main.py)
+
+## Install requirements
+
+This proto-package requires:
+- Install the [Anaconda Python](http://continuum.io/downloads) distribution.
+- Install the latest release of [ccdproc](https://github.com/astropy/ccdproc).  As of 2014-07-30, v0.2. Example on MacOS X: ```$ CC=clang pip install ccdproc``` Note for future: When ccdproc is eventually merged with astropy, modify code to use astropy.ccdproc.
+- Install latest stable, tagged version of [photutils](https://github.com/astropy/photutils).  As of 2014-07-30, no tagged version exists. Install from https://github.com/ccd-utexas/photutils instead. Note for future: When photutils is eventually merged with astropy, modify code to use astropy.photometry.
 
 ## Examples
 
@@ -14,9 +21,6 @@ $ python main.py --help
 
 See the wiki for additional examples: https://github.com/ccd-utexas/tsphot/wiki
 
-## Install requirements
+## How to contribute
 
-This proto-package requires:
-- Install Anaconda Python distribution.
-- Install latest stable, tagged version of https://github.com/astropy/ccdproc  As of 2014-07-15, the tagged version is unstable. Use https://github.com/ccd-utexas/ccdproc instead.
-- Install latest stable, tagged version of https://github.com/astropy/photutils  As of 2014-07-15, no tagged version exists. Use https://github.com/ccd-utexas/photutils instead.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
