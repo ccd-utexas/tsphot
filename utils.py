@@ -17,26 +17,41 @@ import datetime as dt
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 
-def create_master_calib_from_spe(fpath):
+def spe_to_dict(fpath):
     """
-    Create master calibration frame from SPE file.
-    Median-combine individual calibration frames.
-    Return an astropy.ccddata object with all metadata.
+    Load an SPE file into a dict of ccdproc.ccddata.
+    """
+    spe = read_spe.File(fpath)
+    object_ccddata = {}
+    object_ccddata['footer_xml'] = spe.footer_metadata
+    for fidx in xrange(spe.get_num_frames()):
+        (data, meta) = spe.get_frame(fidx)
+        object_ccddata[fidx] = ccdproc.CCDData(data=data, meta=meta, unit=astropy.units.adu)
+    spe.close()
+    return object_ccddata
+    
+def create_master_calib(dobj):
+    """
+    Create master calibration frame from dict of ccdproc.ccddata.
+    Median-combine individual calibration frames and retain all metadata.
     """
     # TODO:
     # - Use multiprocessing to side-step global interpreter lock and parallelize.
     #   https://docs.python.org/2/library/multiprocessing.html#module-multiprocessing
     # STH, 20140716
-    spe = read_spe.File(fpath)
     combiner_list = []
+    noncombiner_list = []
     fidx_meta = {}
-    for frame_idx in xrange(spe.get_num_frames()):
-        (data, meta) = spe.get_frame(frame_idx)
-        ccddata = ccdproc.CCDData(data=data, meta=meta, unit=astropy.units.adu)
-        combiner_list.append(ccddata)
-        fidx_meta[frame_idx] = ccddata.meta
+    for key in dobj:
+        # If the key is an index for a CCDData frame...
+        if isinstance(dobj[key], ccdproc.CCDData):
+            combiner_list.append(dobj[key])
+            fidx_meta[key] = dobj[key].meta
+        # ...otherwise save it as metadata.
+        else:
+            noncombiner_list.append(key)
     ccddata = ccdproc.Combiner(combiner_list).median_combine()
     ccddata.meta['fidx_meta'] = fidx_meta
-    ccddata.meta['footer_xml'] = spe.footer_metadata
-    spe.close()
+    for key in noncombiner_list:
+        ccddata.meta[key] = dobj[key]
     return ccddata
