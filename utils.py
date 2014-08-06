@@ -12,11 +12,19 @@ import inspect
 import astropy
 import ccdproc
 import read_spe
+import collections
 import numpy as np
 import pandas as pd
 import datetime as dt
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
+
+def create_config(fjson='config.json'):
+    """
+    Create configuration file for data reduction.
+    """
+    # TODO: make config file for reductions
+    pass
 
 def spe_to_dict(fpath):
     """
@@ -84,7 +92,6 @@ def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
     # TODO:
     # - parallelize
     # - Compute and correct ccdgain
-    # - Remove cosmic rays.
     #   STH, 20140805
     # Check input.
     iframe = inspect.currentframe()
@@ -122,4 +129,8 @@ def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
                                                    data_exposure=dobj_exptime)
             if flat != None:
                 dobj[fidx] = ccdproc.flat_correct(dobj[fidx], flat)
+    # Remove cosmic rays
+    for fidx in dobj:
+        if isinstance(dobj[fidx], ccdproc.CCDData):
+            dobj[fidx] = ccdproc.cosmicray_lacosmic(dobj[fidx], thresh=5, mbox=11, rbox=11, gbox=5)
     return dobj
