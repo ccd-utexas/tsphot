@@ -159,8 +159,7 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     
     Notes
     -----
-    radius ~ sqrt(2)*sigma
-    Sigma is not a robust estimator of FWHM.
+    Blob radius is ~`sqrt(2)*sigma` [3]_. `sigma` is not a robust estimator of FWHM.
     
     References
     ----------
@@ -179,3 +178,31 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     # From [2]
     blobs = blob_log(image_norm, **blobargs)
     return blobs[:, [1, 0, 2]]
+
+def plot_detected_blobs(image, blobs):
+    """Plot detected blobs overlayed on image.
+    
+    From skimage gallery [1]_.
+    
+    Parameters
+    ----------
+    image : array_like
+        2D array of image.
+    blobs : array_like
+        Array with elements `(x-coordinate, y-coordinate, radius)` for each blob.
+        
+    Returns
+    -------
+    None
+    
+    References
+    ----------
+    .. [1] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
+    """
+    (fig, ax) = plt.subplots(1, 1)
+    ax.imshow(image_orig, interpolation='nearest')
+    for blob in blobs:
+        (x, y, r) = blob
+        c = plt.Circle((x, y), r, color='yellow', linewidth=2, fill=False)
+        ax.add_patch(c)
+    plt.show()
