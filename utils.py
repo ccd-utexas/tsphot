@@ -15,6 +15,7 @@ import pandas as pd
 import astropy
 import ccdproc
 import imageutils
+import photutils
 from astroML import stats
 from skimage import feature, measure
 import matplotlib.pyplot as plt
@@ -146,7 +147,7 @@ def normalize(array):
     Parameters
     ----------
     array : array_like
-        Array can be flat or nested. Does not require `numpy.ndarray`.
+        Array can be flat or nested.
 
     Returns
     -------
@@ -192,7 +193,7 @@ def detect_blobs(image,
     Returns
     -------
     blobs : pandas.DataFrame
-        `pandas.DataFrame` with 1 row for each blob and columns 'x_blob', 'y_blob', 'sigma_blob'.
+        ``pandas.DataFrame`` with 1 row for each blob and columns `x_blob`', `y_blob`, `sigma_blob`.
         `sigma_blob` is the standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
     
     Notes
@@ -223,7 +224,7 @@ def plot_detected_blobs(image, blobs):
     image : array_like
         2D array of image.
     blobs : pandas.DataFrame
-        `pandas.DataFrame` with 1 row for each blob and includes columns 'x_blob', 'y_blob', 'sigma_blob'.
+        ``pandas.DataFrame`` with 1 row for each blob and includes columns `x_blob`, `y_blob`, `sigma_blob`.
         `sigma_blob` is the standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
 
     Returns
@@ -249,29 +250,33 @@ def plot_detected_blobs(image, blobs):
         ax.add_patch(c)
     plt.show()
 
-def find_centroids(image, blobs, num_sigma=5):
+def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
     """Find centroids in an image from identified blobs.
 
-    Extract a subframe around each blob in numbers of blob sigma with imageutils [2]_.
-    Use the image moments to find the centroid [3]_. Return the blob dataframe
-    with x-, y-coordinates corrected to sub-pixel centroid position
+    Extract a subframe around each blob. Length of the subframe is a factor of blob sigma [2]_.
+    Use a method to find the centroid. Return a dataframe with sub-pixel x, y coordinates for
+    the centroids.
 
     Parameters
     ----------
     image : array_like
         2D array of image.
     blobs : pandas.DataFrame
-        `pandas.DataFrame` with 1 row for each blob and includes columns 'x_blob', 'y_blob', 'sigma_blob'.
+        ``pandas.DataFrame`` with 1 row for each blob and includes columns `x_blob`, `y_blob`, `sigma_blob`.
         `sigma_blob` is the standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
-    num_sigma : {5}, optional
+    box_sigma : {5}, optional
         The dimensions for a subframe around the source for centering are
-        `num_sigma*sigma_blob` x `num_sigma*sigma_blob`. `sigma_blob` is usually 1 pixel.
-        Number should be odd so that center pixel of subframe is initial 'x_blob', 'y_blob'.
+        `box_sigma*sigma_blob` x `box_sigma*sigma_blob`. `sigma_blob` is usually 1 pixel.
+        Number should be odd so that center pixel of subframe is initial `x_blob`, `y_blob`.
+    method : {max_flux, daofind, irafstarfind, moments}, optional
+        The method by which to compute the centroids.
+        `max_flux` : Return the centroid that yields the highest flux from photoemtry (from Mike Montgomery, UT Austin, 2014).
+        `moments` : Return the centroid from the image moments [3]_.
 
     Returns
     -------
     blobs : pandas.DataFrame
-        `pandas.DataFrame` with 1 row for each blob and added columns 'x_ctrd', 'y_ctrd'.
+        ``pandas.DataFrame`` with 1 row for each blob and added columns `x_ctrd`, `y_ctrd`.
     
     Notes
     -----
@@ -280,7 +285,7 @@ def find_centroids(image, blobs, num_sigma=5):
 
     TODO
     ----
-    Try Mike's method. Centroids are suspiciously on pixel orders. STH, 2014-08-08.
+    Try Mike's method. Centroids are suspiciously on pixel orders. REDO ABOVE. STH, 2014-08-08.
 
     References
     ----------
@@ -289,20 +294,57 @@ def find_centroids(image, blobs, num_sigma=5):
     .. [3] http://scikit-image.org/docs/dev/api/skimage.measure.html#moments
     
     """
+    # Check input
+    valid_methods = ['max_flux', 'moments']
+    if method not in valid_methods:
+        raise IOError(("Invalid method: {meth}\n"+
+                       "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
+    # Make box subframes and compute centroids per chosed method. Each blob may have a different size.
+    # Subframe can be shortened due to proximity to frame edge.
     (blobs['x_ctrd'], blobs['y_ctrd']) = (np.NaN, np.NaN)
     for (idx, x_blob, y_blob, sigma_blob) in blobs[['x_blob', 'y_blob', 'sigma_blob']].itertuples():
-        width = np.round(num_sigma*sigma_blob)
+        width = np.round(box_sigma*sigma_blob)
         height = width
         # width, height order is reverse of position x, y order
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_blob, y_blob))
-        moments = measure.moments(subframe, 1)
-        (x_sub_ctrd, y_sub_ctrd) = (moments[0, 1]/moments[0, 0],
-                                    moments[1, 0]/moments[0, 0])
-        (x_sub_ctr, y_sub_ctr) = map(lambda dim: (np.round(dim) - 1)/2, (width, height))
-        (x_ofst, y_ofst) = (x_sub_ctrd - x_sub_ctr,
-                            y_sub_ctrd - y_sub_ctr)
-        blobs.loc[idx, ['x_ctrd', 'y_ctrd']] = (x_blob + x_ofst,
-                                                y_blob + y_ofst)
+        if method == 'max_flux':
+            pass
+        elif method == 'moments':
+            moments = measure.moments(subframe, 1)
+            (x_sub_ctrd, y_sub_ctrd) = (moments[0, 1]/moments[0, 0],
+                                        moments[1, 0]/moments[0, 0])
+        else:
+            raise AssertionError(("Program error. Input method not accounted for: {meth}").format(meth=method))
+        # Compute the centroid coordinates relative to the blob centers.
+        (x_sub_blob, y_sub_blob) = map(lambda dim: (np.round(dim) - 1)/2, (width, height))
+        (x_offset, y_offset) = (x_sub_ctrd - x_sub_blob,
+                                y_sub_ctrd - y_sub_blob)
+        blobs.loc[idx, ['x_ctrd', 'y_ctrd']] = (x_blob + x_offset,
+                                                y_blob + y_offset)
     return blobs
+
+# # TODO: support photutils methods. not compatible with skimage
+# # `daofind` : Return the centroid from the DAOFIND algorithm [4]_.
+# # `irafstarfind` : Return the centroid from the IRAF starfind algorithm [5]_.
+# #    .. [4] http://photutils.readthedocs.org/en/latest/api/photutils.detection.findstars.daofind.html#photutils.detection.findstars.daofind
+# #    .. [5] http://photutils.readthedocs.org/en/latest/api/photutils.detection.findstars.irafstarfind.html#photutils.detection.findstars.daofind
+#     # Some centroid methods require a source detection threshold.
+#     # Use the image median as the threshold since each subframe already has a detected source.
+#     threshold = np.median(image)
+# # Some centroid methods require an initial FWHM.
+# # Allow the initial FWHM to be as wide/tall as the actual extracted subframe.
+# # (Subframe can be shortened due to proximity to frame edge.)
+#         fwhm = max(subframe.shape)
+#         elif method == 'daofind':
+#             print(photutils.detection.findstars.daofind(data=subframe,
+#                                                         fwhm=5,
+#                                                         threshold=threshold))
+#             (x_sub_ctrd, y_sub_ctrd) = photutils.detection.findstars.daofind(data=subframe,
+#                                                                              fwhm=fwhm,
+#                                                                              threshold=threshold)['xcen', 'ycen'].data
+#         elif method == 'irafstarfind':
+#             (x_sub_ctrd, y_sub_ctrd) = photutils.detection.findstars.irafstarfind(data=subframe,
+#                                                                                   fwhm=fwhm,
+#                                                                                   threshold=threshold)['xcen', 'ycen'].data
