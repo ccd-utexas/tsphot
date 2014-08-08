@@ -134,3 +134,48 @@ def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
         if isinstance(dobj[fidx], ccdproc.CCDData):
             dobj[fidx] = ccdproc.cosmicray_lacosmic(dobj[fidx], thresh=5, mbox=11, rbox=11, gbox=5)
     return dobj
+
+def detect_blobs(image, blobargs=dict(threshold=3)):
+    """Detect blobs in an image.
+    
+    Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
+    to find source-like blobs. Method finds stars and galaxies.
+    
+    Parameters
+    ----------
+    image : array_like
+        2D array of image.
+    blobargs : {dict(threshold=3)}, optional
+        Dict of keyword arguments for `skimage.feature.blob_log` [3]_. Can speed up blob finding by ~25x.
+        Because image is normalized, `threshold` is the number of stdandard deviations
+        above background for counts per pixel.
+        Example: `blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=4)`
+    
+    Returns
+    -------
+    blobs : 2D ndarray
+        Array with elements `(x-coordinate, y-coordinate, sigma)` for each blob.
+        `sigma` is the standard deviation of the Gaussian kernel that detected the blob.
+    
+    Notes
+    -----
+    radius ~ sqrt(2)*sigma
+    Sigma is not a robust estimator of FWHM.
+    
+    References
+    ----------
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+        sec 3.2, "Descriptive Statistics"
+    .. [2] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
+    .. [3] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
+    """
+    # Robustly normalize image using width estimator and median.
+    # From [1]
+    sigmaG = stats.sigmaG(image_orig)
+    median = np.median(image_orig)
+    image_norm = (image - median) / sigmaG
+    # Find blobs. 'threshold' is number of std. dev. above background for counts per pixel.
+    # Change from (y, x, sigma) to (x, y, sigma)
+    # From [2]
+    blobs = blob_log(image_norm, **blobargs)
+    return blobs[:, [1, 0, 2]]
