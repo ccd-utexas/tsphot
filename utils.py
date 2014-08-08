@@ -7,11 +7,13 @@ from __future__ import division, absolute_import, print_function
 
 import inspect
 
+import read_spe
+from bs4 import BeautifulSoup
+import numpy as np
 import astropy
 import ccdproc
-import read_spe
-import numpy as np
-from bs4 import BeautifulSoup
+from astroML import stats
+from skimage.feature import blob_log
 import matplotlib.pyplot as plt
 
 def create_config(fjson='config.json'):
@@ -130,6 +132,41 @@ def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
             dobj[fidx] = ccdproc.cosmicray_lacosmic(dobj[fidx], thresh=5, mbox=11, rbox=11, gbox=5)
     return dobj
 
+def normalize(array):
+    """Normalize an array in a robust way.
+
+    The function flattens an array then normalizes in a way that is 
+    insensitive to outliers (i.e. ignore stars on an image of the night sky).
+    Following [1]_, the function uses `sigmaG` as a width estimator and
+    uses the median as an estimator for the mean.
+    
+    Parameters
+    ----------
+    array : array_like
+        Array can be flat or nested. Does not require `numpy.ndarray`.
+
+    Returns
+    -------
+    array_normd : array_like
+        Normalized version of `array`.
+
+    Notes
+    -----
+    `normd_array = (array - median) / sigmaG`
+    `sigmaG = 0.7413(q75 - q50)`
+    q50, q75 = 50th, 75th quartiles
+    See [1]_.
+
+    References
+    ----------
+     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+        sec 3.2, "Descriptive Statistics"
+    
+    """
+    sigmaG = stats.sigmaG(array)
+    median = np.median(array)
+    return (array - median) / sigmaG
+
 def detect_blobs(image, blobargs=dict(threshold=3)):
     """Detect blobs in an image.
     
@@ -154,7 +191,8 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     
     Notes
     -----
-    Blob radius is ~`sqrt(2)*sigma` [3]_. `sigma` is not a robust estimator of FWHM.
+    Blob radius is ~`sqrt(2)*sigma` [3]_.
+    Blob radius and `sigma` are not robust estimators of seeing FWHM.
     
     References
     ----------
@@ -164,15 +202,8 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     .. [3] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
     
     """
-    # Robustly normalize image using width estimator and median.
-    # From [1]
-    sigmaG = stats.sigmaG(image_orig)
-    median = np.median(image_orig)
-    image_norm = (image - median) / sigmaG
-    # Find blobs. 'threshold' is number of std. dev. above background for counts per pixel.
-    # Change from (y, x, sigma) to (x, y, sigma)
-    # From [2]
-    blobs = blob_log(image_norm, **blobargs)
+    image_normd = normalize(image)
+    blobs = blob_log(image_normd, **blobargs)
     return blobs[:, [1, 0, 2]]
 
 def plot_detected_blobs(image, blobs):
@@ -197,7 +228,7 @@ def plot_detected_blobs(image, blobs):
     
     """
     (fig, ax) = plt.subplots(1, 1)
-    ax.imshow(image_orig, interpolation='nearest')
+    ax.imshow(image, interpolation='nearest')
     for blob in blobs:
         (x, y, r) = blob
         c = plt.Circle((x, y), r, color='yellow', linewidth=2, fill=False)
