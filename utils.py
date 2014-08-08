@@ -13,7 +13,7 @@ import numpy as np
 import astropy
 import ccdproc
 from astroML import stats
-from skimage.feature import blob_log
+from skimage import feature, measure
 import matplotlib.pyplot as plt
 
 def create_config(fjson='config.json'):
@@ -203,7 +203,7 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     
     """
     image_normd = normalize(image)
-    blobs = blob_log(image_normd, **blobargs)
+    blobs = skimage.feature.blob_log(image_normd, **blobargs)
     return blobs[:, [1, 0, 2]]
 
 def plot_detected_blobs(image, blobs):
