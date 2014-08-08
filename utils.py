@@ -5,33 +5,24 @@
 
 from __future__ import division, absolute_import, print_function
 
-import os
-import sys
-import csv
-import pickle
 import inspect
-import collections
 
 import astropy
 import ccdproc
 import read_spe
 import numpy as np
-import pandas as pd
-import datetime as dt
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 
 def create_config(fjson='config.json'):
-    """
-    Create configuration file for data reduction.
+    """Create configuration file for data reduction.
     
     """
     # TODO: make config file for reductions
     pass
 
 def spe_to_dict(fpath):
-    """
-    Load an SPE file into a dict of ccdproc.ccddata.
+    """Load an SPE file into a dict of ccdproc.ccddata.
     
     """
     spe = read_spe.File(fpath)
@@ -44,8 +35,7 @@ def spe_to_dict(fpath):
     return object_ccddata
     
 def create_master_calib(dobj):
-    """
-    Create master calibration frame from dict of ccdproc.ccddata.
+    """Create master calibration frame from dict of ccdproc.ccddata.
     Median-combine individual calibration frames and retain all metadata.
     
     """
@@ -71,8 +61,7 @@ def create_master_calib(dobj):
     return ccddata
 
 def get_exptime_prog(spe_footer_xml):
-    """
-    Get the programmed exposure time in seconds
+    """Get the programmed exposure time in seconds
     from the string XML footer of an SPE file.
     
     """
@@ -83,8 +72,7 @@ def get_exptime_prog(spe_footer_xml):
 
 def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
                         dobj_exptime=None, dark_exptime=None, flat_exptime=None):
-    """
-    Reduce a dict of object data frames using the master calibration frames
+    """Reduce a dict of object data frames using the master calibration frames
     for bias, dark, and flats. All frames must be type ccdproc.CCDData.
     Requires exposure times (seconds) for object data frames, master dark, and master flat.
     Operations (from sec 4.5, Basic CCD Reduction, of Howell, 2006, Handbook of CCD Astronomy):
