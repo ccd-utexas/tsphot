@@ -283,10 +283,6 @@ def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
     Blob radius is ~`sqrt(2)*sigma_blob` [1]_.
     Blob radius and `sigma_blob` are not robust estimators of seeing FWHM.
 
-    TODO
-    ----
-    Try Mike's method. Centroids are suspiciously on pixel orders. REDO ABOVE. STH, 2014-08-08.
-
     References
     ----------
     .. [1] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
@@ -325,26 +321,10 @@ def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
                                                 y_blob + y_offset)
     return blobs
 
-# # TODO: support photutils methods. not compatible with skimage
-# # `daofind` : Return the centroid from the DAOFIND algorithm [4]_.
-# # `irafstarfind` : Return the centroid from the IRAF starfind algorithm [5]_.
-# #    .. [4] http://photutils.readthedocs.org/en/latest/api/photutils.detection.findstars.daofind.html#photutils.detection.findstars.daofind
-# #    .. [5] http://photutils.readthedocs.org/en/latest/api/photutils.detection.findstars.irafstarfind.html#photutils.detection.findstars.daofind
-#     # Some centroid methods require a source detection threshold.
-#     # Use the image median as the threshold since each subframe already has a detected source.
-#     threshold = np.median(image)
-# # Some centroid methods require an initial FWHM.
-# # Allow the initial FWHM to be as wide/tall as the actual extracted subframe.
-# # (Subframe can be shortened due to proximity to frame edge.)
-#         fwhm = max(subframe.shape)
-#         elif method == 'daofind':
-#             print(photutils.detection.findstars.daofind(data=subframe,
-#                                                         fwhm=5,
-#                                                         threshold=threshold))
-#             (x_sub_ctrd, y_sub_ctrd) = photutils.detection.findstars.daofind(data=subframe,
-#                                                                              fwhm=fwhm,
-#                                                                              threshold=threshold)['xcen', 'ycen'].data
-#         elif method == 'irafstarfind':
-#             (x_sub_ctrd, y_sub_ctrd) = photutils.detection.findstars.irafstarfind(data=subframe,
-#                                                                                   fwhm=fwhm,
-#                                                                                   threshold=threshold)['xcen', 'ycen'].data
+
+def center(xx):
+    global imdata
+    # The aperture size for finding the location of the stars is arbitrarily set here
+    app = [photutils.CircularAperture(7.)]
+    flux = -photutils.aperture_photometry(imdata, xx[0], xx[1], app, method='exact',subpixels=10)
+    return flux
