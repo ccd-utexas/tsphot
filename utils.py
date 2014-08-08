@@ -5,13 +5,16 @@
 
 from __future__ import division, absolute_import, print_function
 
+import math
 import inspect
 
 import read_spe
 from bs4 import BeautifulSoup
 import numpy as np
+import pandas as pd
 import astropy
 import ccdproc
+import imageutils
 from astroML import stats
 from skimage import feature, measure
 import matplotlib.pyplot as plt
@@ -167,7 +170,8 @@ def normalize(array):
     median = np.median(array)
     return (array - median) / sigmaG
 
-def detect_blobs(image, blobargs=dict(threshold=3)):
+def detect_blobs(image,
+                 blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)):
     """Detect blobs in an image.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
@@ -177,22 +181,24 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     ----------
     image : array_like
         2D array of image.
-    blobargs : {dict(threshold=3)}, optional
-        Dict of keyword arguments for `skimage.feature.blob_log` [3]_. Can speed up blob finding by ~25x.
+    blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)}, optional
+        Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
+        Can generalize to extended sources but for reduced performance
+        On 256x256 image: for example below, 0.33 sec/frame; for default above, 0.02 sec/frame.
         Because image is normalized, `threshold` is the number of stdandard deviations
         above background for counts per pixel.
-        Example: `blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=4)`
+        Example: `blobargs=dict(min_sigma=1, max_sigma=30, num_sigma=10, threshold=2)`
     
     Returns
     -------
-    blobs : 2D ndarray
-        Array with elements `(x-coordinate, y-coordinate, sigma)` for each blob.
-        `sigma` is the standard deviation of the Gaussian kernel that detected the blob.
+    blobs : pandas.DataFrame
+        `pandas.DataFrame` with 1 row for each blob and columns 'x_blob', 'y_blob', 'sigma_blob'.
+        `sigma_blob` is the standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
     
     Notes
     -----
-    Blob radius is ~`sqrt(2)*sigma` [3]_.
-    Blob radius and `sigma` are not robust estimators of seeing FWHM.
+    Blob radius is ~`sqrt(2)*sigma_blob` [3]_.
+    Blob radius and `sigma_blob` are not robust estimators of seeing FWHM.
     
     References
     ----------
@@ -203,34 +209,100 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
     
     """
     image_normd = normalize(image)
-    blobs = skimage.feature.blob_log(image_normd, **blobargs)
-    return blobs[:, [1, 0, 2]]
+    blobs = pd.DataFrame(feature.blob_log(image_normd, **blobargs), columns=['y_blob', 'x_blob', 'sigma_blob'])
+    return blobs[['x_blob', 'y_blob', 'sigma_blob']]
 
 def plot_detected_blobs(image, blobs):
     """Plot detected blobs overlayed on image.
-    
+
+    Overlay image markers for blobs. Convert blob sigma to radius.
     From skimage gallery [1]_.
     
     Parameters
     ----------
     image : array_like
         2D array of image.
-    blobs : array_like
-        Array with elements `(x-coordinate, y-coordinate, radius)` for each blob.
-        
+    blobs : pandas.DataFrame
+        `pandas.DataFrame` with 1 row for each blob and includes columns 'x_blob', 'y_blob', 'sigma_blob'.
+        `sigma_blob` is the standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
+
     Returns
     -------
     None
     
+    Notes
+    -----
+    Blob radius is ~`sqrt(2)*sigma_blob` [2]_.
+    Blob radius and `sigma_blob` are not robust estimators of seeing FWHM.
+    
     References
     ----------
     .. [1] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
+    .. [2] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
     
     """
     (fig, ax) = plt.subplots(1, 1)
     ax.imshow(image, interpolation='nearest')
-    for blob in blobs:
-        (x, y, r) = blob
-        c = plt.Circle((x, y), r, color='yellow', linewidth=2, fill=False)
+    for (idx, x_blob, y_blob, sigma_blob) in blobs[['x_blob', 'y_blob', 'sigma_blob']].itertuples():
+        radius_blob = sigma_blob*math.sqrt(2)
+        c = plt.Circle((x_blob, y_blob), radius_blob, color='yellow', linewidth=2, fill=False)
         ax.add_patch(c)
     plt.show()
+
+def find_centroids(image, blobs, num_sigma=5):
+    """Find centroids in an image from identified blobs.
+
+    Extract a subframe around each blob in numbers of blob sigma with imageutils [2]_.
+    Use the image moments to find the centroid [3]_. Return the blob dataframe
+    with x-, y-coordinates corrected to sub-pixel centroid position
+
+    Parameters
+    ----------
+    image : array_like
+        2D array of image.
+    blobs : pandas.DataFrame
+        `pandas.DataFrame` with 1 row for each blob and includes columns 'x_blob', 'y_blob', 'sigma_blob'.
+        `sigma_blob` is the standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
+    num_sigma : {5}, optional
+        The dimensions for a subframe around the source for centering are
+        `num_sigma*sigma_blob` x `num_sigma*sigma_blob`. `sigma_blob` is usually 1 pixel.
+        Number should be odd so that center pixel of subframe is initial 'x_blob', 'y_blob'.
+
+    Returns
+    -------
+    blobs : pandas.DataFrame
+        `pandas.DataFrame` with 1 row for each blob and added columns 'x_ctrd', 'y_ctrd'.
+    
+    Notes
+    -----
+    Blob radius is ~`sqrt(2)*sigma_blob` [1]_.
+    Blob radius and `sigma_blob` are not robust estimators of seeing FWHM.
+
+    TODO
+    ----
+    Try Mike's method. Centroids are suspiciously on pixel orders. STH, 2014-08-08.
+
+    References
+    ----------
+    .. [1] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
+    .. [2] https://imageutils.readthedocs.org/en/latest/api/imageutils.extract_array_2d.html#imageutils.extract_array_2d
+    .. [3] http://scikit-image.org/docs/dev/api/skimage.measure.html#moments
+    
+    """
+    (blobs['x_ctrd'], blobs['y_ctrd']) = (np.NaN, np.NaN)
+    for (idx, x_blob, y_blob, sigma_blob) in blobs[['x_blob', 'y_blob', 'sigma_blob']].itertuples():
+        width = np.round(num_sigma*sigma_blob)
+        height = width
+        # width, height order is reverse of position x, y order
+        subframe = imageutils.extract_array_2d(array_large=image,
+                                               shape=(height, width),
+                                               position=(x_blob, y_blob))
+        moments = measure.moments(subframe, 1)
+        (x_sub_ctrd, y_sub_ctrd) = (moments[0, 1]/moments[0, 0],
+                                    moments[1, 0]/moments[0, 0])
+        (x_sub_ctr, y_sub_ctr) = map(lambda dim: (np.round(dim) - 1)/2, (width, height))
+        (x_ofst, y_ofst) = (x_sub_ctrd - x_sub_ctr,
+                            y_sub_ctrd - y_sub_ctr)
+        blobs.loc[idx, ['x_ctrd', 'y_ctrd']] = (x_blob + x_ofst,
+                                                y_blob + y_ofst)
+    return blobs
