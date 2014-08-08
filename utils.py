@@ -1,18 +1,20 @@
 #!/usr/bin/env python
-"""
-Utilities for time-series photometry.
+"""Utilities for time-series photometry.
+
 """
 
-from __future__ import print_function, division
+from __future__ import division, absolute_import, print_function
+
 import os
 import sys
 import csv
 import pickle
 import inspect
+import collections
+
 import astropy
 import ccdproc
 import read_spe
-import collections
 import numpy as np
 import pandas as pd
 import datetime as dt
@@ -22,6 +24,7 @@ import matplotlib.pyplot as plt
 def create_config(fjson='config.json'):
     """
     Create configuration file for data reduction.
+    
     """
     # TODO: make config file for reductions
     pass
@@ -29,6 +32,7 @@ def create_config(fjson='config.json'):
 def spe_to_dict(fpath):
     """
     Load an SPE file into a dict of ccdproc.ccddata.
+    
     """
     spe = read_spe.File(fpath)
     object_ccddata = {}
@@ -43,6 +47,7 @@ def create_master_calib(dobj):
     """
     Create master calibration frame from dict of ccdproc.ccddata.
     Median-combine individual calibration frames and retain all metadata.
+    
     """
     # TODO:
     # - Use multiprocessing to side-step global interpreter lock and parallelize.
@@ -69,6 +74,7 @@ def get_exptime_prog(spe_footer_xml):
     """
     Get the programmed exposure time in seconds
     from the string XML footer of an SPE file.
+    
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
     exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
@@ -88,6 +94,7 @@ def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
     - subtract master bias from object
     - scale and subtract master dark from object
     - divide object by normalized master flat
+    
     """
     # TODO:
     # - parallelize
@@ -167,6 +174,7 @@ def detect_blobs(image, blobargs=dict(threshold=3)):
         sec 3.2, "Descriptive Statistics"
     .. [2] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
     .. [3] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
+    
     """
     # Robustly normalize image using width estimator and median.
     # From [1]
@@ -198,6 +206,7 @@ def plot_detected_blobs(image, blobs):
     References
     ----------
     .. [1] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
+    
     """
     (fig, ax) = plt.subplots(1, 1)
     ax.imshow(image_orig, interpolation='nearest')
