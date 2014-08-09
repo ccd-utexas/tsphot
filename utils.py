@@ -250,12 +250,12 @@ def plot_detected_blobs(image, blobs):
         ax.add_patch(c)
     plt.show()
 
-def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
-    """Find centroids in an image from identified blobs.
+def center_stars(image, blobs, box_sigma=5, method='fit_bivariate_normal'):
+    """Find star centroids in an image with identified stars.
 
-    Extract a subframe around each blob. Length of the subframe is a factor of blob sigma [2]_.
-    Use a method to find the centroid. Return a dataframe with sub-pixel x, y coordinates for
-    the centroids.
+    Extract a subframe around each star. Length of the subframe is a factor of star sigma [2]_.
+    Use a method to find the centroid. Return the dataframe with new columns for sub-pixel
+    x-, y-coordinates of centroid and standard deviation sigma of intensity distribution.
 
     Parameters
     ----------
@@ -283,6 +283,11 @@ def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
     Blob radius is ~`sqrt(2)*sigma_blob` [1]_.
     Blob radius and `sigma_blob` are not robust estimators of seeing FWHM.
 
+    TODO
+    ----
+    Include Mike's max_phot_flux method, irafstarfind image moments method
+    daophot 2D Gaussian method.
+    
     References
     ----------
     .. [1] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
@@ -291,7 +296,7 @@ def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
     
     """
     # Check input
-    valid_methods = ['max_flux', 'moments']
+    valid_methods = ['fit_bivariate_normal']
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n"+
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
@@ -305,12 +310,14 @@ def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_blob, y_blob))
-        if method == 'max_flux':
+        elif method == 'fit_bivariate_normal':
+            # Model the photons hitting the pixels of the subframe and
+            # robustly fit a bivariate normal distribution.
+            # Photons hit each pixel with a uniform distribution (sec 3.3).
+            # http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
+
+            
             pass
-        elif method == 'moments':
-            moments = measure.moments(subframe, 1)
-            (x_sub_ctrd, y_sub_ctrd) = (moments[0, 1]/moments[0, 0],
-                                        moments[1, 0]/moments[0, 0])
         else:
             raise AssertionError(("Program error. Input method not accounted for: {meth}").format(meth=method))
         # Compute the centroid coordinates relative to the blob centers.
@@ -321,10 +328,3 @@ def find_centroids(image, blobs, box_sigma=5, method='max_flux'):
                                                 y_blob + y_offset)
     return blobs
 
-
-def center(xx):
-    global imdata
-    # The aperture size for finding the location of the stars is arbitrarily set here
-    app = [photutils.CircularAperture(7.)]
-    flux = -photutils.aperture_photometry(imdata, xx[0], xx[1], app, method='exact',subpixels=10)
-    return flux
