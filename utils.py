@@ -16,6 +16,7 @@ import astropy
 import ccdproc
 import imageutils
 import photutils
+from photutils.detection import morphology
 from astroML import stats
 import scipy
 from skimage import feature
@@ -194,7 +195,7 @@ def find_stars(image,
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
-    to find star-like blobs. Method can also find galaxies by modifying `blobargs`,
+    to find star-like blobs. Method can also find extended sources by modifying `blobargs`,
     however this pipeline is taylored for stars.
     
     Parameters
@@ -203,23 +204,30 @@ def find_stars(image,
         2D array of image.
     blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)}, optional
         Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
-        Can generalize to extended sources but for increased execution time.
-        On 256x256 image: for example below, 0.33 sec/frame; for default above, 0.02 sec/frame.
         Because image is normalized, `threshold` is the number of stdandard deviations
         above background for counts per pixel.
-        Example for galaxies: `blobargs=dict(min_sigma=1, max_sigma=30, num_sigma=10, threshold=2)`
+        Example for extended sources:
+            `blobargs=dict(min_sigma=1, max_sigma=30, num_sigma=10, threshold=2)`
     
     Returns
     -------
     stars : pandas.DataFrame
         ``pandas.DataFrame`` with:
         Rows:
-            `idx` : Integer index labeling found star.
+            `idx` : Integer index labeling each found star.
         Columns:
-            `x_pix` : x-coordinate of found star in image pixels.
-            `y_pix` : y-coordinate of found star in image pixels.
-            `sigma_pix` : Standard deviation of the Gaussian kernel that detected the blob (usually 1 pixel).
-    
+            `x_pix` : x-coordinate (pixels) of found star.
+            `y_pix` : y-coordinate (pixels) of found star (pixels).
+            `sigma_pix` : Standard deviation (pixels) of the Gaussian kernel
+                that detected the blob (usually 1 pixel).
+
+    Notes
+    -----
+    - Can generalize to extended sources but for increased execution time.
+      Execution times for 256x256 image:
+      - For example for extended sources above: 0.33 sec/frame
+      - For default above: 0.02 sec/frame
+
     References
     ----------
     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
@@ -237,7 +245,7 @@ def find_stars(image,
 def plot_stars(image, stars):
     """Plot detected stars overlayed on image.
 
-    Overlay image markers for stars. Convert star sigma to radius.
+    Overlay circles around stars and label.
     
     Parameters
     ----------
@@ -246,11 +254,11 @@ def plot_stars(image, stars):
     stars : pandas.DataFrame
         ``pandas.DataFrame`` with:
         Rows:
-            `idx` : Index labeling each star.
+            `idx` : 1 index label for each star.
         Columns:
-            `x_pix` : x-coordinate of star (pixels).
-            `y_pix` : y-coordinate of star (pixels).
-            `sigma_pix` : Standard deviation Gaussian fit to the star (pixels).
+            `x_pix` : x-coordinate (pixels) of star.
+            `y_pix` : y-coordinate (pixels) of star.
+            `sigma_pix` : Standard deviation (pixels) of the star modeled as a 2D Gaussian.
 
     Returns
     -------
@@ -275,93 +283,149 @@ def plot_stars(image, stars):
                     color='yellow', fontsize=12, rotation=0)
     plt.show()
 
-def center_stars(image, stars, box_sigma=5, method='fit_bivariate_normal'):
-    """Compute star centroids in an image with identified stars.
+def is_odd(num):
+    """Determine if a number is odd.
 
-    Extract a subframe around each star. Side-length of the subframe box is sigma_pix*box_sigma.
-    From the given method, return a dataframe with sub-pixel coordinates and sigma.
+    Parameters
+    ----------
+    num : number_like
+        ``number_like``, e.g. ``float`` or ``int``
 
-    new category `center_stars `x_pix`, `y_pix`, `sigma_pix`for sub-pixel
-    x-, y-coordinates of centroid and standard deviation sigma of intensity distribution.
-
+    """
+    rint = np.rint(num)
+    diff = rint - num
+    # If num is an integer test if odd...
+    if np.equal(diff, 0):
+        is_odd = ((num % 2) != 0)
+    # ...otherwise num is not odd
+    else:
+        is_odd = False
+    return is_odd
     
+def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
+    """Compute centroids of pre-identified stars in an image and return as a dataframe.
+
+    Extract a square subframe around each star. Side-length of the subframe box is sigma_pix*box_sigma.
+    With the given method, return a dataframe with sub-pixel coordinates of the centroid.
+
     Parameters
     ----------
     image : array_like
         2D array of image.
     stars : pandas.DataFrame
-        ``pandas.DataFrame`` with 1 row for each star.
+        ``pandas.DataFrame`` with:
+        Rows:
+            `idx` : 1 index label for each star.
         Columns:
-            `x_pix`, `y`, `sigma`.
-        `sigma` is the standard deviation of the Gaussian kernel that detected the star (usually 1 pixel).
-    box_sigma : {5}, int, optional
-        The dimensions for a subframe around the source for centering are
-        `box_sigma*sigma` x `box_sigma*sigma`. `sigma` is from `stars` (usually 1 pixel).
-        Number should be odd so that center pixel of subframe is initial `x`, `y`.
-    method : {fit_bivariate_normal}, optional
+            `x_pix` : x-coordinate (pixels) of star.
+            `y_pix` : y-coordinate (pixels) of star.
+            `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
+    box_sigma : {7}, int, optional
+        `box_sigma*sigma` x `box_sigma*sigma` are the dimensions for a subframe around the source.
+        `box_sigma` should be odd so that the center pixel of the subframe is initial `x_pix`, `y_pix`.
+        All methods typically converge to +/- 0.01 pixel with box_sigma=7.
+    method : {fit_max_phot_flux, centroid_2dg, centroid_com, fit_bivariate_normal}, optional
         The method by which to compute the centroids.
-        `fit_bivariate_normal` : Return the centroid and sigma from robustly fitting a bivariate normal distribution [1]_, [2]_.
+        `fit_max_phot_flux` : Return the centroid from computing the centroid that yields the largest
+            photometric flux. Method is from Mike Montgomery, UT Austin, 2014.
+        `centroid_2dg` : Return the centroid from fitting a 2D Gaussian to the intensity distribution.
+            Method is from photutils [1]_.
+        `centroid_com` : Return the centroid from computing the image moments. Method is from photutils [1]_.
+        `fit_bivariate_normal` : Return the centroid from fitting a bivariate normal (Gaussian)
+            distribution to a model of the intensity distribution [2]_, [3]_.
+
     Returns
     -------
     stars : pandas.DataFrame
-        ``pandas.DataFrame`` with 1 row for each star and added columns `x_ctrd`, `y_ctrd`, `sigma_ctrd`.
+        ``pandas.DataFrame`` with:
+        Rows:
+            `idx` : (same as input `idx`).
+        Columns:
+            `x_pix` : Sub-pixel x-coordinate (pixels) of centroid.
+            `y_pix` : Sub-pixel y-coordinate (pixels) of centroid.
 
-    TODO
-    ----
-    Include other methods. https://github.com/ccd-utexas/tsphot/issues/69
-    Restructure columns to be nested: http://pandas.pydata.org/pandas-docs/stable/indexing.html#hierarchical-indexing-multiindex
+
+    Notes
+    -----
+    - 
+    - 
     
     References
     ----------
-    .. [1] http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
-    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+    .. [1] http://photutils.readthedocs.org/en/latest/photutils/morphology.html#centroiding-an-object
+    .. [2] http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
+    .. [3] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
            sec 3.3.1., "The Uniform Distribution"
     
     """
     # Check input
     valid_methods = ['fit_bivariate_normal']
-    assert method in valid_methods
-    # if method not in valid_methods:
-    #     raise IOError(("Invalid method: {meth}\n"+
-    #                    "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
-    # Make box subframes and compute centroids per chosed method. Each star may have a different sigma.
-    # Subframe may be shortened due to proximity to frame edge.
-    (stars['x_ctrd'], stars['y_ctrd'], stars['sigma_ctrd']) = (np.NaN, np.NaN, np.NaN)
-    for (idx, x_star, y_star, sigma_star) in stars[['x_star', 'y_star', 'sigma_star']].itertuples():
-        width = np.round(box_sigma*sigma_star)
+    if method not in valid_methods:
+        raise IOError(("Invalid method: {meth}\n"+
+                       "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
+    # Make square subframes and compute centroids by chosed method.
+    # Each star may have a different sigma. Store results in a dataframe.
+    stars_init = stars.copy()
+    stars_finl = stars.copy()
+    stars_finl['x_pix'] = np.NaN
+    stars_finl['y_pix'] = np.NaN
+    stars_finl['sigma_pix'] = np.NaN
+    for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
+        width = np.rint(box_sigma*sigma_init)
         height = width
-        # width, height order is reverse of position x, y order
+        # Note:
+        # - Subframe may be shortened due to proximity to frame edge.
+        # - width, height order is reverse of position x, y order
+        # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x)
+        # - (0,0) is in upper left.
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
-                                               position=(x_star, y_star))
-        if method == 'fit_bivariate_normal':
-            # Model the photons hitting the pixels of the subframe and
-            # robustly fit a bivariate normal distribution.
-            # Photons hit each pixel with a uniform distribution. See [1]_, [2]_.
-            # Process takes ~90 ms per subframe.
+                                               position=(x_init, y_init))
+        if method == 'fit_max_phot_flux':
+            #(x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
+            pass
+        elif method == 'centroid_2dg':
+            (x_finl_sub, y_finl_sub) = morphology.centroid_2dg(subframe)
+        elif method == 'centroid_com':
+            (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
+        elif method == 'fit_bivariate_normal':
+            # - Model the photons hitting the pixels of the subframe and
+            #   robustly fit a bivariate normal distribution.
+            # - Photons hit each pixel with a uniform distribution. See [2]_, [3]_.
+            # - To compute sigma, add variances since modeling coordinate (x,y)
+            #   as sum of vectors x, y with assumed covariance=0 (sec 3.5.1 of Ivezic 2014 [2]_).
+            # - Seed the random number generator for reproducibility.
+            # - For 7x7 subframes, process takes ~90 ms per subframe.
             x_dist = []
             y_dist = []
-            for x_idx in xrange(len(subframe)):
-                for y_idx in xrange(len(subframe[x_idx])):
-                    pixel_counts = np.round(subframe[x_idx][y_idx])
+            (height_actl, width_actl) = subframe.shape
+            for y_idx in xrange(height_actl):
+                for x_idx in xrange(width_actl):
+                    pixel_counts = np.round(subframe[y_idx, x_idx])
                     np.random.seed(0)
-                    x_pix_dist = scipy.stats.uniform(x_idx - 0.5, 1)
-                    x_dist.extend(x_pix_dist.rvs(pixel_counts))
-                    y_pix_dist = scipy.stats.uniform(y_idx - 0.5, 1)
-                    y_dist.extend(y_pix_dist.rvs(pixel_counts))
+                    x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
+                    x_dist.extend(x_dist_pix.rvs(pixel_counts))
+                    np.random.seed(0)
+                    y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
+                    y_dist.extend(y_dist_pix.rvs(pixel_counts))
             (mu, sigma1, sigma2, alpha) = stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
-            (x_sub_ctrd, y_sub_ctrd) = mu
-            # Modeling coordinate (x,y) as sum of uncorrelated vectors x, y, so
-            # adding variances per sec 3.5.1 of Ivezic 2014 [2]_.
-            sigma_ctrd = math.sqrt(sigma1**2 + sigma2**2)
+            (x_finl_sub, y_finl_sub) = mu
         else:
             raise AssertionError(("Program error. Input method not accounted for: {meth}").format(meth=method))
         # Compute the centroid coordinates relative to the star centers.
-        (x_sub_star, y_sub_star) = map(lambda dim: (np.round(dim) - 1)/2, (width, height))
-        (x_offset, y_offset) = (x_sub_ctrd - x_sub_star,
-                                y_sub_ctrd - y_sub_star)
-        stars.loc[idx, ['x_ctrd', 'y_ctrd', 'sigma_ctrd']] = (x_star + x_offset,
-                                                              y_star + y_offset,
-                                                              sigma_ctrd)
-    return stars
+        (height_actl, width_actl) = subframe.shape
+        if is_odd(width_actl):
+            x_init_sub = (width_actl - 1) / 2
+        else:
+            x_init_sub = width_actl / 2
+        if is_odd(height_actl):
+            y_init_sub = (height_actl - 1) / 2
+        else:
+            y_init_sub = height_actl / 2
+        (x_offset, y_offset) = (x_finl_sub - x_init_sub,
+                                y_finl_sub - y_init_sub)
+        (x_finl, y_finl) = (x_init + x_offset,
+                            y_init + y_offset)
+        stars_finl.loc[idx, ['x_pix', 'y_pix']] = (x_finl, y_finl)
+    return stars_finl
 
