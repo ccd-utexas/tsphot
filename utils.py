@@ -212,7 +212,9 @@ def find_stars(image,
     Returns
     -------
     stars : pandas.DataFrame
-        ``pandas.DataFrame`` has 1 row for each star.
+        ``pandas.DataFrame`` with:
+        Rows:
+            `idx` : Integer index labeling found star.
         Columns:
             `x_pix` : x-coordinate of found star in image pixels.
             `y_pix` : y-coordinate of found star in image pixels.
@@ -242,7 +244,13 @@ def plot_stars(image, stars):
     image : array_like
         2D array of image.
     stars : pandas.DataFrame
-        ``pandas.DataFrame`` with 1 row for each star and with columns `x_pix`, `y_pix`, `sigma_pix`.
+        ``pandas.DataFrame`` with:
+        Rows:
+            `idx` : Index labeling each star.
+        Columns:
+            `x_pix` : x-coordinate of star (pixels).
+            `y_pix` : y-coordinate of star (pixels).
+            `sigma_pix` : Standard deviation Gaussian fit to the star (pixels).
 
     Returns
     -------
@@ -262,22 +270,29 @@ def plot_stars(image, stars):
         circle = plt.Circle((x_pix, y_pix), radius=radius_pix,
                             color='yellow', linewidth=2, fill=False)
         ax.add_patch(circle)
+        ax.annotate(str(idx), xy=(x_pix, y_pix), xycoords='data',
+                    xytext=(0,0), textcoords='offset points',
+                    color='yellow', fontsize=12, rotation=0)
     plt.show()
 
 def center_stars(image, stars, box_sigma=5, method='fit_bivariate_normal'):
     """Compute star centroids in an image with identified stars.
 
-    Extract a subframe around each star. Length of the subframe box is a factor of star sigma in pixels.
-    From the given method, return the dataframe with refined coordinates and sigma in new columns.
+    Extract a subframe around each star. Side-length of the subframe box is sigma_pix*box_sigma.
+    From the given method, return a dataframe with sub-pixel coordinates and sigma.
+
     new category `center_stars `x_pix`, `y_pix`, `sigma_pix`for sub-pixel
     x-, y-coordinates of centroid and standard deviation sigma of intensity distribution.
 
+    
     Parameters
     ----------
     image : array_like
         2D array of image.
     stars : pandas.DataFrame
-        ``pandas.DataFrame`` with 1 row for each star and includes columns `x`, `y`, `sigma`.
+        ``pandas.DataFrame`` with 1 row for each star.
+        Columns:
+            `x_pix`, `y`, `sigma`.
         `sigma` is the standard deviation of the Gaussian kernel that detected the star (usually 1 pixel).
     box_sigma : {5}, int, optional
         The dimensions for a subframe around the source for centering are
