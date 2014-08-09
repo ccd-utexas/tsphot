@@ -331,8 +331,9 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
         `centroid_2dg` : Return the centroid from fitting a 2D Gaussian to the intensity distribution.
             Method is from photutils [1]_.
         `centroid_com` : Return the centroid from computing the image moments. Method is from photutils [1]_.
-        `fit_bivariate_normal` : Return the centroid from fitting a bivariate normal (Gaussian)
-            distribution to a model of the intensity distribution [2]_, [3]_.
+        `fit_bivariate_normal` : Model the photon counts wihtin each pixel of the subframe as from a uniform
+            distribution [2]_. Return the centroid from fitting a bivariate normal (Gaussian) distrigution to
+            the modeled the photon count distribution [3]_.
 
     Returns
     -------
@@ -343,33 +344,24 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
         Columns:
             `x_pix` : Sub-pixel x-coordinate (pixels) of centroid.
             `y_pix` : Sub-pixel y-coordinate (pixels) of centroid.
-
-
-    Notes
-    -----
-    - 
-    - 
     
     References
     ----------
     .. [1] http://photutils.readthedocs.org/en/latest/photutils/morphology.html#centroiding-an-object
-    .. [2] http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
-    .. [3] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
            sec 3.3.1., "The Uniform Distribution"
+    .. [3] http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
     
     """
     # Check input
-    valid_methods = ['fit_bivariate_normal']
+    valid_methods = ['fit_max_phot_flux', 'centroid_2dg', 'centroid_com', 'fit_bivariate_normal']
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n"+
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
     # Make square subframes and compute centroids by chosed method.
     # Each star may have a different sigma. Store results in a dataframe.
     stars_init = stars.copy()
-    stars_finl = stars.copy()
-    stars_finl['x_pix'] = np.NaN
-    stars_finl['y_pix'] = np.NaN
-    stars_finl['sigma_pix'] = np.NaN
+    stars_finl = pd.DataFrame(np.NaN, index=stars_init.index, columns=['x_pix', 'y_pix'])
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
         width = np.rint(box_sigma*sigma_init)
         height = width
@@ -385,8 +377,10 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             #(x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
             pass
         elif method == 'centroid_2dg':
+            # - For 7x7 subframes, process takes ~20 ms per subframe.
             (x_finl_sub, y_finl_sub) = morphology.centroid_2dg(subframe)
         elif method == 'centroid_com':
+            # - For 7x7 subframes, process takes ~2 ms per subframe.
             (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
         elif method == 'fit_bivariate_normal':
             # - Model the photons hitting the pixels of the subframe and
@@ -395,7 +389,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             # - To compute sigma, add variances since modeling coordinate (x,y)
             #   as sum of vectors x, y with assumed covariance=0 (sec 3.5.1 of Ivezic 2014 [2]_).
             # - Seed the random number generator for reproducibility.
-            # - For 7x7 subframes, process takes ~90 ms per subframe.
+            # - For 7x7 subframes, process takes ~350 ms per subframe.
             x_dist = []
             y_dist = []
             (height_actl, width_actl) = subframe.shape
