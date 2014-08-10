@@ -159,9 +159,9 @@ def normalize(array):
 
     Notes
     -----
-    `normd_array = (array - median) / sigmaG`
-    `sigmaG = 0.7413(q75 - q50)`
-    q50, q75 = 50th, 75th quartiles
+    `array_normd` = (`array` - median(`array`)) / `sigmaG`
+    `sigmaG` = 0.7413(q75(`array`) - q50(`array`))
+    q50, q75 = 50th, 75th quartiles (q50 == median)
     See [1]_.
 
     References
@@ -208,7 +208,7 @@ def find_stars(image,
         Because image is normalized, `threshold` is the number of stdandard deviations
         above background for counts per pixel.
         Example for extended sources:
-            `blobargs=dict(min_sigma=1, max_sigma=30, num_sigma=10, threshold=2)`
+            `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=2)
     
     Returns
     -------
@@ -243,7 +243,7 @@ def find_stars(image,
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
-def plot_stars(image, stars):
+def plot_stars(image, stars, radius=3):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -259,7 +259,8 @@ def plot_stars(image, stars):
         Columns:
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
-            `sigma_pix` : Standard deviation (pixels) of the star modeled as a 2D Gaussian.
+    radius : {3}, optional, number_like
+        ``number_like``, e.g. ``float`` or ``int``. The radius of the circle around each star in pixels.
 
     Returns
     -------
@@ -273,11 +274,9 @@ def plot_stars(image, stars):
     """
     (fig, ax) = plt.subplots(1, 1)
     ax.imshow(image, interpolation='none')
-    for (idx, x_pix, y_pix, sigma_pix) in stars[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        fwhm_pix = sigma_to_fwhm(sigma_pix)
-        radius_pix = fwhm_pix / 2.0
-        circle = plt.Circle((x_pix, y_pix), radius=radius_pix,
-                            color='yellow', linewidth=2, fill=False)
+    for (idx, x_pix, y_pix) in stars[['x_pix', 'y_pix']].itertuples():
+        circle = plt.Circle((x_pix, y_pix), radius=radius,
+                            color='yellow', linewidth=1, fill=False)
         ax.add_patch(circle)
         ax.annotate(str(idx), xy=(x_pix, y_pix), xycoords='data',
                     xytext=(0,0), textcoords='offset points',
@@ -322,25 +321,25 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
     box_sigma : {7}, int, optional
-        `box_sigma*sigma` x `box_sigma*sigma` are the dimensions for a subframe around the source.
+        `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a subframe around the source.
         `box_sigma` must be odd and >= 3 so that the center pixel of the subframe is initial `x_pix`, `y_pix`.
         Except for `fit_max_phot_flux`, all methods agree within +/- 0.02 pix for centroid solution
-            with `7 <= box_sigma <= 11` given `sigma=1`, i.e. 7x7 <= subframe size <= 11x11.
+            with 7 <= `box_sigma` <= 11 given `sigma`=1, i.e. 7x7 <= `subframe` size <= 11x11.
     method : {centroid_2dg, centroid_com, fit_bivariate_normal, fit_max_phot_flux}, optional
         The method by which to compute the centroids.
         `centroid_2dg` : Method is from photutils [1]_. Return the centroid from fitting a 2D Gaussian to the
             intensity distribution. Method is fast, accurate, and insensitive to outliers for all `box_sigma`. 
         `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
-            Method is very fast but only accurate between `7 <= box_sigma <= 11` given `sigma=1` due to
+            Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
             sensitivity to outliers.
         `fit_bivariate_normal` : Model the photon counts wihtin each pixel of the subframe as from a uniform
             distribution [2]_. Return the centroid from fitting a bivariate normal (Gaussian) distribution to
-            the modeled the photon count distribution [3]_. Method is slow but statistically robust. Given `sigma=1`,
-            method agrees within +/- 0.02 pix with `centroid_com` for `box_sigma <= 7` and agrees within +/- 0.02 pix
-            with `centroid_2dg` for `box_sigma >= 7`.
+            the modeled the photon count distribution [3]_. Method is slow but statistically robust. Given `sigma`=1,
+            method agrees within +/- 0.02 pix with `centroid_com` for `box_sigma` <= 7 and agrees within +/- 0.02 pix
+            with `centroid_2dg` for `box_sigma` >= 7.
         `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from computing the
             centroid that yields the largest photometric flux. Method is fast, but, as of 2014-08-08 (STH), implementation
-            is inaccurate by ~0.1 pix (given `sigma=1`, `box_sigma=7`), and method is possibly sensitive to outliers.
+            is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7), and method is possibly sensitive to outliers.
         
     Returns
     -------
@@ -413,6 +412,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             #   for 7x7 subframe to within +/- 0.01 pix. Method is least susceptible to outliers.
             # - For 7x7 subframe, method takes ~20 ms. Method scales \propto box_sigma.
             (x_finl_sub, y_finl_sub) = morphology.centroid_2dg(subframe)
+            print(morphology.fit_2dgaussian(subframe))
         elif method == 'centroid_com':
             # Test results:
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
