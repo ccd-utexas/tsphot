@@ -339,8 +339,8 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             method agrees within +/- 0.02 pix with `centroid_com` for `box_sigma <= 7` and agrees within +/- 0.02 pix
             with `centroid_2dg` for `box_sigma >= 7`.
         `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from computing the
-            centroid that yields the largest photometric flux. Method is fast, but, as of 2014-08-08 (STH), method is
-            inaccurate by ~0.1 pix (given `sigma=1`, `box_sigma=7`), and method is possibly sensitive to outliers.
+            centroid that yields the largest photometric flux. Method is fast, but, as of 2014-08-08 (STH), implementation
+            is inaccurate by ~0.1 pix (given `sigma=1`, `box_sigma=7`), and method is possibly sensitive to outliers.
         
     Returns
     -------
@@ -405,7 +405,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
         # using the selected method.
         if method == 'centroid_2dg':
             # Test results:
-            # - Test on star with 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
+            # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.01 pix of final centroid solution at 7x7 subframe,
             #   and final centroid solution agrees with fit_bivariate_normal final centroid solution within +/- 0.02 pix.
             # - For all subframes, method is closest to final centroid solution.
@@ -415,7 +415,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             (x_finl_sub, y_finl_sub) = morphology.centroid_2dg(subframe)
         elif method == 'centroid_com':
             # Test results:
-            # - Test on star with 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
+            # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method does not converge to final centroid solution.
             # - For 7x7 to 11x11 subframes, centroid solution agrees with centroid_2dg centroid solution within
             #   +/- 0.01 pix, but then diverges from solution with larger subframes. Method is susceptible to outliers.
@@ -423,7 +423,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
         elif method == 'fit_bivariate_normal':
             # Test results:
-            # - Test on star with 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
+            # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.02 pix of final centroid solution at 7x7 subframe,
             #   and final centoid solution agrees with centroid_2dg final centroid solution within +/- 0.02 pix.
             # - For subframes <= 7x7, centroid solution follows centroid_com within +/- 0.02 pix.
@@ -432,9 +432,10 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             # Method description:
             # - Model the photons hitting the pixels of the subframe and
             #   robustly fit a bivariate normal distribution.
-            # - Photons hit each pixel with a uniform distribution. See [2]_, [3]_.
+            # - Conservatively assume that photons hit each pixel, even those of the star,
+            #   with a uniform distribution. See [2]_, [3]_.
             # - To compute sigma, add variances since modeling coordinate (x,y)
-            #   as sum of vectors x, y with assumed covariance=0 (sec 3.5.1 of Ivezic 2014 [2]_).
+            #   as sum of vectors x, y. Prior PCA makes covariance ~ 0 (sec 3.5.1 of Ivezic 2014 [2]_).
             # - Seed the random number generator for reproducibility.
             x_dist = []
             y_dist = []
@@ -452,7 +453,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             (x_finl_sub, y_finl_sub) = mu
         elif method == 'fit_max_phot_flux':
             # Test results:
-            # - Test on star with 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
+            # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at 7x7 subframe,
             #   however final centoid solution disagrees with other methods' centroid solutions.
             # - For 7x7 subframe, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subframe
