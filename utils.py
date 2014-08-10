@@ -154,8 +154,8 @@ def normalize(array):
 
     Returns
     -------
-    array_normd : array_like
-        Normalized version of `array`.
+    array_normd : numpy.ndarray
+        Normalized `array` as ``numpy.ndarray``.
 
     Notes
     -----
@@ -170,10 +170,35 @@ def normalize(array):
         sec 3.2, "Descriptive Statistics"
     
     """
-    sigmaG = stats.sigmaG(array)
-    median = np.median(array)
-    return (array - median) / sigmaG
+    array_np = np.array(array)
+    sigmaG = stats.sigmaG(array_np)
+    median = np.median(array_np)
+    array_normd = (array_np - median) / sigmaG
+    return array_normd
 
+def subtract_background(image):
+    """Subtract the background intensity from an image.
+
+    The function subtracts the image median and
+    set pixels below the background level to 0.
+
+    Parameters
+    ----------
+    image : array_like
+        2D array of image.
+
+    Returns
+    -------
+    image_sub : numpy.ndarray
+        Background-subtracted `image` as ``numpy.ndarray``.
+
+    """
+    image_np = np.array(image)
+    median = np.median(image_np)
+    image_sub = image_np - median
+    image_sub[image_sub < 0.0] = 0.0
+    return image_sub
+    
 def sigma_to_fwhm(sigma):
     """Convert the standard deviation sigma of a Gaussian into
     the full-width-at-half-maximum.
@@ -321,15 +346,17 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
     box_sigma : {7}, int, optional
-        `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a subframe around the source.
-        `box_sigma`*`sigma` will be corrected to be >= 3 so that the center pixel of the subframe is
+        `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a square subframe around the source.
+        `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
         the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
         accomodate extended sources.
-        Example: For stars with FHWM ~ 4 pix, initial `sigma_pix` = 1, both fitting methods converge for `box_sigma` >= 7,
-            i.e. `box_sigma`*`sigma` = 7, subframe size = 7x7.
+        Example: For a bright star with peak 18k ADU above background, FHWM 4.7 pix,
+            initial `sigma_pix` = 1, `box_sigma` >= 7, i.e. `box_sigma`*`sigma` >= 7, subframe size >= 7x7.
+            Centroid coordinates for both fitting methods agree to within +/- 0.02 pix for `box_sigma` >= 7.
+            Standard deviation sigma for both fitting methods agree to within +/- 0.5 pix for `box_sigma` >= 7.
     method : {fit_2dgaussian, fit_bivariate_normal}, optional
         The method by which to compute the centroids and sigma.
-        `fit_2dgaussian` : Method is from photutils [1]_ and astroy [2]_. Return the centroid coordinates and
+        `fit_2dgaussian` : Method is from photutils [1]_ and astropy [2]_. Return the centroid coordinates and
             standard devaition sigma from fitting a 2D Gaussian to the intensity distribution.
             The method is fast, accurate, and insensitive to outliers for all `box_sigma`. 
         `fit_bivariate_normal` : Model the photon counts wihtin each pixel of the subframe as from a uniform
@@ -351,7 +378,7 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
     See Also
     --------
     find_stars : Previous step in pipeline. Run `find_stars` first then use the output of `find_stars`
-        as the input of `center_stars`.
+        in the input of `center_stars`.
             
     References
     ----------
@@ -384,9 +411,11 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
         # - width, height order is reverse of position x, y order
         # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x)
         # - (0,0) is in upper left.
+        # - Subtract background to fit counts only belonging to the source.
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_init, y_init))
+        subframe = subtract_background(subframe)
         # Compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
         # If the star was too close to the frame edge to extract the subframe, skip the star.
@@ -397,7 +426,7 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
             y_init_sub = (height_actl - 1) / 2
         else:
             # TODO: log events. STH, 2014-08-08
-            print(("ERROR: Star is too close to the edge of the frame. Subframe could not be extracted.\n"+
+            print(("ERROR: Star is too close to the edge of the frame. Square subframe could not be extracted.\n"+
                    "  idx = {idx}\n"+
                    "  (x_init, y_init) = ({x_init}, {y_init})\n"+
                    "  sigma_init = {sigma_init}\n"+
@@ -411,10 +440,10 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
                                                                                          width_actl=width_actl, height_actl=height_actl),
                                                                                          file=sys.stderr)
             continue
-        # Compute the final position for the star relative to the subframe
+        # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method.
         if method == 'fit_2dgaussian':
-            # Test results on 'centroid_2dg':
+            # Test results on 'centroid_2dg': 2014-08-09, STH
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.01 pix of final centroid solution at 7x7 subframe,
             #   and final centroid solution agrees with fit_bivariate_normal final centroid solution within +/- 0.02 pix.
@@ -428,7 +457,7 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
             sigma_finl_sub = math.sqrt(fit.x_stddev**2 + fit.y_stddev**2)
         elif method == 'fit_bivariate_normal':
-            # Test results:
+            # Test results: 2014-08-09, STH
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.02 pix of final centroid solution at 7x7 subframe,
             #   and final centoid solution agrees with centroid_2dg final centroid solution within +/- 0.02 pix.
@@ -465,7 +494,7 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
         #     # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
         #     # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
         #     # sensitivity to outliers.
-        #     # Test results:
+        #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
         #     # - For varying subframes, method does not converge to final centroid solution.
@@ -477,7 +506,7 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
         #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from computing the
         #     # centroid that yields the largest photometric flux. Method is fast, but, as of 2014-08-08 (STH), implementation
         #     # is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7), and method is possibly sensitive to outliers.
-        #     # Test results:
+        #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
         #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at 7x7 subframe,
@@ -578,5 +607,5 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
         (x_finl, y_finl) = (x_init + x_offset,
                             y_init + y_offset)
         sigma_finl = sigma_finl_sub
-        stars_finl[['x_pix', 'y_pix', 'sigma_pix']].loc[idx] = (x_finl, y_finl, sigma_finl)
+        stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
     return stars_finl
