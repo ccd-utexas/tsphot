@@ -5,8 +5,9 @@
 
 from __future__ import division, absolute_import, print_function
 
-import math
+import sys
 import inspect
+import math
 
 import read_spe
 from bs4 import BeautifulSoup
@@ -302,7 +303,7 @@ def is_odd(num):
         is_odd = False
     return is_odd
     
-def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
+def center_stars(image, stars, box_sigma=7, method='fit_max_phot_flux'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
     Extract a square subframe around each star. Side-length of the subframe box is sigma_pix*box_sigma.
@@ -322,7 +323,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
     box_sigma : {7}, int, optional
         `box_sigma*sigma` x `box_sigma*sigma` are the dimensions for a subframe around the source.
-        `box_sigma` should be odd so that the center pixel of the subframe is initial `x_pix`, `y_pix`.
+        `box_sigma` must be odd so that the center pixel of the subframe is initial `x_pix`, `y_pix`.
         All methods typically converge to +/- 0.01 pixel with box_sigma=7.
     method : {fit_max_phot_flux, centroid_2dg, centroid_com, fit_bivariate_normal}, optional
         The method by which to compute the centroids.
@@ -344,7 +345,11 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
         Columns:
             `x_pix` : Sub-pixel x-coordinate (pixels) of centroid.
             `y_pix` : Sub-pixel y-coordinate (pixels) of centroid.
-    
+
+    Notes
+    -----
+    - Pipeline: Run `find_stars` first. Use the output of `find_stars` as the input of `center_stars`.
+            
     References
     ----------
     .. [1] http://photutils.readthedocs.org/en/latest/photutils/morphology.html#centroiding-an-object
@@ -354,6 +359,9 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
     
     """
     # Check input
+    if not is_odd(box_sigma):
+        raise IOError(("Side length for square subframe must odd.\n"+
+                       "box_sigma = {box_sigma}").format(box_sigma=box_sigma))
     valid_methods = ['fit_max_phot_flux', 'centroid_2dg', 'centroid_com', 'fit_bivariate_normal']
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n"+
@@ -373,8 +381,109 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_init, y_init))
+        # Compute the iniitial position for the star relative to the subframe.
+        # The star is in an integer pixel.
+        (height_actl, width_actl) = subframe.shape
+        if ((width_actl != width) or
+            (height_actl != height)):
+            # TODO: log events. STH, 2014-08-08
+            print(("ERROR: Star is too close to edge of frame. Subframe could not be extracted.\n"+
+                   "  idx = {idx}\n"+
+                   "  box_sigma = {box_sigma}").(idx=idx, box_sigma=box_sigma), file=sys.stderr)
+            continue
+        else:
+            x_init_sub = (width_actl - 1) / 2
+            y_init_sub = (height_actl - 1) / 2
+        # Compute the final position for the star relative to the subframe
+        # using the selected method.
         if method == 'fit_max_phot_flux':
-            #(x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
+            # - 
+            def obj_func(subframe, position, radius, eps=0.2):
+                """Objective function to minimize: -1*photometric flux from star.
+                Assumed to follow a 2D Gaussian point-spread function.
+
+                Parameters
+                ----------
+                subframe : array_like
+                    2D subframe of image. Used only by `obj_func`.
+                position : list or array of a tuple
+                    Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``, i.e. [(x, y)] [1]_, [2]_.
+                    Used by both `obj_func` and `jac_func`.
+                radius : float
+                    The radius of the aperture [1]_. Used only by `obj_func`.
+                eps : float
+                    Epsilon value for computing the change in the gradient. Used only by `jac_func`.
+
+                Returns
+                -------
+                flux_neg : float
+                    Negative flux computed by photutils [2]_.
+
+                Notes
+                -----
+                - Both `obj_func` and `jac_func` must accept the same arguments [3]_.
+
+                References
+                ----------
+                .. [1] http://photutils.readthedocs.org/en/latest/api/photutils.CircularAperture.html#photutils.CircularAperture
+                .. [2] http://photutils.readthedocs.org/en/latest/api/photutils.aperture_photometry.html#photutils.aperture_photometry
+                .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
+
+                """
+                aperture = [photutils.CircularAperture(position, radius)]
+                flux_neg = -1. * photutils.aperture_photometry(subframe, position, aperture)
+                return flux_neg
+
+            def jac_func(subframe, position, radius, eps=0.2):
+                """Jacobian of the objective function for fixed radius.
+                Assumed to follow a 2D Gaussian point-spread function.
+
+                Parameters
+                ----------
+                subframe : array_like
+                    2D subframe of image. Used only by `obj_func`
+                position : list or array of a tuple
+                    Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``, i.e. [(x, y)] [1]_, [2]_.
+                    Used by both `obj_func` and `jac_func`.
+                radius : float
+                    The radius of the aperture [1]_. Used only by `obj_func`.
+                eps : float
+                    Epsilon value for computing the change in the gradient. Used only by `jac_func`.
+
+                Returns
+                -------
+                jac : numpy.ndarray
+                    Jacobian of obj_func as ``numpy.ndarray`` [dx, dy].
+
+                Notes
+                -----
+                - Both `obj_func` and `jac_func` must accept the same arguments [3]_.
+
+                References
+                ----------
+                .. [1] http://photutils.readthedocs.org/en/latest/api/photutils.CircularAperture.html#photutils.CircularAperture
+                .. [2] http://photutils.readthedocs.org/en/latest/api/photutils.aperture_photometry.html#photutils.aperture_photometry
+                .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
+                
+                """
+                (x_pix, y_pix) = position
+                jac = np.zeros_like(position)
+                fxp1 = obj_func(subframe, (x_pix + eps, y_pix), radius)
+                fxm1 = obj_func(subframe, (x_pix - eps, y_pix), radius)
+                fyp1 = obj_func(subframe, (x_pix, y_pix + eps), radius)
+                fym1 = obj_func(subframe, (x_pix, y_pix - eps), radius)
+                jac[0] = (fxp1-fxm1)/(2.*eps)
+                jac[1] = (fyp1-fym1)/(2.*eps)
+                return jac
+            
+            # res = scipy.optimize.minimize(obj_func,
+            #                               (subframe, position, radius),
+            #                               method='L-BFGS-B',
+            #                               jac=jac_func)
+            # xx0=res.x
+            # xvec[i] = xx0[0]
+            # yvec[i] = xx0[1]
+
             pass
         elif method == 'centroid_2dg':
             # - For 7x7 subframes, process takes ~20 ms per subframe.
@@ -406,16 +515,7 @@ def center_stars(image, stars, box_sigma=7, method='centroid_2dg'):
             (x_finl_sub, y_finl_sub) = mu
         else:
             raise AssertionError(("Program error. Input method not accounted for: {meth}").format(meth=method))
-        # Compute the centroid coordinates relative to the star centers.
-        (height_actl, width_actl) = subframe.shape
-        if is_odd(width_actl):
-            x_init_sub = (width_actl - 1) / 2
-        else:
-            x_init_sub = width_actl / 2
-        if is_odd(height_actl):
-            y_init_sub = (height_actl - 1) / 2
-        else:
-            y_init_sub = height_actl / 2
+        # Compute the centroid coordinates relative to the entire image.
         (x_offset, y_offset) = (x_finl_sub - x_init_sub,
                                 y_finl_sub - y_init_sub)
         (x_finl, y_finl) = (x_init + x_offset,
