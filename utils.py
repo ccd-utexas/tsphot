@@ -502,7 +502,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # using the selected method. Subtract background to fit counts only belonging to the source.
         subframe = subtract_subframe_background(subframe, threshold_sigma)
         if method == 'fit_2dgaussian':
-            # Test results on 'centroid_2dg': 2014-08-09, STH
+            # Test results on 'centroid_2dg': 2014-08-09, STH; REDO
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.01 pix of final centroid solution at 7x7 subframe,
             #   and final centroid solution agrees with fit_bivariate_normal final centroid solution within +/- 0.02 pix.
@@ -516,7 +516,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
             sigma_finl_sub = math.sqrt(fit.x_stddev**2 + fit.y_stddev**2)
         elif method == 'fit_bivariate_normal':
-            # Test results: 2014-08-09, STH
+            # Test results: 2014-08-09, STH; REDO
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
             # - For varying subframes, method converges to within +/- 0.02 pix of final centroid solution at 7x7 subframe,
             #   and final centoid solution agrees with centroid_2dg final centroid solution within +/- 0.02 pix.
@@ -546,7 +546,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             (mu, sigma1, sigma2, alpha) = stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
             (x_finl_sub, y_finl_sub) = mu
             sigma_finl_sub = math.sqrt(sigma1**2 + sigma2**2)
-        # # Note:
+        # # NOTE: 2014-08-10, STH
         # # The following methods have been commented out because they do not provide an estimate for the star's
         # # standard deviation as a 2D Gaussian.
         # # elif method == 'centroid_com':
