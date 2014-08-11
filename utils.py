@@ -174,71 +174,6 @@ def normalize(array):
     sigmaG = stats.sigmaG(array_np)
     array_normd = (array_np - median) / sigmaG
     return array_normd
-
-def subtract_subframe_background(subframe, threshold_sigma=2):
-    """Subtract the background intensity from a subframe centered on a source.
-
-    The function estimates the background as the median intensity of pixels
-    bordering the subframe (i.e. square aperture photometry). The median is
-    subtracted from the subframe, and pixels whose original intensity was less
-    than the threshold number of sigma above the median are set to 0.
-
-    Parameters
-    ----------
-    subframe : array_like
-        2D array of subframe.
-    threshold_sigma : {2}, optional
-        ``number_like``, i.e. ``float`` or ``int``. `threshold_sigma` is the number
-        of standard deviations above the subframe median for counts per pixel.
-        `threshold_sigma` is set low for faint sources. Uses `sigmaG` [2]_.
-
-    Returns
-    -------
-    subframe_sub : numpy.ndarray
-        Background-subtracted `subframe` as ``numpy.ndarray``.
-
-    Notes
-    -----
-    The source must be centered to within ~ +/- 1/4 of the subframe width.
-    At least 3 times as many border pixels used in estimating the background
-        as compared to the source [1]_.
-    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
-    q50, q75 = 50th, 75th quartiles (q50 == median)
-
-    References
-    ----------
-    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
-    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
-           sec 3.2, "Descriptive Statistics"
-        
-    """
-    subframe_np = np.array(subframe)
-    (height, width) = subframe_np.shape
-    if width != height:
-        raise IOError(("Subframe must be square.\n"+
-                       "  width = {wid}\n"+
-                       "  height = {ht}").format(wid=width,
-                                                 ht=height))
-    border = math.ceil(width / 4)
-    arr_longtop_longbottom = np.append(subframe_np[:border],
-                                       subframe_np[-border:])
-    arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
-                                         subframe_np[border:-border, -border:])
-    arr_background = np.append(arr_longtop_longbottom,
-                               arr_shortleft_shortright)
-    arr_source = subframe_np[border:-border, border:-border]
-    if (arr_background.size / arr_source.size) < 3:
-        # Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
-        raise AssertionError(("Program error. There must be at least 3 times as many sky pixels\n"+
-                              "  as source pixels to accurately estimate the sky background level.\n"+
-                              "  arr_background.size = {nb}\n"+
-                              "  arr_source.size = {ns}").format(nb=arr_background.size,
-                                                                 ns=arr_source.size))
-    median = np.median(arr_background)
-    sigmaG = stats.sigmaG(arr_background)
-    subframe_sub = subframe_np - median
-    subframe_sub[subframe_sub < threshold_sigma*sigmaG] = 0.0
-    return subframe_sub
     
 def sigma_to_fwhm(sigma):
     """Convert the standard deviation sigma of a Gaussian into
@@ -258,7 +193,7 @@ def sigma_to_fwhm(sigma):
     return fwhm
 
 def find_stars(image,
-               blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)):
+               blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
@@ -269,12 +204,12 @@ def find_stars(image,
     ----------
     image : array_like
         2D array of image.
-    blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)}, optional
+    blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)}, optional
         Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
         Because image is normalized, `threshold` is the number of stdandard deviations
-        above image median for counts per pixel. `threshold` is set low to detect faint sources.        
+        above image median for counts per pixel.
         Example for extended sources:
-            `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=2)
+            `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=3)
     
     Returns
     -------
@@ -372,11 +307,83 @@ def is_odd(num):
         is_odd = False
     return is_odd
     
-def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
+def subtract_subframe_background(subframe, threshold_sigma=3):
+    """Subtract the background intensity from a subframe centered on a source.
+
+    The function estimates the background as the median intensity of pixels
+    bordering the subframe (i.e. square aperture photometry). The median is
+    subtracted from the subframe, and pixels whose original intensity was less
+    than the threshold number of sigma above the median are set to 0.
+
+    Parameters
+    ----------
+    subframe : array_like
+        2D array of subframe.
+    threshold_sigma : {3}, number_like, optional
+        ``float`` or ``int``. `threshold_sigma` is the number of standard
+        deviations above the subframe median for counts per pixel. Pixels with
+        fewer counts are set to 0. Uses `sigmaG` [2]_.
+
+    Returns
+    -------
+    subframe_sub : numpy.ndarray
+        Background-subtracted `subframe` as ``numpy.ndarray``.
+
+    Notes
+    -----
+    The source must be centered to within ~ +/- 1/4 of the subframe width.
+    At least 3 times as many border pixels used in estimating the background
+        as compared to the source [1]_.
+    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
+    q50, q75 = 50th, 75th quartiles (q50 == median)
+
+    See Also
+    --------
+    `normalize`, `find_stars`, `center_stars`
+
+    References
+    ----------
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
+    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+           sec 3.2, "Descriptive Statistics"
+        
+    """
+    subframe_np = np.array(subframe)
+    (height, width) = subframe_np.shape
+    if width != height:
+        raise IOError(("Subframe must be square.\n"+
+                       "  width = {wid}\n"+
+                       "  height = {ht}").format(wid=width,
+                                                 ht=height))
+    # Choose border width such ratio of number of background pixels to source pixels is >= 3.
+    border = math.ceil(width / 4)
+    arr_longtop_longbottom = np.append(subframe_np[:border],
+                                       subframe_np[-border:])
+    arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
+                                         subframe_np[border:-border, -border:])
+    arr_background = np.append(arr_longtop_longbottom,
+                               arr_shortleft_shortright)
+    arr_source = subframe_np[border:-border, border:-border]
+    if (arr_background.size / arr_source.size) < 3:
+        # Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
+        raise AssertionError(("Program error. There must be at least 3 times as many sky pixels\n"+
+                              "  as source pixels to accurately estimate the sky background level.\n"+
+                              "  arr_background.size = {nb}\n"+
+                              "  arr_source.size = {ns}").format(nb=arr_background.size,
+                                                                 ns=arr_source.size))
+    median = np.median(arr_background)
+    sigmaG = stats.sigmaG(arr_background)
+    subframe_sub = subframe_np - median
+    subframe_sub[subframe_sub < threshold_sigma*sigmaG] = 0.0
+    return subframe_sub
+
+def center_stars(image, stars, box_sigma=7, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
-    Extract a square subframe around each star. Side-length of the subframe box is sigma_pix*box_sigma.
-    With the given method, return a dataframe with sub-pixel coordinates of the centroid.
+    Extract a square subframe around each star. Side-length of the subframe box is `box_sigma`*`sigma_pix`.
+    Subtract the background from the subframe and set pixels with fewer counts than the threshold to 0.
+    With the given method, return a dataframe with sub-pixel coordinates of the centroid and
+    sigma standard deviation.
 
     Parameters
     ----------
@@ -399,6 +406,9 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
             initial `sigma_pix` = 1, `box_sigma` >= 7, i.e. `box_sigma`*`sigma` >= 7, subframe size >= 7x7.
             Centroid coordinates for both fitting methods agree to within +/- 0.02 pix for `box_sigma` >= 7.
             Standard deviation sigma for both fitting methods agree to within +/- 0.5 pix for `box_sigma` >= 7.
+    threshold_sigma : {3}, number_like, optional
+        ``float`` or ``int``. `threshold_sigma` is the number of standard deviations above the subframe median
+        for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
     method : {fit_2dgaussian, fit_bivariate_normal}, optional
         The method by which to compute the centroids and sigma.
         `fit_2dgaussian` : Method is from photutils [1]_ and astropy [2]_. Return the centroid coordinates and
@@ -420,6 +430,11 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
             `y_pix` : Sub-pixel y-coordinate (pixels) of centroid.
             `sigma_pix` : Sub-pixel standard deviation (pixels) of a 2D Gaussian fit to the star.
 
+    Notes
+    -----
+    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
+    q50, q75 = 50th, 75th quartiles (q50 == median)
+            
     See Also
     --------
     find_stars : Previous step in pipeline. Run `find_stars` first then use the output of `find_stars`
@@ -485,7 +500,7 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
-        subframe = subtract_subframe_background(subframe)
+        subframe = subtract_subframe_background(subframe, threshold_sigma)
         if method == 'fit_2dgaussian':
             # Test results on 'centroid_2dg': 2014-08-09, STH
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
