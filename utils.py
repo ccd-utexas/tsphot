@@ -546,17 +546,16 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             #   with a uniform distribution. See [3]_, [4]_.
             # - To compute sigma, add variances since modeling coordinate (x,y)
             #   as sum of vectors x, y. Prior PCA makes covariance ~ 0 (sec 3.5.1 of Ivezic 2014 [3]_).
-            # - Seed the random number generator for reproducibility.
+            # - Seed the random number generator once per call for reproducibility.
             x_dist = []
             y_dist = []
             (height_actl, width_actl) = subframe.shape
+            np.random.seed(0)
             for y_idx in xrange(height_actl):
                 for x_idx in xrange(width_actl):
                     pixel_counts = np.rint(subframe[y_idx, x_idx])
-                    np.random.seed(0)
                     x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
                     x_dist.extend(x_dist_pix.rvs(pixel_counts))
-                    np.random.seed(0)
                     y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
                     y_dist.extend(y_dist_pix.rvs(pixel_counts))
             (mu, sigma1, sigma2, alpha) = stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
