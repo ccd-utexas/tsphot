@@ -16,7 +16,7 @@ import astropy
 import ccdproc
 import imageutils
 import photutils
-from photutils.detection import morphology
+from photutils.detection import morphology, lacosmic
 from astroML import stats
 import scipy
 from skimage import feature
@@ -86,7 +86,9 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     for bias, dark, and flat.
 
     All frames must be type `ccdproc.CCDData`. Method will do all reductions possible
-    with given master calibration frames.
+    with given master calibration frames. Method operates on a ``dict``
+    in order to minimize the number of pre-reduction operations:
+    `dark` - `bias`, `flat` - `bias`, `flat` - `dark`.
     Requires exposure time (seconds) for object data frames.
     If master dark frame is provided, requires exposure time for master dark frame.
     If master flat frame is provided, requires exposure time for master flat frame.
@@ -115,6 +117,13 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
         `dobj` with `ccdproc.CCDData` frames reduced. ``dict`` keys with non-`ccdproc.CCDData` values
         are also returned in `dobj_reduced`.
 
+    See Also
+    --------
+    create_master_calib : Previous step in pipeline. Run `create_master_calib` to create master
+        bias, dark, flat calibration frames for use with `reduce_ccddata_dict`.
+    remove_cosmic_rays : Next step in pipeline. Remove cosmic rays from reduced image frames.
+    get_exptime_prog : Get programmed exposure time from an SPE footer XML string.
+    
     Notes
     -----
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
@@ -124,11 +133,6 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     - subtract master bias from each object image
     - scale and subtract master dark from each object image
     - divide each object image by normalized master flat
-
-    TODO
-    ----
-    - Parallelize.
-    - Correct gain.
 
     References
     ----------
@@ -147,6 +151,7 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
         # ...but no `flat_exptime`:
         if flat_exptime == None:
             raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
+    # Note: Modify frames in-place to reduce memory overhead.
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
@@ -177,12 +182,48 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
                                                    data_exposure=dobj_exptime)
             if flat != None:
                 dobj[fidx] = ccdproc.flat_correct(dobj[fidx], flat)
-    # Remove cosmic rays
-    for fidx in dobj:
-        if isinstance(dobj[fidx], ccdproc.CCDData):
-            dobj[fidx] = ccdproc.cosmicray_lacosmic(dobj[fidx], thresh=5, mbox=11, rbox=11, gbox=5)
     return dobj
 
+def remove_cosmic_rays(image,
+                       lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45)):
+    """Remove cosmic rays from an image.
+
+    Method uses the `photutils` implementation of the LA-Cosmic algorithm [1]_.
+
+    Parameters
+    ----------
+    image : array_like
+        2D array of image.
+    lacosmicargs : {dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45)}, dict
+        ``dict`` of keyword arguments for `photutils.detection.lacosmic` [1]_.
+        contrast : {2.0}, float
+            Chosen from [1]_, and Fig 4 of [2]_.
+        cr_threshold : {4.5}, float
+            Chosen from test script referenced in [3]_.
+        neighbor_threshold : {0.45}, float
+            Chosen from test script referenced in [3]_.
+        
+    Returns
+    -------
+    image_cleaned : numpy.ndarray
+        `image` cleaned of cosmic rays as ``numpy.ndarray``.
+
+    Notes
+    -----
+    Use method from `photutils` rather than `ccdproc` or `imageutils`
+        until `ccdproc` issue #130 is closed [3]_.
+
+    References
+    ----------
+    .. [1] http://photutils.readthedocs.org/en/latest/_modules/photutils/detection/lacosmic.html
+    .. [2] van Dokkum, 2001. http://adsabs.harvard.edu/abs/2001PASP..113.1420V
+    .. [3] https://github.com/astropy/ccdproc/issues/130
+    
+    """
+    # TODO: save ray mask?
+    (image_cleaned, ray_mask) = lacosmic(image, **lacosmicargs)
+    return image_cleaned
+    
 def normalize(array):
     """Normalize an array in a robust way.
 
@@ -216,7 +257,7 @@ def normalize(array):
     array_np = np.array(array)
     median = np.median(array_np)
     sigmaG = stats.sigmaG(array_np)
-    if np.equal(sigmaG, 0):
+    if sigmaG == 0:
         # TODO: use logging. STH, 2014-08-11
         print(("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN"),
               file=sys.stderr)
@@ -312,7 +353,7 @@ def plot_stars(image, stars, radius=3,
     radius : {3}, optional, float or int
         The radius of the circle around each star in pixels.
     imshowargs : {dict(interpolation='none')}, optional
-        Dict of keyword arguments for `matplotlib.pyplot.imshow`.
+        ``dict`` of keyword arguments for `matplotlib.pyplot.imshow`.
 
     Returns
     -------
@@ -336,21 +377,30 @@ def plot_stars(image, stars, radius=3,
     plt.show()
 
 def is_odd(num):
-    """Determine if a number is odd.
+    """Determine if a number is equivalent to an odd integer.
 
     Parameters
     ----------
     num : float or int
 
+    Returns
+    -------
+    is_odd : bool
+    
+    Notes
+    -----
+    Uses `math.fabs`, `math.fmod` rather than abs, % [1]_.
+    Allows negative numbers.
+    (1 - (1E-13)) evaluates as odd.
+    (1 + 0j) raises TypeError.
+
+    References
+    ----------
+    .. [1] https://docs.python.org/2/library/math.html
+
     """
-    rint = np.rint(num)
-    diff = rint - num
-    # If num is an integer test if odd...
-    if np.equal(diff, 0):
-        is_odd = ((num % 2) != 0)
-    # ...otherwise num is not odd
-    else:
-        is_odd = False
+    # `==` works for floats and ints.
+    is_odd = (math.fabs(math.fmod(num, 2)) == 1)
     return is_odd
     
 def subtract_subframe_background(subframe, threshold_sigma=3):
@@ -403,7 +453,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
                        "  height = {ht}").format(wid=width,
                                                  ht=height))
     # Choose border width such ratio of number of background pixels to source pixels is >= 3.
-    border = math.ceil(width / 4)
+    border = int(math.ceil(width / 4))
     arr_longtop_longbottom = np.append(subframe_np[:border],
                                        subframe_np[-border:])
     arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
@@ -519,7 +569,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     stars_finl = stars.copy()
     stars_finl[['x_pix','y_pix','sigma_pix']] = np.NaN
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        width = math.ceil(box_sigma*sigma_init)
+        width = int(math.ceil(box_sigma*sigma_init))
         if width < 3:
             width = 3
         if not is_odd(width):
