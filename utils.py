@@ -444,7 +444,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
         - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
+        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2. 
     `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
             
