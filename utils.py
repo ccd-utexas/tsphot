@@ -626,11 +626,18 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # Method description:
             # - See photutils [1]_ and astropy [2]_.
             # - To calculate the standard deviation for the 2D Gaussian:
-            #   Var_z = (Var_x + Var_y) / 2
-            #   ==> sigma_z = sqrt((sigma_x**2 + sigma_y**2) / 2)
+            #   zvec = xvec + yvec
+            #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+            #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+            #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
+            #   ==> Var(z) = Var(x + y)
+            #              = Var(x) + Var(y) + 2*Cov(x, y)
+            #              = Var(x) + Var(y)
+            #                since Cov(x, y) = 0 due to orthogonality.
+            #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             fit = morphology.fit_2dgaussian(subframe)
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
-            sigma_finl_sub = math.sqrt((fit.x_stddev**2.0 + fit.y_stddev**2.0) / 2.0)
+            sigma_finl_sub = math.sqrt(fit.x_stddev**2.0 + fit.y_stddev**2.0)
         elif method == 'fit_bivariate_normal':
             # Test results: 2014-08-11, STH
             # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
@@ -646,9 +653,15 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             #   with a uniform distribution. See [3]_, [4]_.
             # - Seed the random number generator only once per call to this method for reproducibility.
             # - To calculate the standard deviation for the 2D Gaussian:
-            #   Var_z = (Var_x + Var_y) / 2
-            #   ==> sigma_z = sqrt((sigma_x**2 + sigma_y**2) / 2)
-            #   Prior PCA makes covariance ~ 0 (sec 3.5.1 of Ivezic 2014 [3]_)
+            #   zvec = xvec + yvec
+            #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+            #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+            #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
+            #   ==> Var(z) = Var(x + y)
+            #              = Var(x) + Var(y) + 2*Cov(x, y)
+            #              = Var(x) + Var(y)
+            #                since Cov(x, y) = 0 due to orthogonality.
+            #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             x_dist = []
             y_dist = []
             (height_actl, width_actl) = subframe.shape
@@ -662,7 +675,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
                     y_dist.extend(y_dist_pix.rvs(pixel_counts))
             (mu, sigma1, sigma2, alpha) = stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
             (x_finl_sub, y_finl_sub) = mu
-            sigma_finl_sub = math.sqrt((sigma1**2.0 + sigma2**2.0) / 2.0)
+            sigma_finl_sub = math.sqrt(sigma1**2.0 + sigma2**2.0)
         # # NOTE: 2014-08-10, STH
         # # The following methods have been commented out because they do not provide an estimate for the star's
         # # standard deviation as a 2D Gaussian.
