@@ -172,6 +172,10 @@ def normalize(array):
     array_np = np.array(array)
     median = np.median(array_np)
     sigmaG = stats.sigmaG(array_np)
+    if np.equal(sigmaG, 0):
+        # TODO: use logging. STH, 2014-08-11
+        print(("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN"),
+              file=sys.stderr)
     array_normd = (array_np - median) / sigmaG
     return array_normd
     
