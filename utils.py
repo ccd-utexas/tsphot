@@ -311,9 +311,10 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     """Subtract the background intensity from a subframe centered on a source.
 
     The function estimates the background as the median intensity of pixels
-    bordering the subframe (i.e. square aperture photometry). The median is
-    subtracted from the subframe, and pixels whose original intensity was less
-    than the threshold number of sigma above the median are set to 0.
+    bordering the subframe (i.e. square aperture photometry). Background sigma
+    is also computed from the border pixels. The median + number of selected sigma
+    is subtracted from the subframe. Pixels whose original intensity was less
+    than the median + sigma are set to 0.
 
     Parameters
     ----------
@@ -373,8 +374,8 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
                                                                  ns=arr_source.size))
     median = np.median(arr_background)
     sigmaG = stats.sigmaG(arr_background)
-    subframe_sub = subframe_np - median
-    subframe_sub[subframe_sub < threshold_sigma*sigmaG] = 0.0
+    subframe_sub = subframe_np - (median + threshold_sigma*sigmaG)
+    subframe_sub[subframe_sub < 0.0] = 0.0
     return subframe_sub
 
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
@@ -397,27 +398,25 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
-    box_sigma : {11}, int, optional
+    box_sigma : {11}, int, float, optional
         `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a square subframe around the source.
         `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
         the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
-        accomodate extended sources.
-        Example: For a bright star with peak 18k ADU above background, FHWM 4.7 pix,
-            initial `sigma_pix` = 1, `box_sigma` >= 11, i.e. `box_sigma`*`sigma` >= 11, subframe size >= 11x11.
-            Centroid coordinates for both fitting methods converge to within +/- 0.1 pix of each other.
-            Standard deviation sigma for both fitting methods converge to within +/- 0.2 pix of each other.
+        accomodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
     threshold_sigma : {3}, number_like, optional
         ``float`` or ``int``. `threshold_sigma` is the number of standard deviations above the subframe median
         for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
     method : {fit_2dgaussian, fit_bivariate_normal}, optional
         The method by which to compute the centroids and sigma.
         `fit_2dgaussian` : Method is from photutils [1]_ and astropy [2]_. Return the centroid coordinates and
-            standard devaition sigma from fitting a 2D Gaussian to the intensity distribution.
-            The method is fast and insensitive to outliers. 
+            standard devaition sigma from fitting a 2D Gaussian to the intensity distribution. `fit_2dgaussian`
+            executes quickly, agrees with `fit_bivariate_normal`, and converges within agreement
+            by `box_sigma` = 11. See example below.
         `fit_bivariate_normal` : Model the photon counts within each pixel of the subframe as from a uniform
             distribution [3]_. Return the centroid coordinates and standard deviation sigma from fitting
             a bivariate normal (Gaussian) distribution to the modeled the photon count distribution [4]_.
-            The method is slow but statistically robust.
+            `fit_bivariate_sigma` is statistically robust and converges by `box_sigma`= 11, but it executes slowly.
+            See example below.
         
     Returns
     -------
@@ -432,6 +431,18 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
 
     Notes
     -----
+    Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with
+        peak 18000 ADU above background, FHWM 4.4 pix, initial `sigma_pix` = 1, `box_sigma` = 3 to 33.
+        For `fit_2dgaussian`:
+        - Centroid conv, agree TODO
+        - Sigma conv, agree TODO
+        - Execution time. todo
+        Centroid coordinates for converge to within +/- 0.1 pix of each other.
+        Standard deviation sigma for both fitting methods converge to within +/- 0.2 pix of each other.
+        For `fit_bivariate_normal`:
+        - Centroid conv, agree TODO
+        - Sigma conv, agree TODO
+        - Execution time. TODO
     `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
             
