@@ -377,7 +377,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     subframe_sub[subframe_sub < threshold_sigma*sigmaG] = 0.0
     return subframe_sub
 
-def center_stars(image, stars, box_sigma=7, threshold_sigma=3, method='fit_2dgaussian'):
+def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
     Extract a square subframe around each star. Side-length of the subframe box is `box_sigma`*`sigma_pix`.
@@ -397,15 +397,15 @@ def center_stars(image, stars, box_sigma=7, threshold_sigma=3, method='fit_2dgau
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
-    box_sigma : {7}, int, optional
+    box_sigma : {11}, int, optional
         `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a square subframe around the source.
         `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
         the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
         accomodate extended sources.
         Example: For a bright star with peak 18k ADU above background, FHWM 4.7 pix,
-            initial `sigma_pix` = 1, `box_sigma` >= 7, i.e. `box_sigma`*`sigma` >= 7, subframe size >= 7x7.
-            Centroid coordinates for both fitting methods agree to within +/- 0.02 pix for `box_sigma` >= 7.
-            Standard deviation sigma for both fitting methods agree to within +/- 0.5 pix for `box_sigma` >= 7.
+            initial `sigma_pix` = 1, `box_sigma` >= 11, i.e. `box_sigma`*`sigma` >= 11, subframe size >= 11x11.
+            Centroid coordinates for both fitting methods converge to within +/- 0.1 pix of each other.
+            Standard deviation sigma for both fitting methods converge to within +/- 0.2 pix of each other.
     threshold_sigma : {3}, number_like, optional
         ``float`` or ``int``. `threshold_sigma` is the number of standard deviations above the subframe median
         for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
@@ -413,11 +413,11 @@ def center_stars(image, stars, box_sigma=7, threshold_sigma=3, method='fit_2dgau
         The method by which to compute the centroids and sigma.
         `fit_2dgaussian` : Method is from photutils [1]_ and astropy [2]_. Return the centroid coordinates and
             standard devaition sigma from fitting a 2D Gaussian to the intensity distribution.
-            The method is fast, accurate, and insensitive to outliers for all `box_sigma`. 
-        `fit_bivariate_normal` : Model the photon counts wihtin each pixel of the subframe as from a uniform
+            The method is fast and insensitive to outliers. 
+        `fit_bivariate_normal` : Model the photon counts within each pixel of the subframe as from a uniform
             distribution [3]_. Return the centroid coordinates and standard deviation sigma from fitting
             a bivariate normal (Gaussian) distribution to the modeled the photon count distribution [4]_.
-            The method is slow, accurate, and statistically robust.
+            The method is slow but statistically robust.
         
     Returns
     -------
@@ -460,7 +460,7 @@ def center_stars(image, stars, box_sigma=7, threshold_sigma=3, method='fit_2dgau
     stars_finl = stars.copy()
     stars_finl[['x_pix','y_pix','sigma_pix']] = np.NaN
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        width = np.rint(box_sigma*sigma_init)
+        width = math.ceil(box_sigma*sigma_init)
         if width < 3:
             width = 3
         if not is_odd(width):
@@ -536,7 +536,7 @@ def center_stars(image, stars, box_sigma=7, threshold_sigma=3, method='fit_2dgau
             (height_actl, width_actl) = subframe.shape
             for y_idx in xrange(height_actl):
                 for x_idx in xrange(width_actl):
-                    pixel_counts = np.round(subframe[y_idx, x_idx])
+                    pixel_counts = np.rint(subframe[y_idx, x_idx])
                     np.random.seed(0)
                     x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
                     x_dist.extend(x_dist_pix.rvs(pixel_counts))
