@@ -6,7 +6,6 @@
 from __future__ import division, absolute_import, print_function
 
 import sys
-import inspect
 import math
 
 import read_spe
@@ -79,30 +78,75 @@ def get_exptime_prog(spe_footer_xml):
     exptime_prog_res = int(footer_xml.find(name='DelayResolution').contents[0])
     return (exptime_prog / exptime_prog_res)
 
-def reduce_ccddata_dict(dobj, bias=None, dark=None, flat=None,
-                        dobj_exptime=None, dark_exptime=None, flat_exptime=None):
+def reduce_ccddata_dict(dobj, dobj_exptime=None,
+                        bias=None,
+                        dark=None, dark_exptime=None,
+                        flat=None, flat_exptime=None):
     """Reduce a dict of object data frames using the master calibration frames
-    for bias, dark, and flats. All frames must be type ccdproc.CCDData.
-    Requires exposure times (seconds) for object data frames, master dark, and master flat.
-    Operations (from sec 4.5, Basic CCD Reduction, of Howell, 2006, Handbook of CCD Astronomy):
+    for bias, dark, and flat.
+
+    All frames must be type `ccdproc.CCDData`. Method will do all reductions possible
+    with given master calibration frames.
+    Requires exposure time (seconds) for object data frames.
+    If master dark frame is provided, requires exposure time for master dark frame.
+    If master flat frame is provided, requires exposure time for master flat frame.
+
+    Parameters
+    ----------
+    dobj : dict with ccdproc.CCDData
+         ``dict`` keys with non-`ccdproc.CCDData` values are ignored.
+    dobj_exptime : {None}, float or int, optional
+         Exposure time of frames within `dobj`. All frames must have the same expsosure time.
+         Required if `dark` is provided.
+    bias : {None}, ccdproc.CCDData, optional
+        Master bias frame.
+    dark : {None}, ccdproc.CCDData, optional
+        Master dark frame. Will be scaled to match exposure time for `dobj` frames and `flat` frame.
+    dark_exptime : {None}, float or int, optional
+        Exposure time of `dark`. Required if `dark` is provided.
+    flat : {None}, ccdproc.CCDData, optional
+        Master flat frame.
+    flat_exptime : {None}, float or int, optional
+        Exposure time of `flat`. Required if `flat` is provided.
+
+    Returns
+    -------
+    dobj_reduced : dict with ccdproc.CCDData
+        `dobj` with `ccdproc.CCDData` frames reduced. ``dict`` keys with non-`ccdproc.CCDData` values
+        are also returned in `dobj_reduced`.
+
+    Notes
+    -----
+    Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
     - scale and subract master dark from master flat
-    - subtract master bias from object
-    - scale and subtract master dark from object
-    - divide object by normalized master flat
+    - subtract master bias from each object image
+    - scale and subtract master dark from each object image
+    - divide each object image by normalized master flat
+
+    TODO
+    ----
+    - Parallelize.
+    - Correct gain.
+
+    References
+    ----------
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy"
     
     """
-    # TODO:
-    # - parallelize
-    # - Compute and correct ccdgain
-    #   STH, 20140805
     # Check input.
-    iframe = inspect.currentframe()
-    (args, varargs, keywords, ilocals) = inspect.getargvalues(iframe)
-    for arg in args:
-        if ilocals[arg] == None:
-            print(("INFO: {arg} is None.").format(arg=arg))
+    # If there is a `dark`...
+    if dark != None:
+        # ...but no `dobj_exptime` or `dark_exptime`:
+        if ((dobj_exptime == None) or
+            (dark_exptime == None)):
+            raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
+    # If there is a `flat`...
+    if flat != None:
+        # ...but no `flat_exptime`:
+        if flat_exptime == None:
+            raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
@@ -185,8 +229,7 @@ def sigma_to_fwhm(sigma):
 
     Parameters
     ----------
-    sigma : number_like
-        ``number_like``, e.g. ``float`` or ``int``
+    sigma : float or int
 
     References
     ----------
@@ -266,8 +309,8 @@ def plot_stars(image, stars, radius=3,
         Columns:
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
-    radius : {3}, optional, number_like
-        ``number_like``, e.g. ``float`` or ``int``. The radius of the circle around each star in pixels.
+    radius : {3}, optional, float or int
+        The radius of the circle around each star in pixels.
     imshowargs : {dict(interpolation='none')}, optional
         Dict of keyword arguments for `matplotlib.pyplot.imshow`.
 
@@ -297,8 +340,7 @@ def is_odd(num):
 
     Parameters
     ----------
-    num : number_like
-        ``number_like``, e.g. ``float`` or ``int``
+    num : float or int
 
     """
     rint = np.rint(num)
@@ -324,8 +366,8 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     ----------
     subframe : array_like
         2D array of subframe.
-    threshold_sigma : {3}, number_like, optional
-        ``float`` or ``int``. `threshold_sigma` is the number of standard
+    threshold_sigma : {3}, float or int, optional
+        `threshold_sigma` is the number of standard
         deviations above the subframe median for counts per pixel. Pixels with
         fewer counts are set to 0. Uses `sigmaG` [2]_.
 
@@ -407,8 +449,8 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
         the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
         accomodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
-    threshold_sigma : {3}, number_like, optional
-        ``float`` or ``int``. `threshold_sigma` is the number of standard deviations above the subframe median
+    threshold_sigma : {3}, float or int, optional
+        `threshold_sigma` is the number of standard deviations above the subframe median
         for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
     method : {fit_2dgaussian, fit_bivariate_normal}, optional
         The method by which to compute the centroids and sigma.
@@ -546,7 +588,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             #   with a uniform distribution. See [3]_, [4]_.
             # - To compute sigma, add variances since modeling coordinate (x,y)
             #   as sum of vectors x, y. Prior PCA makes covariance ~ 0 (sec 3.5.1 of Ivezic 2014 [3]_).
-            # - Seed the random number generator only once per call to this method for reproducibility. 
+            # - Seed the random number generator only once per call to this method for reproducibility.
             x_dist = []
             y_dist = []
             (height_actl, width_actl) = subframe.shape
