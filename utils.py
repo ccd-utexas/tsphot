@@ -266,18 +266,23 @@ def normalize(array):
     
 def sigma_to_fwhm(sigma):
     """Convert the standard deviation sigma of a Gaussian into
-    the full-width-at-half-maximum.
+    the full width at half maximum (FWHM).
 
     Parameters
     ----------
     sigma : float or int
+
+    Returns
+    -------
+    fwhm : float
+        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
 
     References
     ----------
     .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
     
     """
-    fwhm = 2.0*math.sqrt(2.0*np.log(2.0))*sigma
+    fwhm = 2.0*math.sqrt(2.0*math.log(2.0))*sigma
     return fwhm
 
 def find_stars(image,
