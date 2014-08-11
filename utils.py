@@ -162,32 +162,35 @@ def normalize(array):
     `array_normd` = (`array` - median(`array`)) / `sigmaG`
     `sigmaG` = 0.7413(q75(`array`) - q50(`array`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
-    See [1]_.
 
     References
     ----------
-     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
-        sec 3.2, "Descriptive Statistics"
+    .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+          sec 3.2, "Descriptive Statistics"
     
     """
     array_np = np.array(array)
-    sigmaG = stats.sigmaG(array_np)
     median = np.median(array_np)
+    sigmaG = stats.sigmaG(array_np)
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
-def subtract_subframe_background(subframe):
+def subtract_subframe_background(subframe, threshold_sigma=2):
     """Subtract the background intensity from a subframe centered on a source.
 
     The function estimates the background as the median intensity of pixels
     bordering the subframe (i.e. square aperture photometry). The median is
-    subtracted from the subframe, and pixels with less intensity than the
-    median are set to 0.
+    subtracted from the subframe, and pixels whose original intensity was less
+    than the threshold number of sigma above the median are set to 0.
 
     Parameters
     ----------
     subframe : array_like
         2D array of subframe.
+    threshold_sigma : {2}, optional
+        ``number_like``, i.e. ``float`` or ``int``. `threshold_sigma` is the number
+        of standard deviations above the subframe median for counts per pixel.
+        `threshold_sigma` is set low for faint sources. Uses `sigmaG` [2]_.
 
     Returns
     -------
@@ -196,14 +199,17 @@ def subtract_subframe_background(subframe):
 
     Notes
     -----
-    - The function assumes that the subframe is centered on a source to within
-      ~1/4 of the subframe width.
-    - The function ensures that there are at least 3 times as many border pixels used in
-      estimating the background as compared to the source [1]_.
+    The source must be centered to within ~ +/- 1/4 of the subframe width.
+    At least 3 times as many border pixels used in estimating the background
+        as compared to the source [1]_.
+    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
+    q50, q75 = 50th, 75th quartiles (q50 == median)
 
     References
     ----------
-    ..[1] Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
+    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+           sec 3.2, "Descriptive Statistics"
         
     """
     subframe_np = np.array(subframe)
@@ -229,8 +235,9 @@ def subtract_subframe_background(subframe):
                               "  arr_source.size = {ns}").format(nb=arr_background.size,
                                                                  ns=arr_source.size))
     median = np.median(arr_background)
+    sigmaG = stats.sigmaG(arr_background)
     subframe_sub = subframe_np - median
-    subframe_sub[subframe_sub < 0.0] = 0.0
+    subframe_sub[subframe_sub < threshold_sigma*sigmaG] = 0.0
     return subframe_sub
     
 def sigma_to_fwhm(sigma):
@@ -265,7 +272,7 @@ def find_stars(image,
     blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)}, optional
         Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
         Because image is normalized, `threshold` is the number of stdandard deviations
-        above background for counts per pixel. `threshold` is set low to detect faint sources.        
+        above image median for counts per pixel. `threshold` is set low to detect faint sources.        
         Example for extended sources:
             `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=2)
     
