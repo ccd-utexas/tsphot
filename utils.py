@@ -176,28 +176,62 @@ def normalize(array):
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
-def subtract_background(image):
-    """Subtract the background intensity from an image.
+def subtract_subframe_background(subframe):
+    """Subtract the background intensity from a subframe centered on a source.
 
-    The function subtracts the image median and
-    set pixels below the background level to 0.
+    The function estimates the background as the median intensity of pixels
+    bordering the subframe (i.e. square aperture photometry). The median is
+    subtracted from the subframe, and pixels with less intensity than the
+    median are set to 0.
 
     Parameters
     ----------
-    image : array_like
-        2D array of image.
+    subframe : array_like
+        2D array of subframe.
 
     Returns
     -------
-    image_sub : numpy.ndarray
-        Background-subtracted `image` as ``numpy.ndarray``.
+    subframe_sub : numpy.ndarray
+        Background-subtracted `subframe` as ``numpy.ndarray``.
 
+    Notes
+    -----
+    - The function assumes that the subframe is centered on a source to within
+      ~1/4 of the subframe width.
+    - The function ensures that there are at least 3 times as many border pixels used in
+      estimating the background as compared to the source [1]_.
+
+    References
+    ----------
+    ..[1] Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
+        
     """
-    image_np = np.array(image)
-    median = np.median(image_np)
-    image_sub = image_np - median
-    image_sub[image_sub < 0.0] = 0.0
-    return image_sub
+    subframe_np = np.array(subframe)
+    (height, width) = subframe_np.shape
+    if width != height:
+        raise IOError(("Subframe must be square.\n"+
+                       "  width = {wid}\n"+
+                       "  height = {ht}").format(wid=width,
+                                                 ht=height))
+    border = math.ceil(width / 4)
+    arr_longtop_longbottom = np.append(subframe_np[:border],
+                                       subframe_np[-border:])
+    arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
+                                         subframe_np[border:-border, -border:])
+    arr_background = np.append(arr_longtop_longbottom,
+                               arr_shortleft_shortright)
+    arr_source = subframe_np[border:-border, border:-border]
+    if (arr_background.size / arr_source.size) < 3:
+        # Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
+        raise AssertionError(("Program error. There must be at least 3 times as many sky pixels\n"+
+                              "  as source pixels to accurately estimate the sky background level.\n"+
+                              "  arr_background.size = {nb}\n"+
+                              "  arr_source.size = {ns}").format(nb=arr_background.size,
+                                                                 ns=arr_source.size))
+    median = np.median(arr_background)
+    subframe_sub = subframe_np - median
+    subframe_sub[subframe_sub < 0.0] = 0.0
+    return subframe_sub
     
 def sigma_to_fwhm(sigma):
     """Convert the standard deviation sigma of a Gaussian into
@@ -231,7 +265,7 @@ def find_stars(image,
     blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=2)}, optional
         Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
         Because image is normalized, `threshold` is the number of stdandard deviations
-        above background for counts per pixel.
+        above background for counts per pixel. `threshold` is set low to detect faint sources.        
         Example for extended sources:
             `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=2)
     
@@ -253,6 +287,7 @@ def find_stars(image,
       Execution times for 256x256 image:
       - For example for extended sources above: 0.33 sec/frame
       - For default above: 0.02 sec/frame
+    - Use this funtion after removing cosmic rays to prevent spurrious sources.
 
     References
     ----------
@@ -268,7 +303,8 @@ def find_stars(image,
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
-def plot_stars(image, stars, radius=3):
+def plot_stars(image, stars, radius=3,
+               imshowargs=dict(interpolation='none')):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -286,6 +322,8 @@ def plot_stars(image, stars, radius=3):
             `y_pix` : y-coordinate (pixels) of star.
     radius : {3}, optional, number_like
         ``number_like``, e.g. ``float`` or ``int``. The radius of the circle around each star in pixels.
+    imshowargs : {dict(interpolation='none')}, optional
+        Dict of keyword arguments for `matplotlib.pyplot.imshow`.
 
     Returns
     -------
@@ -298,7 +336,7 @@ def plot_stars(image, stars, radius=3):
     
     """
     (fig, ax) = plt.subplots(1, 1)
-    ax.imshow(image, interpolation='none')
+    ax.imshow(image, **imshowargs)
     for (idx, x_pix, y_pix) in stars[['x_pix', 'y_pix']].itertuples():
         circle = plt.Circle((x_pix, y_pix), radius=radius,
                             color='yellow', linewidth=1, fill=False)
@@ -411,11 +449,9 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
         # - width, height order is reverse of position x, y order
         # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x)
         # - (0,0) is in upper left.
-        # - Subtract background to fit counts only belonging to the source.
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_init, y_init))
-        subframe = subtract_background(subframe)
         # Compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
         # If the star was too close to the frame edge to extract the subframe, skip the star.
@@ -441,7 +477,8 @@ def center_stars(image, stars, box_sigma=7, method='fit_2dgaussian'):
                                                                                          file=sys.stderr)
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
-        # using the selected method.
+        # using the selected method. Subtract background to fit counts only belonging to the source.
+        subframe = subtract_subframe_background(subframe)
         if method == 'fit_2dgaussian':
             # Test results on 'centroid_2dg': 2014-08-09, STH
             # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
