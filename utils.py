@@ -431,18 +431,20 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
 
     Notes
     -----
-    Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with
-        peak 18000 ADU above background, FHWM 4.4 pix, initial `sigma_pix` = 1, `box_sigma` = 3 to 33.
+    Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with peak
+        18000 ADU above background, FHWM ~3.8 pix, initial `sigma_pix` = 1, `box_sigma` = 3 to 33. 2014-08-11, STH. 
         For `fit_2dgaussian`:
-        - Centroid conv, agree TODO
-        - Sigma conv, agree TODO
-        - Execution time. todo
-        Centroid coordinates for converge to within +/- 0.1 pix of each other.
-        Standard deviation sigma for both fitting methods converge to within +/- 0.2 pix of each other.
+        - For varying subframes, position converges to within 0.01 pix of final solution at 11x11 subframe.
+        - For varying subframes, sigma converges to within 0.05 pix of final solution at 11x11 subframe.
+        - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
+        - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
+        - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_sigma.
         For `fit_bivariate_normal`:
-        - Centroid conv, agree TODO
-        - Sigma conv, agree TODO
-        - Execution time. TODO
+        - For varying subframes, position converges to within 0.02 pix of final solution at 11x11 subframe.
+        - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
+        - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
+        - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
+        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
     `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
             
@@ -513,27 +515,26 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # using the selected method. Subtract background to fit counts only belonging to the source.
         subframe = subtract_subframe_background(subframe, threshold_sigma)
         if method == 'fit_2dgaussian':
-            # Test results on 'centroid_2dg': 2014-08-09, STH; REDO
-            # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
-            # - For varying subframes, method converges to within +/- 0.01 pix of final centroid solution at 7x7 subframe,
-            #   and final centroid solution agrees with fit_bivariate_normal final centroid solution within +/- 0.02 pix.
-            # - For all subframes, method is closest to final centroid solution.
-            # - For 7x7 subframe, centroid solution agrees with fit_bivariate_normal, centroid_com methods' centroid solutions
-            #   for 7x7 subframe to within +/- 0.01 pix. Method is least susceptible to outliers.
-            # - For 7x7 subframe, method takes ~20 ms. Method scales \propto box_sigma.
-            # Method description
+            # Test results: 2014-08-11, STH
+            # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
+            # - For varying subframes, position converges to within 0.01 pix of final solution at 11x11 subframe.
+            # - For varying subframes, sigma converges to within 0.05 pix of final solution at 11x11 subframe.
+            # - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
+            # - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
+            # - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_sigma.
+            # Method description:
             # - See photutils [1]_ and astropy [2]_.
             fit = morphology.fit_2dgaussian(subframe)
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
             sigma_finl_sub = math.sqrt(fit.x_stddev**2 + fit.y_stddev**2)
         elif method == 'fit_bivariate_normal':
-            # Test results: 2014-08-09, STH; REDO
-            # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix; seeing = 1.4 arcsec.
-            # - For varying subframes, method converges to within +/- 0.02 pix of final centroid solution at 7x7 subframe,
-            #   and final centoid solution agrees with centroid_2dg final centroid solution within +/- 0.02 pix.
-            # - For subframes <= 7x7, centroid solution follows centroid_com within +/- 0.02 pix.
-            # - For subframes >= 7x7, centroid solution follows centroid_2dg within +/- 0.02 pix.
-            # - For 7x7 subframes, method takes ~350 ms. Method scales \propto box_sigma**2.
+            # Test results: 2014-08-11, STH
+            # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
+            # - For varying subframes, position converges to within 0.02 pix of final solution at 11x11 subframe.
+            # - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
+            # - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
+            # - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
+            # - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
             # Method description:
             # - Model the photons hitting the pixels of the subframe and
             #   robustly fit a bivariate normal distribution.
