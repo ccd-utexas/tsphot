@@ -5,6 +5,7 @@
 
 from __future__ import division, absolute_import, print_function
 
+import os
 import sys
 import math
 
@@ -17,10 +18,47 @@ import ccdproc
 import imageutils
 import photutils
 from photutils.detection import morphology, lacosmic
-from astroML import stats
+from astroML import stats as astroML_stats
 import scipy
 from skimage import feature
 import matplotlib.pyplot as plt
+
+class Silence(object):
+    '''Context manager to do "deep suppression" of stdout and stderr.
+    
+    Class will suppress all print, even if the print originates in a 
+    compiled C/Fortran sub-function. Raised exceptions are permitted.
+
+    Notes
+    -----
+    This class is from StackOverflow [1]_.
+    Example:
+        with Silence():
+            verbose_function()
+
+    References
+    ----------
+    .. [1] http://stackoverflow.com/questions/11130156/suppress-stdout-stderr-print-from-python-functions
+
+    '''
+    def __init__(self):
+        # Open a pair of null files
+        self.null_fds =  [os.open(os.devnull,os.O_RDWR) for x in range(2)]
+        # Save the actual stdout (1) and stderr (2) file descriptors.
+        self.save_fds = (os.dup(1), os.dup(2))
+
+    def __enter__(self):
+        # Assign the null pointers to stdout and stderr.
+        os.dup2(self.null_fds[0],1)
+        os.dup2(self.null_fds[1],2)
+
+    def __exit__(self, *_):
+        # Re-assign the real stdout/stderr back to (1) and (2)
+        os.dup2(self.save_fds[0],1)
+        os.dup2(self.save_fds[1],2)
+        # Close the null files
+        os.close(self.null_fds[0])
+        os.close(self.null_fds[1])
 
 def create_config(fjson='config.json'):
     """Create configuration file for data reduction.
@@ -132,8 +170,12 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     - scale and subract master dark from master flat
     - subtract master bias from each object image
     - scale and subtract master dark from each object image
-    - divide each object image by normalized master flat
+    - divide each object image by corrected master flat
 
+    TODO
+    ----
+    - Use logging rather than print.
+    
     References
     ----------
     .. [1] Howell, 2006, "Handbook of CCD Astronomy"
@@ -155,37 +197,55 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
+    # - scale and subract master dark from master flat
     if bias != None:
         if dark != None:
+            print("INFO: Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
         if flat != None:
+            print("INFO: Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
-    # Operations:
-    # - scale and subract master dark from master flat
     if ((dark != None) and
         (flat != None)):
+        print("INFO: Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
     # Operations:
-    # - subtract master bias from object
-    # - scale and subtract master dark from object
-    # - divide object by normalized master flat
-    for fidx in dobj:
-        if isinstance(dobj[fidx], ccdproc.CCDData):
+    # - subtract master bias from object image
+    # - scale and subtract master dark from object image
+    # - divide object image by corrected master flat
+    # Print progress through dict.
+	keys_sortedlist = sorted(dobj.keys())
+	keys_len = len(keys_sortedlist)
+	prog_interval = 0.05
+	prog_divs = int(math.ceil(1 / prog_interval))
+	key_progress = {}
+	for idx in xrange(0, prog_divs+1):
+	    progress = (idx / prog_divs)
+	    key_idx = int(math.ceil((keys_len - 1) * progress))
+	    key = keys_sortedlist[key_idx]
+	    key_progress[key] = progress
+	print("INFO: Reducing object data.\n"+
+	      "  Progress (%):", end=' ')
+    for key in sorted(dobj):
+        if isinstance(dobj[key], ccdproc.CCDData):
             if bias != None:
-                dobj[fidx] = ccdproc.subtract_bias(dobj[fidx], bias)
+                dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
             if dark != None:
-                dobj[fidx] = ccdproc.subtract_dark(dobj[fidx], dark,
+                dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
                                                    dark_exposure=dark_exptime,
                                                    data_exposure=dobj_exptime)
             if flat != None:
-                dobj[fidx] = ccdproc.flat_correct(dobj[fidx], flat)
+                dobj[key] = ccdproc.flat_correct(dobj[key], flat)
+	    if key in key_progress:
+	        print(int(key_progress[key]*100), end=' ')        
     return dobj
 
 def remove_cosmic_rays(image,
-                       lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45)):
+                       lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
+                                         gain=0.85, readnoise=6.1)):
     """Remove cosmic rays from an image.
 
     Method uses the `photutils` implementation of the LA-Cosmic algorithm [1]_.
@@ -194,7 +254,8 @@ def remove_cosmic_rays(image,
     ----------
     image : array_like
         2D array of image.
-    lacosmicargs : {dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45)}, dict
+    lacosmicargs : {dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
+                         gain=0.85, readnoise=6.1)}, dict
         ``dict`` of keyword arguments for `photutils.detection.lacosmic` [1]_.
         contrast : {2.0}, float
             Chosen from [1]_, and Fig 4 of [2]_.
@@ -202,27 +263,37 @@ def remove_cosmic_rays(image,
             Chosen from test script referenced in [3]_.
         neighbor_threshold : {0.45}, float
             Chosen from test script referenced in [3]_.
-        
+        gain : {0.85}, float
+            In electrons/ADU. Default is from typical settings for
+            Princeton Instruments ProEM 1024B EMCCD [4]_.
+        readnoise : {6.1}, float
+            In electrons. Default is from typical settings for
+            Princeton Instruments ProEM 1024B EMCCD [4]_.
+
     Returns
     -------
     image_cleaned : numpy.ndarray
         `image` cleaned of cosmic rays as ``numpy.ndarray``.
-
+    ray_mask : numpy.ndarray of bool
+        ``numpy.ndarray`` with same dimensions as `image_cleaned` with only
+        ``True``/``False`` values. Pixels where cosmic rays were removed are ``True``.
+        
     Notes
     -----
     Use method from `photutils` rather than `ccdproc` or `imageutils`
-        until `ccdproc` issue #130 is closed [3]_.
+    until `ccdproc` issue #130 is closed [3]_.
 
     References
     ----------
     .. [1] http://photutils.readthedocs.org/en/latest/_modules/photutils/detection/lacosmic.html
     .. [2] van Dokkum, 2001. http://adsabs.harvard.edu/abs/2001PASP..113.1420V
     .. [3] https://github.com/astropy/ccdproc/issues/130
+    .. [4] Princeton Instruments Certificate of Performance for ProEM 1024B EMCCDs
+           with Traditional Amplifier, 1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # TODO: save ray mask?
-    (image_cleaned, ray_mask) = lacosmic(image, **lacosmicargs)
-    return image_cleaned
+    (image_cleaned, ray_mask) = lacosmic.lacosmic(image, **lacosmicargs)
+    return (image_cleaned, ray_mask)
     
 def normalize(array):
     """Normalize an array in a robust way.
@@ -256,7 +327,7 @@ def normalize(array):
     """
     array_np = np.array(array)
     median = np.median(array_np)
-    sigmaG = stats.sigmaG(array_np)
+    sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
         # TODO: use logging. STH, 2014-08-11
         print(("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN"),
@@ -474,7 +545,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
                               "  arr_source.size = {ns}").format(nb=arr_background.size,
                                                                  ns=arr_source.size))
     median = np.median(arr_background)
-    sigmaG = stats.sigmaG(arr_background)
+    sigmaG = astroML_stats.sigmaG(arr_background)
     subframe_sub = subframe_np - (median + threshold_sigma*sigmaG)
     subframe_sub[subframe_sub < 0.0] = 0.0
     return subframe_sub
@@ -673,7 +744,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
                     x_dist.extend(x_dist_pix.rvs(pixel_counts))
                     y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
                     y_dist.extend(y_dist_pix.rvs(pixel_counts))
-            (mu, sigma1, sigma2, alpha) = stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
+            (mu, sigma1, sigma2, alpha) = astroML_stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
             (x_finl_sub, y_finl_sub) = mu
             sigma_finl_sub = math.sqrt(sigma1**2.0 + sigma2**2.0)
         # # NOTE: 2014-08-10, STH
