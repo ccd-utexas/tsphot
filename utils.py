@@ -1,5 +1,35 @@
 #!/usr/bin/env python
-"""Utilities for time-series photometry.
+"""Utilities for pipelining time-series photometry.
+
+See Also
+--------
+read_spe : Module for reading SPE files.
+
+Notes
+-----
+Conventions : This module's documentation follows the `numpy` doc example [1]_.
+'See Also' : Methods describe their relationships to each other within their
+    docstrings under the 'See Also' section. All methods should be connected
+    to at least one other method within this module [2]_.
+PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning within
+    their docstrings under the 'Notes' section. The sequence number identifies
+    in what order the functions are usually called by higher-level scripts.
+    - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions
+      that are computation/IO-intensive and/or are critical to the pipeline.
+    - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions
+      that are not computation/IO-intensive, are optional to the pipeline,
+      and/or are diagnostic.
+    - All functions within this module should have a sequence number since
+      they should all have a role in the pipeline [2]_.
+
+TODO
+----
+Include FITS processing.
+
+References
+----------
+.. [1] https://github.com/numpy/numpy/blob/master/doc/example.py
+.. [2] http://en.wikipedia.org/wiki/Pipeline_(software)
 
 """
 
@@ -25,14 +55,63 @@ import matplotlib.pyplot as plt
 
 def create_config(fjson='config.json'):
     """Create configuration file for data reduction.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+
+    See Also
+    --------
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER: -1.0
+
+    TODO
+    ----
+    Make json config file for reductions
+
+    References
+    ----------
     
     """
-    # TODO: make config file for reductions
     pass
 
 def spe_to_dict(fpath):
-    """Load an SPE file into a dict of ccdproc.ccddata.
+    """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
+
+    Parameters
+    ----------
+    fpath : string
+        Path to SPE file [1]_.
+
+    Returns
+    -------
+    object_ccddata : dict
+        ``dict`` with `ccdproc.CCDData`. Per-frame metadata is stored as `ccdproc.CCDData.meta`.
+        SPE file footer is stored under `object_ccddata['footer_xml']`.
+
+    See Also
+    --------
+    create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
+        in the input to `create_master_calib`.
+    read_spe : Module for reading SPE files.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 0.0
+
+    TODO
+    ----
+    Return SPE header as well.
     
+    References
+    ----------
+    .. [1] Princeton Instruments SPE 3.0 File Format Specification
+           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
+
     """
     spe = read_spe.File(fpath)
     object_ccddata = {}
@@ -44,14 +123,38 @@ def spe_to_dict(fpath):
     return object_ccddata
     
 def create_master_calib(dobj):
-    """Create master calibration frame from dict of ccdproc.ccddata.
+    """Create a master calibration frame from a ``dict`` of `ccdproc.CCDData`.
     Median-combine individual calibration frames and retain all metadata.
+
+    Parameters
+    ----------
+    dobj : dict with ccdproc.CCDData
+        ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
+
+    Returns
+    -------
+    ccddata : ccdproc.CCDData
+        A single master calibration frame.
+        For `dobj` keys with non-`ccdproc.CCDData` values, the values
+        are returned in `ccddata.meta` under the same keys.
+        For `dobj` keys with `ccdproc.CCDData` values, the `dobj[key].meta` values
+        are returned  are returned as a ``dict`` of metadata.
+
+    See Also
+    --------
+    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the output
+        in the input to `create_master_calib`.
+    reduce_ccddata : Next step in pipeline. Run `create_master_calib` to create master
+        bias, dark, flat calibration frames and input to `reduce_ccddata`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 1.0
+
+    References
+    ----------
     
     """
-    # TODO:
-    # - Use multiprocessing to side-step global interpreter lock and parallelize.
-    #   https://docs.python.org/2/library/multiprocessing.html#module-multiprocessing
-    # STH, 20140716
     combiner_list = []
     noncombiner_list = []
     fidx_meta = {}
@@ -70,16 +173,43 @@ def create_master_calib(dobj):
     return ccddata
 
 def get_exptime_prog(spe_footer_xml):
-    """Get the programmed exposure time in seconds
-    from the string XML footer of an SPE file.
+    """Get the programmed exposure time in seconds from
+    the string XML footer of an SPE file.
+
+    Parameters
+    ----------
+    spe_foooter_xml : string
+        ``string`` must be properly formatted XML from a
+        Princeton Instruments SPE file footer [1]_.
+
+    Returns
+    -------
+    exptime_prog_sec : float
+        Programmed exposure time in seconds (i.e. the input exposure time from the observer).
+
+    See Also
+    --------
+    reduce_ccddata : Requires exposure times for frames.
+
+    Notes
+    -----
+    Method uses `bs4.BeautifulSoup` to parse the XML ``string``.
+    Converts exposure time to seconds from 'ExposureTime' and 'DelayResolution' XML keywords.
+    PIPELINE_SEQUENCE_NUMBER : 1.1
+
+    References
+    ----------
+    .. [1] Princeton Instruments SPE 3.0 File Format Specification
+           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
     
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
     exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
     exptime_prog_res = int(footer_xml.find(name='DelayResolution').contents[0])
-    return (exptime_prog / exptime_prog_res)
+    exptime_prog_sec =  (exptime_prog / exptime_prog_res)
+    return exptime_prog_sec
 
-def reduce_ccddata_dict(dobj, dobj_exptime=None,
+def reduce_ccddata(dobj, dobj_exptime=None,
                         bias=None,
                         dark=None, dark_exptime=None,
                         flat=None, flat_exptime=None):
@@ -97,7 +227,7 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     Parameters
     ----------
     dobj : dict with ccdproc.CCDData
-         ``dict`` keys with non-`ccdproc.CCDData` values are ignored.
+         ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
     dobj_exptime : {None}, float or int, optional
          Exposure time of frames within `dobj`. All frames must have the same expsosure time.
          Required if `dark` is provided.
@@ -121,8 +251,9 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     See Also
     --------
     create_master_calib : Previous step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration frames for use with `reduce_ccddata_dict`.
-    remove_cosmic_rays : Next step in pipeline. Remove cosmic rays from reduced image frames.
+        bias, dark, flat calibration frames and input to `reduce_ccddata`.
+    remove_cosmic_rays : Next step in pipeline. Run `reduce_ccddata` then use the output
+        in the input to `remove_cosmic_rays`.
     get_exptime_prog : Get programmed exposure time from an SPE footer XML string.
     
     Notes
@@ -134,6 +265,7 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
     - subtract master bias from each object image
     - scale and subtract master dark from each object image
     - divide each object image by corrected master flat
+    PIPELINE_SEQUENCE_NUMBER : 2.0
 
     TODO
     ----
@@ -241,16 +373,25 @@ def remove_cosmic_rays(image,
         ``numpy.ndarray`` with same dimensions as `image_cleaned` with only
         ``True``/``False`` values. Pixels where cosmic rays were removed are ``True``.
         
+    See Also
+    --------
+    reduce_ccddata : Previous step in pipeline. Run `reduce_ccddata` then use
+        the output in the input to `remove_cosmic_rays`.
+    find_stars : Next step in pipeline. Run `remove_cosmic_rays` then use the output
+        in the input to `find_stars`.
+
     Notes
     -----
     Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils`
         until `ccdproc` issue #130 is closed [3]_.
     `photutils.detection.lacosmic` is verbose in stdout and stderr.
-    
+    PIPELINE_SEQUENCE_NUMBER : 3.0
+
     TODO
     ----
     Use logging.
 
+    
     References
     ----------
     .. [1] http://photutils.readthedocs.org/en/latest/_modules/photutils/detection/lacosmic.html
@@ -363,6 +504,13 @@ def find_stars(image,
       - For example for extended sources above: 0.33 sec/frame
       - For default above: 0.02 sec/frame
     - Use this funtion after removing cosmic rays to prevent spurrious sources.
+
+    See Also
+    --------
+    remove_cosmic_rays : Previous step in pipeline. Run `remove_cosmic_rays`
+        then use the output in the input to `find_stars`.
+    center_stars : Next step in pipeline. Run `find_stars` then use the output
+        in the input to `center_stars`.
 
     References
     ----------
@@ -591,8 +739,8 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             
     See Also
     --------
-    find_stars : Previous step in pipeline. Run `find_stars` first then use the output of `find_stars`
-        in the input of `center_stars`.
+    find_stars : Previous step in pipeline. Run `find_stars` then use the output of `find_stars`
+        in the input to `center_stars`.
             
     References
     ----------
