@@ -201,9 +201,9 @@ def get_exptime_prog(spe_footer_xml):
 
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 1.1
     Method uses `bs4.BeautifulSoup` to parse the XML ``string``.
     Converts exposure time to seconds from 'ExposureTime' and 'DelayResolution' XML keywords.
-    PIPELINE_SEQUENCE_NUMBER : 1.1
 
     References
     ----------
@@ -266,6 +266,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 2.0
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
@@ -273,7 +274,6 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     - subtract master bias from each object image
     - scale and subtract master dark from each object image
     - divide each object image by corrected master flat
-    PIPELINE_SEQUENCE_NUMBER : 2.0
 
     TODO
     ----
@@ -390,10 +390,10 @@ def remove_cosmic_rays(image,
 
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 3.0
     Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils`
         until `ccdproc` issue #130 is closed [3]_.
     `photutils.detection.lacosmic` is verbose in stdout and stderr.
-    PIPELINE_SEQUENCE_NUMBER : 3.0
 
     TODO
     ----
@@ -437,10 +437,10 @@ def normalize(array):
     
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 3.1
     `array_normd` = (`array` - median(`array`)) / `sigmaG`
     `sigmaG` = 0.7413(q75(`array`) - q50(`array`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
-    PIPELINE_SEQUENCE_NUMBER : 3.1
 
     References
     ----------
@@ -489,21 +489,24 @@ def find_stars(image,
             `sigma_pix` : Standard deviation (pixels) of the Gaussian kernel
                 that detected the blob (usually 1 pixel).
 
-    Notes
-    -----
-    - Can generalize to extended sources but for increased execution time.
-      Execution times for 256x256 image:
-      - For example for extended sources above: 0.33 sec/frame
-      - For default above: 0.02 sec/frame
-    - Use this funtion after removing cosmic rays to prevent spurrious sources.
-
     See Also
     --------
     remove_cosmic_rays : Previous step in pipeline. Run `remove_cosmic_rays`
         then use the output in the input to `find_stars`.
     center_stars : Next step in pipeline. Run `find_stars` then use the output
         in the input to `center_stars`.
+    normalize : `find_stars` calls `normalize` to normalize the image before
+        finding stars.
 
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 4.0
+    Can generalize to extended sources but for increased execution time.
+        Execution times for 256x256 image:
+        - For example for extended sources above: 0.33 sec/frame
+        - For default above: 0.02 sec/frame
+    Use `find_stars` after removing cosmic rays to prevent spurrious sources.
+    
     References
     ----------
     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
@@ -542,8 +545,18 @@ def plot_stars(image, stars, radius=3,
 
     Returns
     -------
-    None
-        
+    None : None
+        Displays a plot with labeled stars using `matplotlib.pyplot.imshow`.
+
+    See Also
+    --------
+    find_stars : Run `find_stars` then use the output in the input to
+        `plot_stars` as a diagnostic tool.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 4.1
+    
     References
     ----------
     .. [1] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
@@ -561,35 +574,6 @@ def plot_stars(image, stars, radius=3,
                     color='yellow', fontsize=12, rotation=0)
     plt.show()
 
-def sigma_to_fwhm(sigma):
-    """Convert the standard deviation sigma of a Gaussian into
-    the full width at half maximum (FWHM).
-
-    Parameters
-    ----------
-    sigma : float or int
-
-    Returns
-    -------
-    fwhm : float
-        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
-
-    See Also
-    --------
-
-        
-    Notes
-    -----
-    PIPELINE_SEQUENCE_NUMBER : 
-            
-    References
-    ----------
-    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
-    
-    """
-    fwhm = 2.0*math.sqrt(2.0*math.log(2.0))*sigma
-    return fwhm
-
 def is_odd(num):
     """Determine if a number is equivalent to an odd integer.
 
@@ -600,9 +584,16 @@ def is_odd(num):
     Returns
     -------
     is_odd : bool
+
+    See Also
+    --------
+    `center_stars` : `center_stars` calls `is_odd` to check that the
+        square subframes extraced around each star have an odd number
+        pixels on each side.
     
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 4.2.0
     Uses `math.fabs`, `math.fmod` rather than abs, % [1]_.
     Allows negative numbers.
     (1 - (1E-13)) evaluates as odd.
@@ -640,17 +631,19 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     subframe_sub : numpy.ndarray
         Background-subtracted `subframe` as ``numpy.ndarray``.
 
+    See Also
+    --------
+    center_stars : `center_stars` calls `subtract_subframe_background` to
+        preprocess subframes around stars for centroid fitting algorithms.
+
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 4.2.1
     The source must be centered to within ~ +/- 1/4 of the subframe width.
     At least 3 times as many border pixels used in estimating the background
         as compared to the source [1]_.
     `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
-
-    See Also
-    --------
-    `normalize`, `find_stars`, `center_stars`
 
     References
     ----------
@@ -687,6 +680,36 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     subframe_sub = subframe_np - (median + threshold_sigma*sigmaG)
     subframe_sub[subframe_sub < 0.0] = 0.0
     return subframe_sub
+
+def sigma_to_fwhm(sigma):
+    """Convert the standard deviation sigma of a Gaussian into
+    the full width at half maximum (FWHM).
+
+    Parameters
+    ----------
+    sigma : float or int
+
+    Returns
+    -------
+    fwhm : float
+        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
+
+    See Also
+    --------
+    center_stars : Within `center_stars`, the centroid fitting method that
+        maximizes the flux yielded from an aperture calls `sigma_to_fwhm`.
+        
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 4.2.2
+            
+    References
+    ----------
+    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
+    
+    """
+    fwhm = 2.0*math.sqrt(2.0*math.log(2.0))*sigma
+    return fwhm
 
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
@@ -739,8 +762,14 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             `y_pix` : Sub-pixel y-coordinate (pixels) of centroid.
             `sigma_pix` : Sub-pixel standard deviation (pixels) of a 2D Gaussian fit to the star.
 
+    See Also
+    --------
+    find_stars : Previous step in pipeline. Run `find_stars` then use the output of `find_stars`
+        in the input to `center_stars`.
+            
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER : 5.0
     Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with peak
         18000 ADU above background, FHWM ~3.8 pix, initial `sigma_pix` = 1, `box_sigma` = 3 to 33. 2014-08-11, STH. 
         For `fit_2dgaussian`:
@@ -757,11 +786,6 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2. 
     `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
-            
-    See Also
-    --------
-    find_stars : Previous step in pipeline. Run `find_stars` then use the output of `find_stars`
-        in the input to `center_stars`.
             
     References
     ----------
