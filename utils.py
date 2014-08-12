@@ -3,7 +3,7 @@
 
 See Also
 --------
-read_spe : Module for reading SPE files.
+read_spe : Module for reading SPE files. 
 
 Notes
 -----
