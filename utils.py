@@ -25,6 +25,8 @@ PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning within
 TODO
 ----
 Include FITS processing.
+Write 'Raises' docstring sections.
+Write 'Examples' docstring sections.
 
 References
 ----------
@@ -33,25 +35,31 @@ References
 
 """
 
+# Forwards compatibility imports.
 from __future__ import division, absolute_import, print_function
 
+# Standard library imports.
 import os
 import sys
 import math
 
-import read_spe
+# External package imports.
+# Grouped procedurally then categorically.
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
+import scipy
+from skimage import feature
+import matplotlib.pyplot as plt
 import astropy
 import ccdproc
 import imageutils
 import photutils
 from photutils.detection import morphology, lacosmic
 from astroML import stats as astroML_stats
-import scipy
-from skimage import feature
-import matplotlib.pyplot as plt
+
+# Internal package imports.
+import read_spe
 
 def create_config(fjson='config.json'):
     """Create configuration file for data reduction.
@@ -390,7 +398,6 @@ def remove_cosmic_rays(image,
     TODO
     ----
     Use logging.
-
     
     References
     ----------
@@ -423,11 +430,17 @@ def normalize(array):
     array_normd : numpy.ndarray
         Normalized `array` as ``numpy.ndarray``.
 
+    See Also
+    -------
+    find_stars : `find_stars` calls `normalize` to normalize images before
+        searching for stars.
+    
     Notes
     -----
     `array_normd` = (`array` - median(`array`)) / `sigmaG`
     `sigmaG` = 0.7413(q75(`array`) - q50(`array`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
+    PIPELINE_SEQUENCE_NUMBER : 3.1
 
     References
     ----------
@@ -445,27 +458,6 @@ def normalize(array):
     array_normd = (array_np - median) / sigmaG
     return array_normd
     
-def sigma_to_fwhm(sigma):
-    """Convert the standard deviation sigma of a Gaussian into
-    the full width at half maximum (FWHM).
-
-    Parameters
-    ----------
-    sigma : float or int
-
-    Returns
-    -------
-    fwhm : float
-        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
-
-    References
-    ----------
-    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
-    
-    """
-    fwhm = 2.0*math.sqrt(2.0*math.log(2.0))*sigma
-    return fwhm
-
 def find_stars(image,
                blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)):
     """Find stars in an image and return as a dataframe.
@@ -568,6 +560,35 @@ def plot_stars(image, stars, radius=3,
                     xytext=(0,0), textcoords='offset points',
                     color='yellow', fontsize=12, rotation=0)
     plt.show()
+
+def sigma_to_fwhm(sigma):
+    """Convert the standard deviation sigma of a Gaussian into
+    the full width at half maximum (FWHM).
+
+    Parameters
+    ----------
+    sigma : float or int
+
+    Returns
+    -------
+    fwhm : float
+        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
+
+    See Also
+    --------
+
+        
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 
+            
+    References
+    ----------
+    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
+    
+    """
+    fwhm = 2.0*math.sqrt(2.0*math.log(2.0))*sigma
+    return fwhm
 
 def is_odd(num):
     """Determine if a number is equivalent to an odd integer.
