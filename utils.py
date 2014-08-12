@@ -23,43 +23,6 @@ import scipy
 from skimage import feature
 import matplotlib.pyplot as plt
 
-class Silence(object):
-    '''Context manager to do "deep suppression" of stdout and stderr.
-    
-    Class will suppress all print, even if the print originates in a 
-    compiled C/Fortran sub-function. Raised exceptions are permitted.
-
-    Notes
-    -----
-    This class is from StackOverflow [1]_.
-    Example:
-        with Silence():
-            verbose_function()
-
-    References
-    ----------
-    .. [1] http://stackoverflow.com/questions/11130156/suppress-stdout-stderr-print-from-python-functions
-
-    '''
-    def __init__(self):
-        # Open a pair of null files
-        self.null_fds =  [os.open(os.devnull,os.O_RDWR) for x in range(2)]
-        # Save the actual stdout (1) and stderr (2) file descriptors.
-        self.save_fds = (os.dup(1), os.dup(2))
-
-    def __enter__(self):
-        # Assign the null pointers to stdout and stderr.
-        os.dup2(self.null_fds[0],1)
-        os.dup2(self.null_fds[1],2)
-
-    def __exit__(self, *_):
-        # Re-assign the real stdout/stderr back to (1) and (2)
-        os.dup2(self.save_fds[0],1)
-        os.dup2(self.save_fds[1],2)
-        # Close the null files
-        os.close(self.null_fds[0])
-        os.close(self.null_fds[1])
-
 def create_config(fjson='config.json'):
     """Create configuration file for data reduction.
     
@@ -212,11 +175,11 @@ def reduce_ccddata_dict(dobj, dobj_exptime=None,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
+    # Print progress through dict.
     # Operations:
     # - subtract master bias from object image
     # - scale and subtract master dark from object image
     # - divide object image by corrected master flat
-    # Print progress through dict.
 	keys_sortedlist = sorted(dobj.keys())
 	keys_len = len(keys_sortedlist)
 	prog_interval = 0.05
@@ -280,8 +243,13 @@ def remove_cosmic_rays(image,
         
     Notes
     -----
-    Use method from `photutils` rather than `ccdproc` or `imageutils`
-    until `ccdproc` issue #130 is closed [3]_.
+    Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils`
+        until `ccdproc` issue #130 is closed [3]_.
+    `photutils.detection.lacosmic` is verbose in stdout and stderr.
+    
+    TODO
+    ----
+    Use logging.
 
     References
     ----------
@@ -292,6 +260,7 @@ def remove_cosmic_rays(image,
            with Traditional Amplifier, 1 MHz readout speed, gain setting #3 (highest).
     
     """
+    # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, **lacosmicargs)
     return (image_cleaned, ray_mask)
     
