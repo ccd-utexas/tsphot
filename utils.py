@@ -261,7 +261,8 @@ def get_exptime_prog(spe_footer_xml):
     References
     ----------
     .. [1] Princeton Instruments SPE 3.0 File Format Specification
-           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
+           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
+           SPE%203.0%20File%20Format%20Specification.pdf
     
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
