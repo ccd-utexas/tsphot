@@ -178,7 +178,39 @@ def create_master_calib(dobj):
     return ccddata
 
 
-# noinspection PyPep8Naming
+def sigma_to_fwhm(sigma):
+    """Convert the standard deviation sigma of a Gaussian into
+    the full width at half maximum (FWHM).
+
+    Parameters
+    ----------
+    :rtype : object
+    sigma : float or int
+
+    Returns
+    -------
+    fwhm : float
+        fwhm = 2*sqrt(2*ln(2))*sigma [1]_.
+
+    See Also
+    --------
+    center_stars : Within `center_stars`, the centroid fitting method that
+        maximizes the flux yielded from an aperture calls `sigma_to_fwhm`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 4.2.2
+
+    References
+    ----------
+    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
+
+    """
+    fwhm = 2.0 * math.sqrt(2.0 * math.log(2.0)) * sigma
+    return fwhm
+
+
+# noinspection PyPep8Naming, PyRedundantParentheses
 def gain_readnoise_from_master(bias, flat):
     """Calculate the gain and readnoise from a master bias frame and a master flat frame.
 
@@ -204,12 +236,12 @@ def gain_readnoise_from_master(bias, flat):
     Notes
     -----
     from [1]_:
-        relation_readnoise_gain = readnoise / gain
+        bias_fwhm = readnoise / gain
     from [2]_:
-        relation_flat_gain = sqrt(flat_mean * gain) / gain
+        flat_fwhm = sqrt(flat_mean * gain) / gain
     Solving for gain and readnoise:
-        gain = flat_mean / relation_flat_gain**2
-        readnoise = gain * relation_readnoise_gain
+        gain = flat_mean / flat_fwhm**2
+        readnoise = gain * bias_fwhm
     Using the median as estimator of average because robust to outliers [3]_.
     Using sigmaG as estimator of distribution shape because robust to outliers [3]_.
 
@@ -227,11 +259,8 @@ def gain_readnoise_from_master(bias, flat):
     flat_sigmaG = astroML_stats.sigmaG(flat)
     flat_fwhm = sigma_to_fwhm(flat_sigmaG)
     flat_median = np.median(flat)
-    rel_flat_gain = flat_fwhm
-    rel_readnoise_gain = bias_fwhm
-    gain = flat_median / rel_flat_gain ** 2
-    readnoise = gain * rel_readnoise_gain
-    # noinspection PyRedundantParentheses
+    gain = flat_median / (flat_fwhm ** 2.0)
+    readnoise = gain * bias_fwhm
     return (gain, readnoise)
 
 
@@ -742,38 +771,6 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     subframe_sub = subframe_np - (median + threshold_sigma * sigmaG)
     subframe_sub[subframe_sub < 0.0] = 0.0
     return subframe_sub
-
-
-def sigma_to_fwhm(sigma):
-    """Convert the standard deviation sigma of a Gaussian into
-    the full width at half maximum (FWHM).
-
-    Parameters
-    ----------
-    :rtype : object
-    sigma : float or int
-
-    Returns
-    -------
-    fwhm : float
-        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
-
-    See Also
-    --------
-    center_stars : Within `center_stars`, the centroid fitting method that
-        maximizes the flux yielded from an aperture calls `sigma_to_fwhm`.
-        
-    Notes
-    -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.2
-            
-    References
-    ----------
-    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
-    
-    """
-    fwhm = 2.0 * math.sqrt(2.0 * math.log(2.0)) * sigma
-    return fwhm
 
 
 # noinspection PyRedundantParentheses,PyUnresolvedReferences
