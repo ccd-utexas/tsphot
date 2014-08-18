@@ -119,7 +119,8 @@ def spe_to_dict(fpath):
     References
     ----------
     .. [1] Princeton Instruments SPE 3.0 File Format Specification
-           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
+           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
+           SPE%203.0%20File%20Format%20Specification.pdf
 
     """
     spe = read_spe.File(fpath)
@@ -641,12 +642,12 @@ def is_odd(num):
 
     Returns
     -------
-    is_odd : bool
+    tf_odd : bool
 
     See Also
     --------
     `center_stars` : `center_stars` calls `is_odd` to check that the
-        square subframes extraced around each star have an odd number
+        square subframes extracted around each star have an odd number
         pixels on each side.
     
     Notes
@@ -663,8 +664,8 @@ def is_odd(num):
 
     """
     # `==` works for floats and ints.
-    is_odd = (math.fabs(math.fmod(num, 2)) == 1)
-    return is_odd
+    tf_odd = (math.fabs(math.fmod(num, 2)) == 1)
+    return tf_odd
 
 
 def subtract_subframe_background(subframe, threshold_sigma=3):
@@ -873,7 +874,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         if width < 3:
             width = 3
         if not is_odd(width):
-            width = width + 1
+            width += 1
         height = width
         # Note:
         # - Subframe may be shortened due to proximity to frame edge.
