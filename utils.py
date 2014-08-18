@@ -389,13 +389,13 @@ def reduce_ccddata(dobj, dobj_exptime=None,
               "  Progress (%):", end=' ')
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
-            if bias != None:
+            if bias is not None:
                 dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
-            if dark != None:
+            if dark is not None:
                 dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
                                                   dark_exposure=dark_exptime,
                                                   data_exposure=dobj_exptime)
-            if flat != None:
+            if flat is not None:
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
                 print(int(key_progress[key] * 100), end=' ')
@@ -986,18 +986,21 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #     #   seeing = 1.4 arcsec.
         #     # - For varying subframes, method does not converge to final centroid solution.
         #     # - For 7x7 to 11x11 subframes, centroid solution agrees with centroid_2dg centroid solution within
-        #     #   +/- 0.01 pix, but then diverges from solution with larger subframes. Method is susceptible to outliers.
-        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_sigma and alwyas takes ~3 ms.
-        #     (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
-        # elif method == 'fit_max_phot_flux':
-        #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from computing the
-        #     # centroid that yields the largest photometric flux. Method is fast, but, as of 2014-08-08 (STH), implementation
-        #     # is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7), and method is possibly sensitive to outliers.
+        #     #   +/- 0.01 pix, but then diverges from solution with larger subframes.
+        #     #   Method is susceptible to outliers.
+        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_sigma and always
+        #     #   takes ~3 ms.
+        #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
+        #     # elif method == 'fit_max_phot_flux':
+        #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from
+        #     # computing the centroid that yields the largest photometric flux. Method is fast, but,
+        #     # as of 2014-08-08 (STH), implementation is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7),
+        #     # and method is possibly sensitive to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
-        #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at 7x7 subframe,
-        #     #   however final centoid solution disagrees with other methods' centroid solutions.
+        #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at
+        #     #   7x7 subframe, however final centoid solution disagrees with other methods' centroid solutions.
         #     # - For 7x7 subframe, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subframe
         #     #   by ~0.1 pix. Method may be susceptible to outliers.
         #     # - For 7x7 subframe, method takes ~130 ms. Method scales \propto box_sigma.
@@ -1024,8 +1027,10 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #
         #         References
         #         ----------
-        #         .. [1] http://photutils.readthedocs.org/en/latest/api/photutils.CircularAperture.html#photutils.CircularAperture
-        #         .. [2] http://photutils.readthedocs.org/en/latest/api/photutils.aperture_photometry.html#photutils.aperture_photometry
+        #         .. [1] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.CircularAperture.html#photutils.CircularAperture
+        #         .. [2] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.aperture_photometry.html#photutils.aperture_photometry
         #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
         #
         #         """
@@ -1058,8 +1063,10 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #
         #         References
         #         ----------
-        #         .. [1] http://photutils.readthedocs.org/en/latest/api/photutils.CircularAperture.html#photutils.CircularAperture
-        #         .. [2] http://photutils.readthedocs.org/en/latest/api/photutils.aperture_photometry.html#photutils.aperture_photometry
+        #         .. [1] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.CircularAperture.html#photutils.CircularAperture
+        #         .. [2] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.aperture_photometry.html#photutils.aperture_photometry
         #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
         #
         #         """
