@@ -8,7 +8,9 @@ read_spe : Module for reading SPE files.
 Notes
 -----
 noinspection : Comments are created by PyCharm to flag permitted code inspection violations.
-Conventions : This module's documentation follows the `numpy` doc example [1]_.
+docstrings : This module's documentation follows the `numpy` doc example [1]_.
+TODO : Flag all to-do items with 'TODO:' in the code body (not the docstring) so that they are flagged when using
+    an IDE.
 'See Also' : Methods describe their relationships to each other within their docstrings under the 'See Also' section.
     All methods should be connected to at least one other method within this module [2]_.
 PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their docstrings under the 'Notes'
@@ -20,12 +22,6 @@ PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ wit
     - All functions within this module should have a sequence number since they should all have a role in the
         pipeline [2]_.
 
-TODO
-----
-Include FITS processing.
-Write 'Raises' docstring sections.
-Write 'Examples' docstring sections.
-
 References
 ----------
 .. [1] https://github.com/numpy/numpy/blob/master/doc/example.py
@@ -33,6 +29,9 @@ References
 .. [3] http://semver.org/
 
 """
+# TODO: Include FITS processing.
+# TODO: Write 'Raises' docstring sections.
+# TODO: Write 'Examples' docstring sections.
 
 # Forwards compatibility imports.
 from __future__ import division, absolute_import, print_function
@@ -77,14 +76,11 @@ def create_config(fjson='config.json'):
     -----
     PIPELINE_SEQUENCE_NUMBER: -1.0
 
-    TODO
-    ----
-    Make json config file for reductions
-
     References
     ----------
     
     """
+    # TODO : Make json config file for reductions
     pass
 
 
@@ -113,10 +109,6 @@ def spe_to_dict(fpath):
     -----
     PIPELINE_SEQUENCE_NUMBER : 0.0
 
-    TODO
-    ----
-    Return SPE header as well.
-    
     References
     ----------
     .. [1] Princeton Instruments SPE 3.0 File Format Specification
@@ -124,6 +116,7 @@ def spe_to_dict(fpath):
            SPE%203.0%20File%20Format%20Specification.pdf
 
     """
+    # TODO : Return SPE header as well.
     spe = read_spe.File(fpath)
     object_ccddata = {}
     object_ccddata['footer_xml'] = spe.footer_metadata
@@ -157,7 +150,7 @@ def create_master_calib(dobj):
     spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     reduce_ccddata : Next step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration frames and input to `reduce_ccddata`.
+        bias, dark, flat calibration frames as input to `reduce_ccddata`.
 
     Notes
     -----
@@ -187,8 +180,7 @@ def create_master_calib(dobj):
 
 # noinspection PyPep8Naming
 def gain_readnoise_from_master(bias, flat):
-    """Calculate the gain and readnoise from a master bias frame
-    and a master flat frame.
+    """Calculate the gain and readnoise from a master bias frame and a master flat frame.
 
     Parameters
     ----------
@@ -206,7 +198,8 @@ def gain_readnoise_from_master(bias, flat):
     
     See Also
     --------
-    reduce_
+    create_master_calib : Previous step in pipeline. Run `create_master_calib` then use the master bias, flat
+        calibration frames as input to `gain_readnoise_from_master`.
 
     Notes
     -----
@@ -223,6 +216,7 @@ def gain_readnoise_from_master(bias, flat):
 # from astroml book
     
     """
+    # TODO : In See Also, complete next step in pipeline.
     bias_sigmaG = astroML_stats.sigmaG(bias)
     bias_fwhm = sigma_to_fwhm(bias_sigmaG)
     flat_sigmaG = astroML_stats.sigmaG(flat)
@@ -333,15 +327,12 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     - scale and subtract master dark from each object image
     - divide each object image by corrected master flat
 
-    TODO
-    ----
-    - Use logging rather than print.
-    
     References
     ----------
     .. [1] Howell, 2006, "Handbook of CCD Astronomy"
     
     """
+    #  TODO : Use logging rather than print.
     # Check input.
     # If there is a `dark`...
     if dark is not None:
@@ -454,10 +445,6 @@ def remove_cosmic_rays(image,
     Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils`
         until `ccdproc` issue #130 is closed [3]_.
     `photutils.detection.lacosmic` is verbose in stdout and stderr.
-
-    TODO
-    ----
-    Use logging.
     
     References
     ----------
@@ -468,6 +455,7 @@ def remove_cosmic_rays(image,
            with Traditional Amplifier, 1 MHz readout speed, gain setting #3 (highest).
     
     """
+    # TODO: Use logging.
     # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, **lacosmicargs)
     return (image_cleaned, ray_mask)
