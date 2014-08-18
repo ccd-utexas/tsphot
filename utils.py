@@ -11,9 +11,9 @@ Conventions : This module's documentation follows the `numpy` doc example [1]_.
 'See Also' : Methods describe their relationships to each other within their
     docstrings under the 'See Also' section. All methods should be connected
     to at least one other method within this module [2]_.
-PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning within
-    their docstrings under the 'Notes' section. The sequence number identifies
-    in what order the functions are usually called by higher-level scripts.
+PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_
+    within their docstrings under the 'Notes' section. The sequence number
+    identifies in what order the functions are usually called by higher-level scripts.
     - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions
       that are computation/IO-intensive and/or are critical to the pipeline.
     - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions
@@ -32,6 +32,7 @@ References
 ----------
 .. [1] https://github.com/numpy/numpy/blob/master/doc/example.py
 .. [2] http://en.wikipedia.org/wiki/Pipeline_(software)
+.. [3] http://semver.org/
 
 """
 
@@ -39,7 +40,6 @@ References
 from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
-import os
 import sys
 import math
 
@@ -54,12 +54,12 @@ import matplotlib.pyplot as plt
 import astropy
 import ccdproc
 import imageutils
-import photutils
 from photutils.detection import morphology, lacosmic
 from astroML import stats as astroML_stats
 
 # Internal package imports.
 import read_spe
+
 
 def create_config(fjson='config.json'):
     """Create configuration file for data reduction.
@@ -86,6 +86,7 @@ def create_config(fjson='config.json'):
     
     """
     pass
+
 
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
@@ -129,7 +130,8 @@ def spe_to_dict(fpath):
         object_ccddata[fidx] = ccdproc.CCDData(data=data, meta=meta, unit=astropy.units.adu)
     spe.close()
     return object_ccddata
-    
+
+
 def create_master_calib(dobj):
     """Create a master calibration frame from a ``dict`` of `ccdproc.CCDData`.
     Median-combine individual calibration frames and retain all metadata.
@@ -180,6 +182,7 @@ def create_master_calib(dobj):
         ccddata.meta[key] = dobj[key]
     return ccddata
 
+
 def gain_readnoise_from_master(bias, flat):
     """Calculate the gain and readnoise from a master bias frame
     and a master flat frame.
@@ -217,16 +220,17 @@ def gain_readnoise_from_master(bias, flat):
 # from astroml book
     
     """
-    bias_sigmaG = stats.sigmaG(master_bias)
-    bias_fwhm   = sigma_to_fwhm(master_bias_sigmaG)
-    master_flat_sigmaG = stats.sigmaG(master_flat)
-    master_flat_fwhm   = sigma_to_fwhm(master_flat_sigmaG)
-    master_flat_median = np.median(master_flat)
-    rel_flat_gain = master_flat_fwhm
-    rel_readnoise_gain = master_bias_fhwm 
-    gain = master_flat_median / rel_flat_gain**2
-    readnoise = gain_master * rel_readnoise_gain
+    bias_sigmaG = astroML_stats.sigmaG(bias)
+    bias_fwhm = sigma_to_fwhm(bias_sigmaG)
+    flat_sigmaG = astroML_stats.sigmaG(flat)
+    flat_fwhm = sigma_to_fwhm(flat_sigmaG)
+    flat_median = np.median(flat)
+    rel_flat_gain = flat_fwhm
+    rel_readnoise_gain = bias_fwhm
+    gain = flat_median / rel_flat_gain ** 2
+    readnoise = gain * rel_readnoise_gain
     return (gain, readnoise)
+
 
 def get_exptime_prog(spe_footer_xml):
     """Get the programmed exposure time in seconds from
@@ -262,13 +266,14 @@ def get_exptime_prog(spe_footer_xml):
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
     exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
     exptime_prog_res = int(footer_xml.find(name='DelayResolution').contents[0])
-    exptime_prog_sec =  (exptime_prog / exptime_prog_res)
+    exptime_prog_sec = (exptime_prog / exptime_prog_res)
     return exptime_prog_sec
 
+
 def reduce_ccddata(dobj, dobj_exptime=None,
-                        bias=None,
-                        dark=None, dark_exptime=None,
-                        flat=None, flat_exptime=None):
+                   bias=None,
+                   dark=None, dark_exptime=None,
+                   flat=None, flat_exptime=None):
     """Reduce a dict of object data frames using the master calibration frames
     for bias, dark, and flat.
 
@@ -337,7 +342,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     if dark != None:
         # ...but no `dobj_exptime` or `dark_exptime`:
         if ((dobj_exptime == None) or
-            (dark_exptime == None)):
+                (dark_exptime == None)):
             raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
     # If there is a `flat`...
     if flat != None:
@@ -357,42 +362,43 @@ def reduce_ccddata(dobj, dobj_exptime=None,
             print("INFO: Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
     if ((dark != None) and
-        (flat != None)):
+            (flat != None)):
         print("INFO: Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
-    # Print progress through dict.
-    # Operations:
-    # - subtract master bias from object image
-    # - scale and subtract master dark from object image
-    # - divide object image by corrected master flat
-	keys_sortedlist = sorted(dobj.keys())
-	keys_len = len(keys_sortedlist)
-	prog_interval = 0.05
-	prog_divs = int(math.ceil(1 / prog_interval))
-	key_progress = {}
-	for idx in xrange(0, prog_divs+1):
-	    progress = (idx / prog_divs)
-	    key_idx = int(math.ceil((keys_len - 1) * progress))
-	    key = keys_sortedlist[key_idx]
-	    key_progress[key] = progress
-	print("INFO: Reducing object data.\n"+
-	      "  Progress (%):", end=' ')
+        # Print progress through dict.
+        # Operations:
+        # - subtract master bias from object image
+        # - scale and subtract master dark from object image
+        # - divide object image by corrected master flat
+        keys_sortedlist = sorted(dobj.keys())
+        keys_len = len(keys_sortedlist)
+        prog_interval = 0.05
+        prog_divs = int(math.ceil(1 / prog_interval))
+        key_progress = {}
+        for idx in xrange(0, prog_divs + 1):
+            progress = (idx / prog_divs)
+            key_idx = int(math.ceil((keys_len - 1) * progress))
+            key = keys_sortedlist[key_idx]
+            key_progress[key] = progress
+        print("INFO: Reducing object data.\n" +
+              "  Progress (%):", end=' ')
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
             if bias != None:
                 dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
             if dark != None:
                 dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
-                                                   dark_exposure=dark_exptime,
-                                                   data_exposure=dobj_exptime)
+                                                  dark_exposure=dark_exptime,
+                                                  data_exposure=dobj_exptime)
             if flat != None:
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
-	    if key in key_progress:
-	        print(int(key_progress[key]*100), end=' ')        
+            if key in key_progress:
+                print(int(key_progress[key] * 100), end=' ')
     return dobj
+
 
 def remove_cosmic_rays(image,
                        lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
@@ -459,7 +465,8 @@ def remove_cosmic_rays(image,
     # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, **lacosmicargs)
     return (image_cleaned, ray_mask)
-    
+
+
 def normalize(array):
     """Normalize an array in a robust way.
 
@@ -505,7 +512,8 @@ def normalize(array):
               file=sys.stderr)
     array_normd = (array_np - median) / sigmaG
     return array_normd
-    
+
+
 def find_stars(image,
                blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)):
     """Find stars in an image and return as a dataframe.
@@ -569,6 +577,7 @@ def find_stars(image,
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
+
 def plot_stars(image, stars, radius=3,
                imshowargs=dict(interpolation='none')):
     """Plot detected stars overlayed on image.
@@ -618,9 +627,10 @@ def plot_stars(image, stars, radius=3,
                             color='yellow', linewidth=1, fill=False)
         ax.add_patch(circle)
         ax.annotate(str(idx), xy=(x_pix, y_pix), xycoords='data',
-                    xytext=(0,0), textcoords='offset points',
+                    xytext=(0, 0), textcoords='offset points',
                     color='yellow', fontsize=12, rotation=0)
     plt.show()
+
 
 def is_odd(num):
     """Determine if a number is equivalent to an odd integer.
@@ -655,7 +665,8 @@ def is_odd(num):
     # `==` works for floats and ints.
     is_odd = (math.fabs(math.fmod(num, 2)) == 1)
     return is_odd
-    
+
+
 def subtract_subframe_background(subframe, threshold_sigma=3):
     """Subtract the background intensity from a subframe centered on a source.
 
@@ -703,8 +714,8 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     subframe_np = np.array(subframe)
     (height, width) = subframe_np.shape
     if width != height:
-        raise IOError(("Subframe must be square.\n"+
-                       "  width = {wid}\n"+
+        raise IOError(("Subframe must be square.\n" +
+                       "  width = {wid}\n" +
                        "  height = {ht}").format(wid=width,
                                                  ht=height))
     # Choose border width such ratio of number of background pixels to source pixels is >= 3.
@@ -718,16 +729,17 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     arr_source = subframe_np[border:-border, border:-border]
     if (arr_background.size / arr_source.size) < 3:
         # Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
-        raise AssertionError(("Program error. There must be at least 3 times as many sky pixels\n"+
-                              "  as source pixels to accurately estimate the sky background level.\n"+
-                              "  arr_background.size = {nb}\n"+
+        raise AssertionError(("Program error. There must be at least 3 times as many sky pixels\n" +
+                              "  as source pixels to accurately estimate the sky background level.\n" +
+                              "  arr_background.size = {nb}\n" +
                               "  arr_source.size = {ns}").format(nb=arr_background.size,
                                                                  ns=arr_source.size))
     median = np.median(arr_background)
     sigmaG = astroML_stats.sigmaG(arr_background)
-    subframe_sub = subframe_np - (median + threshold_sigma*sigmaG)
+    subframe_sub = subframe_np - (median + threshold_sigma * sigmaG)
     subframe_sub[subframe_sub < 0.0] = 0.0
     return subframe_sub
+
 
 def sigma_to_fwhm(sigma):
     """Convert the standard deviation sigma of a Gaussian into
@@ -735,6 +747,7 @@ def sigma_to_fwhm(sigma):
 
     Parameters
     ----------
+    :rtype : object
     sigma : float or int
 
     Returns
@@ -756,8 +769,9 @@ def sigma_to_fwhm(sigma):
     .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
     
     """
-    fwhm = 2.0*math.sqrt(2.0*math.log(2.0))*sigma
+    fwhm = 2.0 * math.sqrt(2.0 * math.log(2.0)) * sigma
     return fwhm
+
 
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
@@ -847,15 +861,15 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     # Check input.
     valid_methods = ['fit_2dgaussian', 'fit_bivariate_normal']
     if method not in valid_methods:
-        raise IOError(("Invalid method: {meth}\n"+
+        raise IOError(("Invalid method: {meth}\n" +
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
     # Make square subframes and compute centroids and sigma by chosed method.
     # Each star or extende source may have a different sigma. Store results in a dataframe.
     stars_init = stars.copy()
     stars_finl = stars.copy()
-    stars_finl[['x_pix','y_pix','sigma_pix']] = np.NaN
+    stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        width = int(math.ceil(box_sigma*sigma_init))
+        width = int(math.ceil(box_sigma * sigma_init))
         if width < 3:
             width = 3
         if not is_odd(width):
@@ -874,24 +888,25 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # If the star was too close to the frame edge to extract the subframe, skip the star.
         (height_actl, width_actl) = subframe.shape
         if ((width_actl == width) and
-            (height_actl == height)):
+                (height_actl == height)):
             x_init_sub = (width_actl - 1) / 2
             y_init_sub = (height_actl - 1) / 2
         else:
             # TODO: log events. STH, 2014-08-08
-            print(("ERROR: Star is too close to the edge of the frame. Square subframe could not be extracted.\n"+
-                   "  idx = {idx}\n"+
-                   "  (x_init, y_init) = ({x_init}, {y_init})\n"+
-                   "  sigma_init = {sigma_init}\n"+
-                   "  box_sigma = {box_sigma}\n"+
-                   "  (width, height) = ({width}, {height})\n"+
+            print(("ERROR: Star is too close to the edge of the frame. Square subframe could not be extracted.\n" +
+                   "  idx = {idx}\n" +
+                   "  (x_init, y_init) = ({x_init}, {y_init})\n" +
+                   "  sigma_init = {sigma_init}\n" +
+                   "  box_sigma = {box_sigma}\n" +
+                   "  (width, height) = ({width}, {height})\n" +
                    "  (width_actl, height_actl) = ({width_actl}, {height_actl})").format(idx=idx,
                                                                                          x_init=x_init, y_init=y_init,
                                                                                          sigma_init=sigma_init,
                                                                                          box_sigma=box_sigma,
                                                                                          width=width, height=height,
-                                                                                         width_actl=width_actl, height_actl=height_actl),
-                                                                                         file=sys.stderr)
+                                                                                         width_actl=width_actl,
+                                                                                         height_actl=height_actl),
+                  file=sys.stderr)
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
@@ -907,7 +922,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # Method description:
             # - See photutils [1]_ and astropy [2]_.
             # - To calculate the standard deviation for the 2D Gaussian:
-            #   zvec = xvec + yvec
+            # zvec = xvec + yvec
             #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
@@ -918,7 +933,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             fit = morphology.fit_2dgaussian(subframe)
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
-            sigma_finl_sub = math.sqrt(fit.x_stddev**2.0 + fit.y_stddev**2.0)
+            sigma_finl_sub = math.sqrt(fit.x_stddev ** 2.0 + fit.y_stddev ** 2.0)
         elif method == 'fit_bivariate_normal':
             # Test results: 2014-08-11, STH
             # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
@@ -929,7 +944,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
             # Method description:
             # - Model the photons hitting the pixels of the subframe and
-            #   robustly fit a bivariate normal distribution.
+            # robustly fit a bivariate normal distribution.
             # - Conservatively assume that photons hit each pixel, even those of the star,
             #   with a uniform distribution. See [3]_, [4]_.
             # - Seed the random number generator only once per call to this method for reproducibility.
@@ -956,12 +971,12 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
                     y_dist.extend(y_dist_pix.rvs(pixel_counts))
             (mu, sigma1, sigma2, alpha) = astroML_stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
             (x_finl_sub, y_finl_sub) = mu
-            sigma_finl_sub = math.sqrt(sigma1**2.0 + sigma2**2.0)
+            sigma_finl_sub = math.sqrt(sigma1 ** 2.0 + sigma2 ** 2.0)
         # # NOTE: 2014-08-10, STH
         # # The following methods have been commented out because they do not provide an estimate for the star's
         # # standard deviation as a 2D Gaussian.
         # # elif method == 'centroid_com':
-        #     # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
+        # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
         #     # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
         #     # sensitivity to outliers.
         #     # Test results: 2014-08-09, STH
