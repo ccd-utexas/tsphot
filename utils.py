@@ -7,20 +7,18 @@ read_spe : Module for reading SPE files.
 
 Notes
 -----
+noinspection : Comments are created by PyCharm to flag permitted code inspection violations.
 Conventions : This module's documentation follows the `numpy` doc example [1]_.
-'See Also' : Methods describe their relationships to each other within their
-    docstrings under the 'See Also' section. All methods should be connected
-    to at least one other method within this module [2]_.
-PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_
-    within their docstrings under the 'Notes' section. The sequence number
-    identifies in what order the functions are usually called by higher-level scripts.
-    - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions
-      that are computation/IO-intensive and/or are critical to the pipeline.
-    - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions
-      that are not computation/IO-intensive, are optional to the pipeline,
-      and/or are diagnostic.
-    - All functions within this module should have a sequence number since
-      they should all have a role in the pipeline [2]_.
+'See Also' : Methods describe their relationships to each other within their docstrings under the 'See Also' section.
+    All methods should be connected to at least one other method within this module [2]_.
+PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their docstrings under the 'Notes'
+    section. The sequence number identifies in what order the functions are usually called by higher-level scripts.
+    - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions that are computation/IO-intensive and/or are
+        critical to the pipeline.
+    - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions that are not computation/IO-intensive,
+        are optional to the pipeline, and/or are diagnostic.
+    - All functions within this module should have a sequence number since they should all have a role in the
+        pipeline [2]_.
 
 TODO
 ----
