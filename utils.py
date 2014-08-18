@@ -55,12 +55,14 @@ import astropy
 import ccdproc
 import imageutils
 from photutils.detection import morphology, lacosmic
+# noinspection PyPep8Naming
 from astroML import stats as astroML_stats
 
 # Internal package imports.
 import read_spe
 
 
+# noinspection PyUnusedLocal
 def create_config(fjson='config.json'):
     """Create configuration file for data reduction.
 
@@ -185,6 +187,7 @@ def create_master_calib(dobj):
     return ccddata
 
 
+# noinspection PyPep8Naming
 def gain_readnoise_from_master(bias, flat):
     """Calculate the gain and readnoise from a master bias frame
     and a master flat frame.
@@ -404,7 +407,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     return dobj
 
 
-# noinspection PyDefaultArgument
+# noinspection PyDefaultArgument,PyRedundantParentheses
 def remove_cosmic_rays(image,
                        lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
                                          gain=0.85, readnoise=6.1)):
@@ -472,6 +475,7 @@ def remove_cosmic_rays(image,
     return (image_cleaned, ray_mask)
 
 
+# noinspection PyPep8Naming,PyRedundantParentheses
 def normalize(array):
     """Normalize an array in a robust way.
 
@@ -519,6 +523,7 @@ def normalize(array):
     return array_normd
 
 
+# noinspection PyDefaultArgument
 def find_stars(image,
                blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)):
     """Find stars in an image and return as a dataframe.
@@ -583,6 +588,7 @@ def find_stars(image,
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
+# noinspection PyDefaultArgument
 def plot_stars(image, stars, radius=3,
                imshowargs=dict(interpolation='none')):
     """Plot detected stars overlayed on image.
@@ -672,6 +678,7 @@ def is_odd(num):
     return tf_odd
 
 
+# noinspection PyPep8Naming
 def subtract_subframe_background(subframe, threshold_sigma=3):
     """Subtract the background intensity from a subframe centered on a source.
 
@@ -778,6 +785,7 @@ def sigma_to_fwhm(sigma):
     return fwhm
 
 
+# noinspection PyRedundantParentheses,PyUnresolvedReferences
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
