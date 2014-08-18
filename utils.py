@@ -198,7 +198,7 @@ def sigma_to_fwhm(sigma):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.2
+    PIPELINE_SEQUENCE_NUMBER : 1.0.1
 
     References
     ----------
@@ -225,12 +225,13 @@ def gain_readnoise_from_master(bias, flat):
     gain : float
         Gain of the camera in electrons/ADU.
     readnoise : float
-        Readout noise of the camera in electrons/pixel.
+        Readout noise of the camera in electrons.
 
     See Also
     --------
     create_master_calib : Previous step in pipeline. Run `create_master_calib` then use the master bias, flat
         calibration frames as input to `gain_readnoise_from_master`.
+    gain_readnoise_from_random : Independent method of computing gain and readnoise from random bias and flat frames.
 
     Notes
     -----
@@ -241,15 +242,17 @@ def gain_readnoise_from_master(bias, flat):
     Solving for gain and readnoise:
         gain = flat_mean / flat_fwhm**2
         readnoise = gain * bias_fwhm
-    Using the median as estimator of average because robust to outliers [3]_.
-    Using sigmaG as estimator of distribution shape because robust to outliers [3]_.
+    from [3]_:
+        Using the median as estimator of average because robust to outliers.
+        Using sigmaG as estimator of standard deviation because robust to outliers.
+    PIPELINE_SEQUENCE_NUMBER = 1.1
 
     References
     ----------
     .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 3.7 "Overscan and bias"
     .. [2] Howell, 2006, "Handbook of CCD Astronomy", sec 4.3 "Calculation of read noise and gain"
     .. [3] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
-          sec 3.2, "Descriptive Statistics"
+        sec 3.2, "Descriptive Statistics"
 
     """
     # TODO : In See Also, complete next step in pipeline.
@@ -281,21 +284,52 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     -------
     gain : float
         Gain of the camera in electrons/ADU.
+    readnoise : float
+        Readout noise of the camera in electrons.
 
+    See Also
+    --------
+    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the bias and flat calibration frames as input
+        to `gain_readnoise_from_random`.
+    gain_readnoise_from_master : Independent method of computing gain and readnoise from master bias and flat frames.
+
+    Notes
+    -----
+    from [1]_:
+        (b1, b2) = (bias1_mean, bias2_mean)
+        diff_b12 = b1 - b2
+        sig_db12 = stddev(diff_b12)
+        (f1, f2) = (flat1_mean, flat2_mean)
+        diff_f12 = f1 - f2
+        sig_df12 = stddev(diff_f12)
+        gain = ((f1 + f2) - (b1 + b2)) / (sig_df12**2 - sig_db12**2)
+        readnoise = gain * sig_db12 / sqrt(2)
+    from [2]_:
+        Using the median as estimator of average because robust to outliers.
+        Using sigmaG as estimator of standard deviation because robust to outliers.
+    PIPELINE_SEQUENCE_NUMBER = 1.2
+
+    References
+    ----------
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 4.3 "Calculation of read noise and gain"
+    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+        sec 3.2, "Descriptive Statistics"
 
     """
-    bias1_median       = np.median(bias1)
-    bias2_median       = np.median(bias2))
-    diff_bias12        = bias1 - bias2
-    diff_bias12_sigmaG = stats.sigmaG(diff_bias12)
-    flat1_median       = np.median(flat1)
-    flat2_median       = np.median(flat2))
-    diff_flat12        = flat1 - flat2
-    diff_flat12_sigmaG = stats.sigmaG(diff_flat12)
+    # TODO: In See Also, complete next step in pipeline.
+    bias1_median = np.median(bias1)
+    bias2_median = np.median(bias2)
+    diff_bias12  = bias1 - bias2
+    diff_bias12_sigmaG = astroML_stats.sigmaG(diff_bias12)
+    flat1_median = np.median(flat1)
+    flat2_median = np.median(flat2)
+    diff_flat12  = flat1 - flat2
+    diff_flat12_sigmaG = astroML_stats.sigmaG(diff_flat12)
     gain = (((flat1_median + flat2_median) - (bias1_median + bias2_median)) /
-                   (diff_flat12_sigmaG**2 - diff_bias12_sigmaG))
-    readnoise = gain_random * diff_bias12_sigmaG / math.sqrt(2.0)
-    return (gain, readnoise)
+                   (diff_flat12_sigmaG**2.0 - diff_bias12_sigmaG**2.0))
+    readnoise = gain * diff_bias12_sigmaG / math.sqrt(2.0)
+    return (gain * (astropy.units.electron / astropy.units.adu),
+            readnoise * (astropy.units.electron))
 
 
 def get_exptime_prog(spe_footer_xml):
@@ -319,7 +353,7 @@ def get_exptime_prog(spe_footer_xml):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 1.2
+    PIPELINE_SEQUENCE_NUMBER : 1.3
     Method uses `bs4.BeautifulSoup` to parse the XML ``string``.
     Converts exposure time to seconds from 'ExposureTime' and 'DelayResolution' XML keywords.
 
