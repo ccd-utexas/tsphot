@@ -270,6 +270,7 @@ def gain_readnoise_from_master(bias, flat):
             readnoise * astropy.units.electron)
 
 
+# noinspection PyPep8Naming
 def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     """Calculate gain and readnoise from a pair of random bias frames and a pair of random flat frames.
 
@@ -319,17 +320,17 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     # TODO: In See Also, complete next step in pipeline.
     bias1_median = np.median(bias1)
     bias2_median = np.median(bias2)
-    diff_bias12  = bias1 - bias2
+    diff_bias12 = bias1 - bias2
     diff_bias12_sigmaG = astroML_stats.sigmaG(diff_bias12)
     flat1_median = np.median(flat1)
     flat2_median = np.median(flat2)
-    diff_flat12  = flat1 - flat2
+    diff_flat12 = flat1 - flat2
     diff_flat12_sigmaG = astroML_stats.sigmaG(diff_flat12)
     gain = (((flat1_median + flat2_median) - (bias1_median + bias2_median)) /
-                   (diff_flat12_sigmaG**2.0 - diff_bias12_sigmaG**2.0))
+            (diff_flat12_sigmaG ** 2.0 - diff_bias12_sigmaG ** 2.0))
     readnoise = gain * diff_bias12_sigmaG / math.sqrt(2.0)
     return (gain * (astropy.units.electron / astropy.units.adu),
-            readnoise * (astropy.units.electron))
+            readnoise * astropy.units.electron)
 
 
 def get_exptime_prog(spe_footer_xml):
@@ -434,7 +435,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     .. [1] Howell, 2006, "Handbook of CCD Astronomy"
     
     """
-    #  TODO : Use logging rather than print.
+    # TODO : Use logging rather than print.
     # Check input.
     # If there is a `dark`...
     if dark is not None:
@@ -992,7 +993,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - See photutils [1]_ and astropy [2]_.
             # - To calculate the standard deviation for the 2D Gaussian:
             # zvec = xvec + yvec
-            #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+            # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
             #   ==> Var(z) = Var(x + y)
@@ -1015,7 +1016,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - Model the photons hitting the pixels of the subframe and
             # robustly fit a bivariate normal distribution.
             # - Conservatively assume that photons hit each pixel, even those of the star,
-            #   with a uniform distribution. See [3]_, [4]_.
+            # with a uniform distribution. See [3]_, [4]_.
             # - Seed the random number generator only once per call to this method for reproducibility.
             # - To calculate the standard deviation for the 2D Gaussian:
             #   zvec = xvec + yvec
@@ -1046,7 +1047,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # # standard deviation as a 2D Gaussian.
         # # elif method == 'centroid_com':
         # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
-        #     # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
+        # # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
         #     # sensitivity to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
