@@ -180,6 +180,54 @@ def create_master_calib(dobj):
         ccddata.meta[key] = dobj[key]
     return ccddata
 
+def gain_readnoise_from_master(bias, flat):
+    """Calculate the gain and readnoise from a master bias frame
+    and a master flat frame.
+
+    Parameters
+    ----------
+    bias : array_like
+        2D array of a master bias frame.
+    flat : array_like
+        2D array of a master flat frame.
+
+    Returns
+    -------
+    gain : float
+        Gain of the camera in electrons/ADU.
+    readnoise : float
+        Readout noise of the camera in electrons/pixel.
+    
+    See Also
+    --------
+    reduce_
+
+    Notes
+    -----
+
+# from sec 3.7 Overscan and bias, Howell
+# relation_readnoise_gain = readnoise / gain
+# from sec 4.3. Calculation of read noise and gain, Howell
+# relation_flatmean_gain = sqrt(flat_mean * gain) / gain
+# Solving for gain and readnoise:
+# gain = flat_mean / relation_flatmean_gain**2
+# readnoise = gain * relation_readnoise_gain
+# Using the median as a more robust estimator of the mean given outliers.
+# Using sigmaG as a more robust estimator of distribution sigma given outliers.
+# from astroml book
+    
+    """
+    bias_sigmaG = stats.sigmaG(master_bias)
+    bias_fwhm   = sigma_to_fwhm(master_bias_sigmaG)
+    master_flat_sigmaG = stats.sigmaG(master_flat)
+    master_flat_fwhm   = sigma_to_fwhm(master_flat_sigmaG)
+    master_flat_median = np.median(master_flat)
+    rel_flat_gain = master_flat_fwhm
+    rel_readnoise_gain = master_bias_fhwm 
+    gain = master_flat_median / rel_flat_gain**2
+    readnoise = gain_master * rel_readnoise_gain
+    return (gain, readnoise)
+
 def get_exptime_prog(spe_footer_xml):
     """Get the programmed exposure time in seconds from
     the string XML footer of an SPE file.
@@ -201,7 +249,7 @@ def get_exptime_prog(spe_footer_xml):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 1.1
+    PIPELINE_SEQUENCE_NUMBER : 1.2
     Method uses `bs4.BeautifulSoup` to parse the XML ``string``.
     Converts exposure time to seconds from 'ExposureTime' and 'DelayResolution' XML keywords.
 
