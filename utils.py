@@ -88,6 +88,7 @@ def create_config(fjson='config.json'):
     pass
 
 
+# noinspection PyDictCreation
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
 
@@ -230,6 +231,7 @@ def gain_readnoise_from_master(bias, flat):
     rel_readnoise_gain = bias_fwhm
     gain = flat_median / rel_flat_gain ** 2
     readnoise = gain * rel_readnoise_gain
+    # noinspection PyRedundantParentheses
     return (gain, readnoise)
 
 
@@ -292,7 +294,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     dobj : dict with ccdproc.CCDData
          ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
     dobj_exptime : {None}, float or int, optional
-         Exposure time of frames within `dobj`. All frames must have the same expsosure time.
+         Exposure time of frames within `dobj`. All frames must have the same exposure time.
          Required if `dark` is provided.
     bias : {None}, ccdproc.CCDData, optional
         Master bias frame.
@@ -325,7 +327,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
-    - scale and subract master dark from master flat
+    - scale and subtract master dark from master flat
     - subtract master bias from each object image
     - scale and subtract master dark from each object image
     - divide each object image by corrected master flat
@@ -355,9 +357,9 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
-    # - scale and subract master dark from master flat
-    if bias != None:
-        if dark != None:
+    # - scale and subtract master dark from master flat
+    if bias is not None:
+        if dark is not None:
             print("INFO: Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
         if flat is not None:
@@ -402,6 +404,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     return dobj
 
 
+# noinspection PyDefaultArgument
 def remove_cosmic_rays(image,
                        lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
                                          gain=0.85, readnoise=6.1)):
@@ -530,7 +533,7 @@ def find_stars(image,
         2D array of image.
     blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)}, optional
         Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
-        Because image is normalized, `threshold` is the number of stdandard deviations
+        Because image is normalized, `threshold` is the number of standard deviations
         above image median for counts per pixel.
         Example for extended sources:
             `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=3)
@@ -563,7 +566,7 @@ def find_stars(image,
         Execution times for 256x256 image:
         - For example for extended sources above: 0.33 sec/frame
         - For default above: 0.02 sec/frame
-    Use `find_stars` after removing cosmic rays to prevent spurrious sources.
+    Use `find_stars` after removing cosmic rays to prevent spurious sources.
     
     References
     ----------
@@ -799,7 +802,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a square subframe around the source.
         `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
         the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
-        accomodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
+        accommodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
     threshold_sigma : {3}, float or int, optional
         `threshold_sigma` is the number of standard deviations above the subframe median
         for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
@@ -865,8 +868,8 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n" +
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
-    # Make square subframes and compute centroids and sigma by chosed method.
-    # Each star or extende source may have a different sigma. Store results in a dataframe.
+    # Make square subframes and compute centroids and sigma by chosen method.
+    # Each star or extended source may have a different sigma. Store results in a dataframe.
     stars_init = stars.copy()
     stars_finl = stars.copy()
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
@@ -1000,7 +1003,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
         #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at
-        #     #   7x7 subframe, however final centoid solution disagrees with other methods' centroid solutions.
+        #     #   7x7 subframe, however final centroid solution disagrees with other methods' centroid solutions.
         #     # - For 7x7 subframe, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subframe
         #     #   by ~0.1 pix. Method may be susceptible to outliers.
         #     # - For 7x7 subframe, method takes ~130 ms. Method scales \propto box_sigma.
