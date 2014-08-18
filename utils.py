@@ -184,7 +184,6 @@ def sigma_to_fwhm(sigma):
 
     Parameters
     ----------
-    :rtype : object
     sigma : float or int
 
     Returns
@@ -227,7 +226,7 @@ def gain_readnoise_from_master(bias, flat):
         Gain of the camera in electrons/ADU.
     readnoise : float
         Readout noise of the camera in electrons/pixel.
-    
+
     See Also
     --------
     create_master_calib : Previous step in pipeline. Run `create_master_calib` then use the master bias, flat
@@ -256,11 +255,46 @@ def gain_readnoise_from_master(bias, flat):
     # TODO : In See Also, complete next step in pipeline.
     bias_sigmaG = astroML_stats.sigmaG(bias)
     bias_fwhm = sigma_to_fwhm(bias_sigmaG)
+    # TEST:
+    print('bias_fwhm', bias_fwhm)
     flat_sigmaG = astroML_stats.sigmaG(flat)
     flat_fwhm = sigma_to_fwhm(flat_sigmaG)
+    print('flat_fhwm', flat_fwhm)
     flat_median = np.median(flat)
-    gain = flat_median / (flat_fwhm ** 2.0)
-    readnoise = gain * bias_fwhm
+    gain = (flat_median / (flat_fwhm ** 2.0))
+    readnoise = (gain * bias_fwhm)
+    return (gain * (astropy.units.electron / astropy.units.adu),
+            readnoise * astropy.units.electron)
+
+
+def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
+    """Calculate gain and readnoise from a pair of random bias frames and a pair of random flat frames.
+
+    Parameters
+    ----------
+    bias1, bias2 : array_like
+        2D arrays of bias frames.
+    flat1, flat2 : array_like
+        2D arrays of flat frames.
+
+    Returns
+    -------
+    gain : float
+        Gain of the camera in electrons/ADU.
+
+
+    """
+    bias1_median       = np.median(bias1)
+    bias2_median       = np.median(bias2))
+    diff_bias12        = bias1 - bias2
+    diff_bias12_sigmaG = stats.sigmaG(diff_bias12)
+    flat1_median       = np.median(flat1)
+    flat2_median       = np.median(flat2))
+    diff_flat12        = flat1 - flat2
+    diff_flat12_sigmaG = stats.sigmaG(diff_flat12)
+    gain = (((flat1_median + flat2_median) - (bias1_median + bias2_median)) /
+                   (diff_flat12_sigmaG**2 - diff_bias12_sigmaG))
+    readnoise = gain_random * diff_bias12_sigmaG / math.sqrt(2.0)
     return (gain, readnoise)
 
 
@@ -294,7 +328,7 @@ def get_exptime_prog(spe_footer_xml):
     .. [1] Princeton Instruments SPE 3.0 File Format Specification
            ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
            SPE%203.0%20File%20Format%20Specification.pdf
-    
+
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
     exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
