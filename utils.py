@@ -203,18 +203,23 @@ def gain_readnoise_from_master(bias, flat):
 
     Notes
     -----
+    from [1]_:
+        relation_readnoise_gain = readnoise / gain
+    from [2]_:
+        relation_flat_gain = sqrt(flat_mean * gain) / gain
+    Solving for gain and readnoise:
+        gain = flat_mean / relation_flat_gain**2
+        readnoise = gain * relation_readnoise_gain
+    Using the median as estimator of average because robust to outliers [3]_.
+    Using sigmaG as estimator of distribution shape because robust to outliers [3]_.
 
-# from sec 3.7 Overscan and bias, Howell
-# relation_readnoise_gain = readnoise / gain
-# from sec 4.3. Calculation of read noise and gain, Howell
-# relation_flatmean_gain = sqrt(flat_mean * gain) / gain
-# Solving for gain and readnoise:
-# gain = flat_mean / relation_flatmean_gain**2
-# readnoise = gain * relation_readnoise_gain
-# Using the median as a more robust estimator of the mean given outliers.
-# Using sigmaG as a more robust estimator of distribution sigma given outliers.
-# from astroml book
-    
+    References
+    ----------
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 3.7 "Overscan and bias"
+    .. [2] Howell, 2006, "Handbook of CCD Astronomy", sec 4.3 "Calculation of read noise and gain"
+    .. [3] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+          sec 3.2, "Descriptive Statistics"
+
     """
     # TODO : In See Also, complete next step in pipeline.
     bias_sigmaG = astroML_stats.sigmaG(bias)
