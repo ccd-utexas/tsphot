@@ -341,15 +341,15 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     """
     # Check input.
     # If there is a `dark`...
-    if dark != None:
+    if dark is not None:
         # ...but no `dobj_exptime` or `dark_exptime`:
-        if ((dobj_exptime == None) or
-                (dark_exptime == None)):
+        if ((dobj_exptime is None) or
+                (dark_exptime is None)):
             raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
     # If there is a `flat`...
-    if flat != None:
+    if flat is not None:
         # ...but no `flat_exptime`:
-        if flat_exptime == None:
+        if flat_exptime is None:
             raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
     # Note: Modify frames in-place to reduce memory overhead.
     # Operations:
@@ -360,11 +360,11 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         if dark != None:
             print("INFO: Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
-        if flat != None:
+        if flat is not None:
             print("INFO: Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
-    if ((dark != None) and
-            (flat != None)):
+    if ((dark is not None) and
+            (flat is not None)):
         print("INFO: Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
