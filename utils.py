@@ -504,10 +504,8 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     return dobj
 
 
-# noinspection PyDefaultArgument,PyRedundantParentheses
-def remove_cosmic_rays(image,
-                       lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
-                                         gain=0.85, readnoise=6.1)):
+# noinspection PyRedundantParentheses
+def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45, gain=0.85, readnoise=6.1):
     """Remove cosmic rays from an image.
 
     Method uses the `photutils` implementation of the LA-Cosmic algorithm [1]_.
@@ -516,20 +514,17 @@ def remove_cosmic_rays(image,
     ----------
     image : array_like
         2D array of image.
-    lacosmicargs : {dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
-                         gain=0.85, readnoise=6.1)}, dict
-        ``dict`` of keyword arguments for `photutils.detection.lacosmic` [1]_.
-        contrast : {2.0}, float
-            Chosen from [1]_, and Fig 4 of [2]_.
-        cr_threshold : {4.5}, float
-            Chosen from test script referenced in [3]_.
-        neighbor_threshold : {0.45}, float
-            Chosen from test script referenced in [3]_.
-        gain : {0.85}, float
-            In electrons/ADU. Default is from typical settings for
+    contrast : {2.0}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from [1]_, and Fig 4 of [2]_.
+    cr_threshold : {4.5}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from test script referenced in [3]_.
+    neighbor_threshold : {0.45}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from test script referenced in [3]_.
+    gain : {0.85}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. In electrons/ADU. Default is from typical settings for
             Princeton Instruments ProEM 1024B EMCCD [4]_.
-        readnoise : {6.1}, float
-            In electrons. Default is from typical settings for
+    readnoise : {6.1}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. In electrons. Default is from typical settings for
             Princeton Instruments ProEM 1024B EMCCD [4]_.
 
     Returns
@@ -537,21 +532,20 @@ def remove_cosmic_rays(image,
     image_cleaned : numpy.ndarray
         `image` cleaned of cosmic rays as ``numpy.ndarray``.
     ray_mask : numpy.ndarray of bool
-        ``numpy.ndarray`` with same dimensions as `image_cleaned` with only
-        ``True``/``False`` values. Pixels where cosmic rays were removed are ``True``.
+        ``numpy.ndarray`` with same dimensions as `image_cleaned` with only ``True``/``False`` values. Pixels where
+        cosmic rays were removed are ``True``.
         
     See Also
     --------
-    reduce_ccddata : Previous step in pipeline. Run `reduce_ccddata` then use
-        the output in the input to `remove_cosmic_rays`.
-    find_stars : Next step in pipeline. Run `remove_cosmic_rays` then use the output
-        in the input to `find_stars`.
+    reduce_ccddata : Previous step in pipeline. Run `reduce_ccddata` then use the output in the input to
+        `remove_cosmic_rays`.
+    find_stars : Next step in pipeline. Run `remove_cosmic_rays` then use the output in the input to `find_stars`.
 
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 3.0
-    Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils`
-        until `ccdproc` issue #130 is closed [3]_.
+    Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils` until `ccdproc` issue #130 is
+        closed [3]_.
     `photutils.detection.lacosmic` is verbose in stdout and stderr.
     
     References
@@ -559,13 +553,14 @@ def remove_cosmic_rays(image,
     .. [1] http://photutils.readthedocs.org/en/latest/_modules/photutils/detection/lacosmic.html
     .. [2] van Dokkum, 2001. http://adsabs.harvard.edu/abs/2001PASP..113.1420V
     .. [3] https://github.com/astropy/ccdproc/issues/130
-    .. [4] Princeton Instruments Certificate of Performance for ProEM 1024B EMCCDs
-           with Traditional Amplifier, 1 MHz readout speed, gain setting #3 (highest).
+    .. [4] Princeton Instruments Certificate of Performance for ProEM 1024B EMCCDs with Traditional Amplifier,
+        1 MHz readout speed, gain setting #3 (highest).
     
     """
     # TODO: Use logging.
     # `photutils.detection.lacosmic` is verbose.
-    (image_cleaned, ray_mask) = lacosmic.lacosmic(image, **lacosmicargs)
+    (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
+                                                  neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise)
     return (image_cleaned, ray_mask)
 
 
