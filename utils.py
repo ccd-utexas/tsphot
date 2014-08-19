@@ -610,9 +610,7 @@ def normalize(array):
     return array_normd
 
 
-# noinspection PyDefaultArgument
-def find_stars(image,
-               blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)):
+def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
@@ -623,13 +621,17 @@ def find_stars(image,
     ----------
     image : array_like
         2D array of image.
-    blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)}, optional
-        Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
-        Because image is normalized, `threshold` is the number of standard deviations
-        above image median for counts per pixel.
-        Example for extended sources:
-            `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=3)
-    
+    min_sigma : {1}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma to use for Gaussian kernel.
+    max_sigma : {1}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma to use for Gaussian kernel.
+    num_sigma : {1}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas to use
+        for Gaussian kernel.
+    threshold : {3}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Because image is normalized, `threshold` is the number
+        of standard deviations above the image median for counts per source pixel.
+
     Returns
     -------
     stars : pandas.DataFrame
@@ -656,8 +658,10 @@ def find_stars(image,
     PIPELINE_SEQUENCE_NUMBER : 4.0
     Can generalize to extended sources but for increased execution time.
         Execution times for 256x256 image:
-        - For example for extended sources above: 0.33 sec/frame
+        Example for extended sources:
         - For default above: 0.02 sec/frame
+        - For extended sources example below: 0.33 sec/frame
+        extended_sources = find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)
     Use `find_stars` after removing cosmic rays to prevent spurious sources.
     
     References
@@ -670,7 +674,8 @@ def find_stars(image,
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(feature.blob_log(image_normd, **blobargs),
+    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_simga, num_sigma=num_sigma,
+                                          threshold=threshold),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
