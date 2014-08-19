@@ -679,7 +679,7 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_simga, num_sigma=num_sigma,
+    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma,
                                           threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
@@ -922,9 +922,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
         - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2. 
-    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
-    q50, q75 = 50th, 75th quartiles (q50 == median)
+        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
             
     References
     ----------
