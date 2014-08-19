@@ -336,6 +336,76 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
             readnoise * astropy.units.electron)
 
 
+# TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
+# def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
+#                          max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
+#     """Calculate gain and readnoise using both master frames
+#     and random frames.
+#       Compare with frame difference/sum method also from
+#       sec 4.3. Calculation of read noise and gain, Howell
+#       Needed by cosmic ray cleaner.
+#
+#     """
+#     def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
+#                      readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
+#         """
+#         """
+#         sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
+#               (abs(gain_new - gain_old)    < tol_pre_gain) and
+#               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+#               (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+#         return sc
+#     # randomly select 2 bias frames and 2 flat frames
+#     # Accuracy and precision are set to same.
+#     # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
+#     # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
+#     # Initialize
+#     np.random.seed(0)
+#     is_first_iter = True
+#     is_converged = False
+#     num_consec_success = 0
+#     (gain_finl, readnoise_finl) = (None, None)
+#     sc_kwargs = {}
+#     (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
+#     (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
+#     (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
+#     # TODO: calc masters from dobjs if None.
+#     (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
+#     # TODO: Collect an array of values.
+#     # TODO: redo new, old. new is new median. old is old median.
+#     for iter in xrange(max_iters):
+#         # TODO: Use bootstrap sample
+#         (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
+#         if not is_first_iter:
+#             if (success_crit(**sc_kwargs)):
+#                 num_consec_success += 1
+#             else:
+#                 num_consec_success = 0
+#         if num_consec_success >= max_successes:
+#             is_converged = True
+#             break
+#         # Ready for next iteration.
+#         (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
+#         is_first_iter = False
+#     # After loop.
+#     if is_converged:
+#         # todo: give details
+#         assert iter+1 > max_successes
+#         assert ((abs(gain_new - gain_master) < tol_acc_gain) and
+#                 (abs(gain_new - gain_old)    < tol_pre_gain) and
+#                 (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+#                 (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+#         print("INFO: Converged")
+#         (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
+#     else:
+#         # todo: assertion error statement
+#         assert iter == (max_iters - 1)
+#         # todo: warning stderr description.
+#         print("WARNING: Did not converge")
+#         (gain_finl, readnoise_finl) = (None, None)
+#     return(gain_finl, readnoise_finl)
+
+
 def get_exptime_prog(spe_footer_xml):
     """Get the programmed exposure time in seconds from
     the string XML footer of an SPE file.
