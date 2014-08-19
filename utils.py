@@ -238,9 +238,9 @@ def gain_readnoise_from_master(bias, flat):
     from [1]_:
         fwhm_bias = readnoise / gain
     from [2]_:
-        fwhm_flat = sqrt(flat_mean * gain) / gain
+        fwhm_flat = sqrt(mean_flat * gain) / gain
     Solving for gain and readnoise:
-        gain = flat_mean / fwhm_flat**2
+        gain = mean_flat / fwhm_flat**2
         readnoise = gain * fwhm_bias
     from [3]_:
         Using the median as estimator of average because robust to outliers.
@@ -256,6 +256,7 @@ def gain_readnoise_from_master(bias, flat):
 
     """
     # TODO : In See Also, complete next step in pipeline.
+    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
     sigmaG_bias = astroML_stats.sigmaG(bias)
     fwhm_bias = sigma_to_fwhm(sigmaG_bias)
     sigmaG_flat = astroML_stats.sigmaG(flat)
@@ -263,6 +264,8 @@ def gain_readnoise_from_master(bias, flat):
     median_flat = np.median(flat)
     gain = (median_flat / (fwhm_flat ** 2.0))
     readnoise = (gain * fwhm_bias)
+    gain = (median_flat / (sigmaG_flat ** 2.0))
+    readnoise = (gain * sigmaG_bias)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
 
@@ -305,6 +308,9 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     from [2]_:
         Using the median as estimator of average because robust to outliers.
         Using sigmaG as estimator of standard deviation because robust to outliers.
+    from [3]_:
+        The distribution of the difference of two normally distributed variables is the normal difference distribution
+            with sigma12**2 = sigma1**2 + sigma2**2
     PIPELINE_SEQUENCE_NUMBER = 1.2
 
     References
@@ -312,20 +318,22 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 4.3 "Calculation of read noise and gain"
     .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
         sec 3.2, "Descriptive Statistics"
+    .. [3] http://mathworld.wolfram.com/NormalDifferenceDistribution.html
 
     """
     # TODO: In See Also, complete next step in pipeline.
+    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
+    # Note: As of 2014-08-18, `ccdproc.CCDData` objects give `numpy.ndarrays` that with 16-bit unsigned ints.
+    #   Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
     b1 = np.median(bias1)
     b2 = np.median(bias2)
-    diff_b12 = np.subtract(bias1, bias2)
-    sigmaG_db12 = astroML_stats.sigmaG(diff_b12)
+    sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1)**2.0 + astroML_stats.sigmaG(bias2)**2.0)
     f1 = np.median(flat1)
     f2 = np.median(flat2)
-    diff_f12 = np.subtract(flat1, flat2)
-    sigmaG_df12 = astroML_stats.sigmaG(diff_f12)
+    sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1)**2.0 + astroML_stats.sigmaG(flat2)**2.0)
     gain = (((f1 + f2) - (b1 + b2)) /
-            (sigmaG_df12 ** 2.0 - sigmaG_db12 ** 2.0))
-    readnoise = gain * sigmaG_db12 / math.sqrt(2.0)
+            (sigmaG_diff_f12**2.0 - sigmaG_diff_b12**2.0))
+    readnoise = gain * sigmaG_diff_b12 / math.sqrt(2.0)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
 
