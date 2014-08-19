@@ -235,6 +235,7 @@ def gain_readnoise_from_master(bias, flat):
 
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER = 1.1
     from [1]_:
         fwhm_bias = readnoise / gain
     from [2]_:
@@ -245,7 +246,6 @@ def gain_readnoise_from_master(bias, flat):
     from [3]_:
         Using the median as estimator of average because robust to outliers.
         Using sigmaG as estimator of standard deviation because robust to outliers.
-    PIPELINE_SEQUENCE_NUMBER = 1.1
 
     References
     ----------
@@ -294,6 +294,7 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER = 1.2
     from [1]_:
         (b1, b2) = (bias1_mean, bias2_mean)
         diff_b12 = b1 - b2
@@ -309,7 +310,6 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     from [3]_:
         The distribution of the difference of two normally distributed variables is the normal difference distribution
             with sigma12**2 = sigma1**2 + sigma2**2
-    PIPELINE_SEQUENCE_NUMBER = 1.2
 
     References
     ----------
@@ -502,7 +502,6 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     return dobj
 
 
-# noinspection PyRedundantParentheses
 def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45, gain=0.85, readnoise=6.1):
     """Remove cosmic rays from an image.
 
@@ -559,10 +558,10 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise)
-    return (image_cleaned, ray_mask)
+    return image_cleaned, ray_mask
 
 
-# noinspection PyPep8Naming,PyRedundantParentheses
+# noinspection PyPep8Naming
 def normalize(array):
     """Normalize an array in a robust way.
 
@@ -604,7 +603,7 @@ def normalize(array):
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
         # TODO: use logging. STH, 2014-08-11
-        print(("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN"),
+        print("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN",
               file=sys.stderr)
     array_normd = (array_np - median) / sigmaG
     return array_normd
