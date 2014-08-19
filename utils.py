@@ -958,8 +958,6 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_init, y_init))
-        # TEST:
-        print(subframe)
         # Compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
         # If the star was too close to the frame edge to extract the subframe, skip the star.
