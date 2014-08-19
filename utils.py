@@ -502,7 +502,8 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     return dobj
 
 
-def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45, gain=0.85, readnoise=6.1):
+def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45, gain=0.85, readnoise=6.1,
+                       **kwargs):
     """Remove cosmic rays from an image.
 
     Method uses the `photutils` implementation of the LA-Cosmic algorithm [1]_.
@@ -523,6 +524,8 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     readnoise : {6.1}, float, optional
         Keyword argument for `photutils.detection.lacosmic` [1]_. In electrons. Default is from typical settings for
             Princeton Instruments ProEM 1024B EMCCD [4]_.
+    **kwargs :
+        Other keyword arguments for `photutils.detection.lacosmic` [1]_.
 
     Returns
     -------
@@ -557,7 +560,8 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     # TODO: Use logging.
     # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
-                                                  neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise)
+                                                  neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
+                                                  **kwargs)
     return image_cleaned, ray_mask
 
 
@@ -609,7 +613,7 @@ def normalize(array):
     return array_normd
 
 
-def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3):
+def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
@@ -630,6 +634,8 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3):
     threshold : {3}, float, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Because image is normalized, `threshold` is the number
         of standard deviations above the image median for counts per source pixel.
+    **kwargs:
+        Other keyword arguments for `skimage.feature.blob_log` [3]_.
 
     Returns
     -------
@@ -674,14 +680,12 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3):
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
     stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_simga, num_sigma=num_sigma,
-                                          threshold=threshold),
+                                          threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-# noinspection PyDefaultArgument
-def plot_stars(image, stars, radius=3,
-               imshowargs=dict(interpolation='none')):
+def plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -699,8 +703,10 @@ def plot_stars(image, stars, radius=3,
             `y_pix` : y-coordinate (pixels) of star.
     radius : {3}, optional, float or int
         The radius of the circle around each star in pixels.
-    imshowargs : {dict(interpolation='none')}, optional
-        ``dict`` of keyword arguments for `matplotlib.pyplot.imshow`.
+    interpolation : 'none', string, optional
+        Keyword argument for `matplotlib.pyplot.imshow`.
+    **kwargs :
+        Other keyword arguments for `matplotlib.pyplot.imshow`.
 
     Returns
     -------
@@ -723,7 +729,7 @@ def plot_stars(image, stars, radius=3,
     
     """
     (fig, ax) = plt.subplots(1, 1)
-    ax.imshow(image, **imshowargs)
+    ax.imshow(image, interpolation=interpolation, **kwargs)
     for (idx, x_pix, y_pix) in stars[['x_pix', 'y_pix']].itertuples():
         circle = plt.Circle((x_pix, y_pix), radius=radius,
                             color='yellow', linewidth=1, fill=False)
@@ -822,7 +828,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
                        "  height = {ht}").format(wid=width,
                                                  ht=height))
     # Choose border width such ratio of number of background pixels to source pixels is >= 3.
-    border = int(math.ceil(width / 4))
+    border = int(math.ceil(width / 4.0))
     arr_longtop_longbottom = np.append(subframe_np[:border],
                                        subframe_np[-border:])
     arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
@@ -850,8 +856,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
 
     Extract a square subframe around each star. Side-length of the subframe box is `box_sigma`*`sigma_pix`.
     Subtract the background from the subframe and set pixels with fewer counts than the threshold to 0.
-    With the given method, return a dataframe with sub-pixel coordinates of the centroid and
-    sigma standard deviation.
+    With the given method, return a dataframe with sub-pixel coordinates of the centroid and sigma standard deviation.
 
     Parameters
     ----------
@@ -955,6 +960,8 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         subframe = imageutils.extract_array_2d(array_large=image,
                                                shape=(height, width),
                                                position=(x_init, y_init))
+        # TEST:
+        print(subframe)
         # Compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
         # If the star was too close to the frame edge to extract the subframe, skip the star.
