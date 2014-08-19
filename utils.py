@@ -264,8 +264,6 @@ def gain_readnoise_from_master(bias, flat):
     median_flat = np.median(flat)
     gain = (median_flat / (fwhm_flat ** 2.0))
     readnoise = (gain * fwhm_bias)
-    gain = (median_flat / (sigmaG_flat ** 2.0))
-    readnoise = (gain * sigmaG_bias)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
 
