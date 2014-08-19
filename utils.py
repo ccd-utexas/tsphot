@@ -3,7 +3,8 @@
 
 See Also
 --------
-read_spe : Module for reading SPE files. 
+read_spe : Module for reading SPE files.
+main : Top-level module.
 
 Notes
 -----
@@ -43,8 +44,7 @@ import math
 import json
 import collections
 
-# External package imports.
-# Grouped procedurally then categorically.
+# External package imports. Grouped procedurally then categorically.
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
@@ -100,7 +100,7 @@ def create_config(fjson='config.json'):
     setting_value['object'] = collections.OrderedDict()
     setting_value['object']['raw'] = "object_raw.spe"
     setting_value['object']['reduced'] = "object_reduced.pkl"
-    # Use binary read-write for cross-platform compatibility. Use Python-style indents.
+    # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     with open(fjson, 'wb') as fp:
         json.dump(setting_value, fp, sort_keys=False, indent=4)
     return None

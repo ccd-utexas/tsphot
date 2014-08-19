@@ -1,0 +1,20 @@
+{
+    "comments": [
+        "Insert multiline", 
+        "comments here."
+    ], 
+    "calib": {
+        "bias": "calib_bias.spe", 
+        "dark": "calib_dark.spe", 
+        "flat": "calib_flat.spe"
+    }, 
+    "master": {
+        "bias": "master_bias.pkl", 
+        "dark": "master_dark.pkl", 
+        "flat": "master_flat.pkl"
+    }, 
+    "object": {
+        "raw": "object_raw.spe", 
+        "reduced": "object_reduced.pkl"
+    }
+}
