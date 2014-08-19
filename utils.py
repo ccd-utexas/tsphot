@@ -37,8 +37,11 @@ References
 from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
+import os
 import sys
 import math
+import json
+import collections
 
 # External package imports.
 # Grouped procedurally then categorically.
@@ -61,27 +64,46 @@ import read_spe
 
 # noinspection PyUnusedLocal
 def create_config(fjson='config.json'):
-    """Create configuration file for data reduction.
+    """Create JSON configuration file for data reduction.
 
     Parameters
     ----------
+    fjson : {'config.json'}, string, optional
+        Path to write default JSON configuration file.
 
     Returns
     -------
+    None
 
     See Also
     --------
+    spe_to_dict : Next step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
+        and use as the input to `spe_to_dict`.
 
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER: -1.0
 
-    References
-    ----------
-    
     """
-    # TODO : Make json config file for reductions
-    pass
+    # To omit an argument in the config file, set it to `None`.
+    setting_value = collections.OrderedDict()
+    setting_value['comments'] = ["Insert multiline",
+                                 "comments here."]
+    setting_value['calib'] = collections.OrderedDict()
+    setting_value['calib']['bias'] = "calib_bias.spe"
+    setting_value['calib']['dark'] = "calib_dark.spe"
+    setting_value['calib']['flat'] = "calib_flat.spe"
+    setting_value['master'] = collections.OrderedDict()
+    setting_value['master']['bias'] = "master_bias.pkl"
+    setting_value['master']['dark'] = "master_dark.pkl"
+    setting_value['master']['flat'] = "master_flat.pkl"
+    setting_value['object'] = collections.OrderedDict()
+    setting_value['object']['raw'] = "object_raw.spe"
+    setting_value['object']['reduced'] = "object_reduced.pkl"
+    # Use binary read-write for cross-platform compatibility. Use Python-style indents.
+    with open(fjson, 'wb') as fp:
+        json.dump(setting_value, fp, sort_keys=False, indent=4)
+    return None
 
 
 # noinspection PyDictCreation
@@ -101,6 +123,8 @@ def spe_to_dict(fpath):
 
     See Also
     --------
+    create_config : Previous step in pipeline. Run `create_config` to a create JSON configuration file. Edit the file
+        and use as the input to `spe_to_dict`.
     create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     read_spe : Module for reading SPE files.
