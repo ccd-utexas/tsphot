@@ -106,6 +106,32 @@ def create_config(fjson='config.json'):
     return None
 
 
+def dict_to_class(dobj):
+    """Convert keys of a ``dict`` into attributes of a ``Class``.
+
+    Useful for passing arbitrary arguments to functions.
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` with keys and values.
+
+    Returns
+    -------
+    Dclass : Class
+        ``Class`` where Dclass.key = value.
+
+    See Also
+    --------
+    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
+        and use as the input to `dict_to_class`.
+    spe_to_dict : Next step in pipeline. Run `dict_to_class` to collect keyword arguments from a ``dict`` and pass to
+        `spe_to_dict`.
+
+    """
+    Dclass = collections.namedtuple('Dclass', dobj.keys())
+    return Dclass(**dobj)
+
 # noinspection PyDictCreation
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
