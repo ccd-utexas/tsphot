@@ -3,30 +3,25 @@
 
 See Also
 --------
-read_spe : Module for reading SPE files. 
+read_spe : Module for reading SPE files.
+main : Top-level module.
 
 Notes
 -----
-Conventions : This module's documentation follows the `numpy` doc example [1]_.
-'See Also' : Methods describe their relationships to each other within their
-    docstrings under the 'See Also' section. All methods should be connected
-    to at least one other method within this module [2]_.
-PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_
-    within their docstrings under the 'Notes' section. The sequence number
-    identifies in what order the functions are usually called by higher-level scripts.
-    - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions
-      that are computation/IO-intensive and/or are critical to the pipeline.
-    - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions
-      that are not computation/IO-intensive, are optional to the pipeline,
-      and/or are diagnostic.
-    - All functions within this module should have a sequence number since
-      they should all have a role in the pipeline [2]_.
-
-TODO
-----
-Include FITS processing.
-Write 'Raises' docstring sections.
-Write 'Examples' docstring sections.
+noinspection : Comments are created by PyCharm to flag permitted code inspection violations.
+docstrings : This module's documentation follows the `numpy` doc example [1]_.
+TODO : Flag all to-do items with 'TODO:' in the code body (not the docstring) so that they are flagged when using
+    an IDE.
+'See Also' : Methods describe their relationships to each other within their docstrings under the 'See Also' section.
+    All methods should be connected to at least one other method within this module [2]_.
+PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their docstrings under the 'Notes'
+    section. The sequence number identifies in what order the functions are usually called by higher-level scripts.
+    - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions that are computation/IO-intensive and/or are
+        critical to the pipeline.
+    - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions that are not computation/IO-intensive,
+        are optional to the pipeline, and/or are diagnostic.
+    - All functions within this module should have a sequence number since they should all have a role in the
+        pipeline [2]_.
 
 References
 ----------
@@ -35,16 +30,21 @@ References
 .. [3] http://semver.org/
 
 """
+# TODO: Include FITS processing.
+# TODO: Write 'Raises' docstring sections.
+# TODO: Write 'Examples' docstring sections.
 
 # Forwards compatibility imports.
 from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
+import os
 import sys
 import math
+import json
+import collections
 
-# External package imports.
-# Grouped procedurally then categorically.
+# External package imports. Grouped procedurally then categorically.
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
@@ -55,39 +55,84 @@ import astropy
 import ccdproc
 import imageutils
 from photutils.detection import morphology, lacosmic
+# noinspection PyPep8Naming
 from astroML import stats as astroML_stats
 
 # Internal package imports.
 import read_spe
 
 
+# noinspection PyUnusedLocal
 def create_config(fjson='config.json'):
-    """Create configuration file for data reduction.
+    """Create JSON configuration file for data reduction.
 
     Parameters
     ----------
+    fjson : {'config.json'}, string, optional
+        Path to write default JSON configuration file.
 
     Returns
     -------
+    None
 
     See Also
     --------
+    spe_to_dict : Next step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
+        and use as the input to `spe_to_dict`.
 
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER: -1.0
 
-    TODO
-    ----
-    Make json config file for reductions
-
-    References
-    ----------
-    
     """
-    pass
+    # To omit an argument in the config file, set it to `None`.
+    setting_value = collections.OrderedDict()
+    setting_value['comments'] = ["Insert multiline",
+                                 "comments here."]
+    setting_value['calib'] = collections.OrderedDict()
+    setting_value['calib']['bias'] = "calib_bias.spe"
+    setting_value['calib']['dark'] = "calib_dark.spe"
+    setting_value['calib']['flat'] = "calib_flat.spe"
+    setting_value['master'] = collections.OrderedDict()
+    setting_value['master']['bias'] = "master_bias.pkl"
+    setting_value['master']['dark'] = "master_dark.pkl"
+    setting_value['master']['flat'] = "master_flat.pkl"
+    setting_value['object'] = collections.OrderedDict()
+    setting_value['object']['raw'] = "object_raw.spe"
+    setting_value['object']['reduced'] = "object_reduced.pkl"
+    # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
+    with open(fjson, 'wb') as fp:
+        json.dump(setting_value, fp, sort_keys=False, indent=4)
+    return None
 
 
+def dict_to_class(dobj):
+    """Convert keys of a ``dict`` into attributes of a ``Class``.
+
+    Useful for passing arbitrary arguments to functions.
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` with keys and values.
+
+    Returns
+    -------
+    Dclass : Class
+        ``Class`` where Dclass.key = value.
+
+    See Also
+    --------
+    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
+        and use as the input to `dict_to_class`.
+    spe_to_dict : Next step in pipeline. Run `dict_to_class` to collect keyword arguments from a ``dict`` and pass to
+        `spe_to_dict`.
+
+    """
+    Dclass = collections.namedtuple('Dclass', dobj.keys())
+    return Dclass(**dobj)
+
+# noinspection PyDictCreation
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
 
@@ -104,6 +149,8 @@ def spe_to_dict(fpath):
 
     See Also
     --------
+    create_config : Previous step in pipeline. Run `create_config` to a create JSON configuration file. Edit the file
+        and use as the input to `spe_to_dict`.
     create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     read_spe : Module for reading SPE files.
@@ -112,10 +159,6 @@ def spe_to_dict(fpath):
     -----
     PIPELINE_SEQUENCE_NUMBER : 0.0
 
-    TODO
-    ----
-    Return SPE header as well.
-    
     References
     ----------
     .. [1] Princeton Instruments SPE 3.0 File Format Specification
@@ -123,6 +166,7 @@ def spe_to_dict(fpath):
            SPE%203.0%20File%20Format%20Specification.pdf
 
     """
+    # TODO : Return SPE header as well.
     spe = read_spe.File(fpath)
     object_ccddata = {}
     object_ccddata['footer_xml'] = spe.footer_metadata
@@ -156,7 +200,7 @@ def create_master_calib(dobj):
     spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     reduce_ccddata : Next step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration frames and input to `reduce_ccddata`.
+        bias, dark, flat calibration frames as input to `reduce_ccddata`.
 
     Notes
     -----
@@ -184,9 +228,40 @@ def create_master_calib(dobj):
     return ccddata
 
 
+def sigma_to_fwhm(sigma):
+    """Convert the standard deviation sigma of a Gaussian into
+    the full width at half maximum (FWHM).
+
+    Parameters
+    ----------
+    sigma : float or int
+
+    Returns
+    -------
+    fwhm : float
+        fwhm = 2*sqrt(2*ln(2))*sigma [1]_.
+
+    See Also
+    --------
+    center_stars : Within `center_stars`, the centroid fitting method that
+        maximizes the flux yielded from an aperture calls `sigma_to_fwhm`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 1.0.1
+
+    References
+    ----------
+    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
+
+    """
+    fwhm = 2.0 * math.sqrt(2.0 * math.log(2.0)) * sigma
+    return fwhm
+
+
+# noinspection PyPep8Naming, PyRedundantParentheses
 def gain_readnoise_from_master(bias, flat):
-    """Calculate the gain and readnoise from a master bias frame
-    and a master flat frame.
+    """Calculate the gain and readnoise from a master bias frame and a master flat frame.
 
     Parameters
     ----------
@@ -200,37 +275,185 @@ def gain_readnoise_from_master(bias, flat):
     gain : float
         Gain of the camera in electrons/ADU.
     readnoise : float
-        Readout noise of the camera in electrons/pixel.
-    
+        Readout noise of the camera in electrons.
+
     See Also
     --------
-    reduce_
+    create_master_calib : Previous step in pipeline. Run `create_master_calib` then use the master bias, flat
+        calibration frames as input to `gain_readnoise_from_master`.
+    gain_readnoise_from_random : Independent method of computing gain and readnoise from random bias and flat frames.
 
     Notes
     -----
+    PIPELINE_SEQUENCE_NUMBER = 1.1
+    from [1]_:
+        fwhm_bias = readnoise / gain
+    from [2]_:
+        fwhm_flat = sqrt(mean_flat * gain) / gain
+    Solving for gain and readnoise:
+        gain = mean_flat / fwhm_flat**2
+        readnoise = gain * fwhm_bias
+    from [3]_:
+        Using the median as estimator of average because robust to outliers.
+        Using sigmaG as estimator of standard deviation because robust to outliers.
 
-# from sec 3.7 Overscan and bias, Howell
-# relation_readnoise_gain = readnoise / gain
-# from sec 4.3. Calculation of read noise and gain, Howell
-# relation_flatmean_gain = sqrt(flat_mean * gain) / gain
-# Solving for gain and readnoise:
-# gain = flat_mean / relation_flatmean_gain**2
-# readnoise = gain * relation_readnoise_gain
-# Using the median as a more robust estimator of the mean given outliers.
-# Using sigmaG as a more robust estimator of distribution sigma given outliers.
-# from astroml book
-    
+    References
+    ----------
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 3.7 "Overscan and bias"
+    .. [2] Howell, 2006, "Handbook of CCD Astronomy", sec 4.3 "Calculation of read noise and gain"
+    .. [3] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+        sec 3.2, "Descriptive Statistics"
+
     """
-    bias_sigmaG = astroML_stats.sigmaG(bias)
-    bias_fwhm = sigma_to_fwhm(bias_sigmaG)
-    flat_sigmaG = astroML_stats.sigmaG(flat)
-    flat_fwhm = sigma_to_fwhm(flat_sigmaG)
-    flat_median = np.median(flat)
-    rel_flat_gain = flat_fwhm
-    rel_readnoise_gain = bias_fwhm
-    gain = flat_median / rel_flat_gain ** 2
-    readnoise = gain * rel_readnoise_gain
-    return (gain, readnoise)
+    # TODO : In See Also, complete next step in pipeline.
+    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
+    sigmaG_bias = astroML_stats.sigmaG(bias)
+    fwhm_bias = sigma_to_fwhm(sigmaG_bias)
+    sigmaG_flat = astroML_stats.sigmaG(flat)
+    fwhm_flat = sigma_to_fwhm(sigmaG_flat)
+    median_flat = np.median(flat)
+    gain = (median_flat / (fwhm_flat ** 2.0))
+    readnoise = (gain * fwhm_bias)
+    return (gain * (astropy.units.electron / astropy.units.adu),
+            readnoise * astropy.units.electron)
+
+
+# noinspection PyPep8Naming
+def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
+    """Calculate gain and readnoise from a pair of random bias frames and a pair of random flat frames.
+
+    Parameters
+    ----------
+    bias1, bias2 : array_like
+        2D arrays of bias frames.
+    flat1, flat2 : array_like
+        2D arrays of flat frames.
+
+    Returns
+    -------
+    gain : float
+        Gain of the camera in electrons/ADU.
+    readnoise : float
+        Readout noise of the camera in electrons.
+
+    See Also
+    --------
+    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the bias and flat calibration frames as input
+        to `gain_readnoise_from_random`.
+    gain_readnoise_from_master : Independent method of computing gain and readnoise from master bias and flat frames.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER = 1.2
+    from [1]_:
+        (b1, b2) = (bias1_mean, bias2_mean)
+        diff_b12 = b1 - b2
+        sig_db12 = stddev(diff_b12)
+        (f1, f2) = (flat1_mean, flat2_mean)
+        diff_f12 = f1 - f2
+        sig_df12 = stddev(diff_f12)
+        gain = ((f1 + f2) - (b1 + b2)) / (sig_df12**2 - sig_db12**2)
+        readnoise = gain * sig_db12 / sqrt(2)
+    from [2]_:
+        Using the median as estimator of average because robust to outliers.
+        Using sigmaG as estimator of standard deviation because robust to outliers.
+    from [3]_:
+        The distribution of the difference of two normally distributed variables is the normal difference distribution
+            with sigma12**2 = sigma1**2 + sigma2**2
+
+    References
+    ----------
+    .. [1] Howell, 2006, "Handbook of CCD Astronomy", sec 4.3 "Calculation of read noise and gain"
+    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
+        sec 3.2, "Descriptive Statistics"
+    .. [3] http://mathworld.wolfram.com/NormalDifferenceDistribution.html
+
+    """
+    # TODO: In See Also, complete next step in pipeline.
+    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
+    # Note: As of 2014-08-18, `ccdproc.CCDData` objects give `numpy.ndarrays` that with 16-bit unsigned ints.
+    #   Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
+    b1 = np.median(bias1)
+    b2 = np.median(bias2)
+    sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1)**2.0 + astroML_stats.sigmaG(bias2)**2.0)
+    f1 = np.median(flat1)
+    f2 = np.median(flat2)
+    sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1)**2.0 + astroML_stats.sigmaG(flat2)**2.0)
+    gain = (((f1 + f2) - (b1 + b2)) /
+            (sigmaG_diff_f12**2.0 - sigmaG_diff_b12**2.0))
+    readnoise = gain * sigmaG_diff_b12 / math.sqrt(2.0)
+    return (gain * (astropy.units.electron / astropy.units.adu),
+            readnoise * astropy.units.electron)
+
+
+# TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
+# def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
+#                          max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
+#     """Calculate gain and readnoise using both master frames
+#     and random frames.
+#       Compare with frame difference/sum method also from
+#       sec 4.3. Calculation of read noise and gain, Howell
+#       Needed by cosmic ray cleaner.
+#
+#     """
+#     def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
+#                      readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
+#         """
+#         """
+#         sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
+#               (abs(gain_new - gain_old)    < tol_pre_gain) and
+#               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+#               (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+#         return sc
+#     # randomly select 2 bias frames and 2 flat frames
+#     # Accuracy and precision are set to same.
+#     # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
+#     # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
+#     # Initialize
+#     np.random.seed(0)
+#     is_first_iter = True
+#     is_converged = False
+#     num_consec_success = 0
+#     (gain_finl, readnoise_finl) = (None, None)
+#     sc_kwargs = {}
+#     (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
+#     (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
+#     (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
+#     # TODO: calc masters from dobjs if None.
+#     (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
+#     # TODO: Collect an array of values.
+#     # TODO: redo new, old. new is new median. old is old median.
+#     for iter in xrange(max_iters):
+#         # TODO: Use bootstrap sample
+#         (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
+#         if not is_first_iter:
+#             if (success_crit(**sc_kwargs)):
+#                 num_consec_success += 1
+#             else:
+#                 num_consec_success = 0
+#         if num_consec_success >= max_successes:
+#             is_converged = True
+#             break
+#         # Ready for next iteration.
+#         (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
+#         is_first_iter = False
+#     # After loop.
+#     if is_converged:
+#         # todo: give details
+#         assert iter+1 > max_successes
+#         assert ((abs(gain_new - gain_master) < tol_acc_gain) and
+#                 (abs(gain_new - gain_old)    < tol_pre_gain) and
+#                 (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+#                 (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+#         print("INFO: Converged")
+#         (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
+#     else:
+#         # todo: assertion error statement
+#         assert iter == (max_iters - 1)
+#         # todo: warning stderr description.
+#         print("WARNING: Did not converge")
+#         (gain_finl, readnoise_finl) = (None, None)
+#     return(gain_finl, readnoise_finl)
 
 
 def get_exptime_prog(spe_footer_xml):
@@ -254,15 +477,16 @@ def get_exptime_prog(spe_footer_xml):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 1.2
+    PIPELINE_SEQUENCE_NUMBER : 1.3
     Method uses `bs4.BeautifulSoup` to parse the XML ``string``.
     Converts exposure time to seconds from 'ExposureTime' and 'DelayResolution' XML keywords.
 
     References
     ----------
     .. [1] Princeton Instruments SPE 3.0 File Format Specification
-           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/SPE%203.0%20File%20Format%20Specification.pdf
-    
+           ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
+           SPE%203.0%20File%20Format%20Specification.pdf
+
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
     exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
@@ -291,7 +515,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     dobj : dict with ccdproc.CCDData
          ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
     dobj_exptime : {None}, float or int, optional
-         Exposure time of frames within `dobj`. All frames must have the same expsosure time.
+         Exposure time of frames within `dobj`. All frames must have the same exposure time.
          Required if `dark` is provided.
     bias : {None}, ccdproc.CCDData, optional
         Master bias frame.
@@ -324,46 +548,43 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
-    - scale and subract master dark from master flat
+    - scale and subtract master dark from master flat
     - subtract master bias from each object image
     - scale and subtract master dark from each object image
     - divide each object image by corrected master flat
 
-    TODO
-    ----
-    - Use logging rather than print.
-    
     References
     ----------
     .. [1] Howell, 2006, "Handbook of CCD Astronomy"
     
     """
+    # TODO : Use logging rather than print.
     # Check input.
     # If there is a `dark`...
-    if dark != None:
+    if dark is not None:
         # ...but no `dobj_exptime` or `dark_exptime`:
-        if ((dobj_exptime == None) or
-                (dark_exptime == None)):
+        if ((dobj_exptime is None) or
+                (dark_exptime is None)):
             raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
     # If there is a `flat`...
-    if flat != None:
+    if flat is not None:
         # ...but no `flat_exptime`:
-        if flat_exptime == None:
+        if flat_exptime is None:
             raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
     # Note: Modify frames in-place to reduce memory overhead.
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
-    # - scale and subract master dark from master flat
-    if bias != None:
-        if dark != None:
+    # - scale and subtract master dark from master flat
+    if bias is not None:
+        if dark is not None:
             print("INFO: Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
-        if flat != None:
+        if flat is not None:
             print("INFO: Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
-    if ((dark != None) and
-            (flat != None)):
+    if ((dark is not None) and
+            (flat is not None)):
         print("INFO: Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
@@ -388,22 +609,21 @@ def reduce_ccddata(dobj, dobj_exptime=None,
               "  Progress (%):", end=' ')
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
-            if bias != None:
+            if bias is not None:
                 dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
-            if dark != None:
+            if dark is not None:
                 dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
                                                   dark_exposure=dark_exptime,
                                                   data_exposure=dobj_exptime)
-            if flat != None:
+            if flat is not None:
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
                 print(int(key_progress[key] * 100), end=' ')
     return dobj
 
 
-def remove_cosmic_rays(image,
-                       lacosmicargs=dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
-                                         gain=0.85, readnoise=6.1)):
+def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45, gain=0.85, readnoise=6.1,
+                       **kwargs):
     """Remove cosmic rays from an image.
 
     Method uses the `photutils` implementation of the LA-Cosmic algorithm [1]_.
@@ -412,62 +632,60 @@ def remove_cosmic_rays(image,
     ----------
     image : array_like
         2D array of image.
-    lacosmicargs : {dict(contrast=2.0, cr_threshold=4.5, neighbor_threshold=0.45,
-                         gain=0.85, readnoise=6.1)}, dict
-        ``dict`` of keyword arguments for `photutils.detection.lacosmic` [1]_.
-        contrast : {2.0}, float
-            Chosen from [1]_, and Fig 4 of [2]_.
-        cr_threshold : {4.5}, float
-            Chosen from test script referenced in [3]_.
-        neighbor_threshold : {0.45}, float
-            Chosen from test script referenced in [3]_.
-        gain : {0.85}, float
-            In electrons/ADU. Default is from typical settings for
+    contrast : {2.0}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from [1]_, and Fig 4 of [2]_.
+    cr_threshold : {4.5}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from test script referenced in [3]_.
+    neighbor_threshold : {0.45}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from test script referenced in [3]_.
+    gain : {0.85}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. In electrons/ADU. Default is from typical settings for
             Princeton Instruments ProEM 1024B EMCCD [4]_.
-        readnoise : {6.1}, float
-            In electrons. Default is from typical settings for
+    readnoise : {6.1}, float, optional
+        Keyword argument for `photutils.detection.lacosmic` [1]_. In electrons. Default is from typical settings for
             Princeton Instruments ProEM 1024B EMCCD [4]_.
+    **kwargs :
+        Other keyword arguments for `photutils.detection.lacosmic` [1]_.
 
     Returns
     -------
     image_cleaned : numpy.ndarray
         `image` cleaned of cosmic rays as ``numpy.ndarray``.
     ray_mask : numpy.ndarray of bool
-        ``numpy.ndarray`` with same dimensions as `image_cleaned` with only
-        ``True``/``False`` values. Pixels where cosmic rays were removed are ``True``.
+        ``numpy.ndarray`` with same dimensions as `image_cleaned` with only ``True``/``False`` values. Pixels where
+        cosmic rays were removed are ``True``.
         
     See Also
     --------
-    reduce_ccddata : Previous step in pipeline. Run `reduce_ccddata` then use
-        the output in the input to `remove_cosmic_rays`.
-    find_stars : Next step in pipeline. Run `remove_cosmic_rays` then use the output
-        in the input to `find_stars`.
+    reduce_ccddata : Previous step in pipeline. Run `reduce_ccddata` then use the output in the input to
+        `remove_cosmic_rays`.
+    find_stars : Next step in pipeline. Run `remove_cosmic_rays` then use the output in the input to `find_stars`.
 
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 3.0
-    Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils`
-        until `ccdproc` issue #130 is closed [3]_.
+    Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils` until `ccdproc` issue #130 is
+        closed [3]_.
     `photutils.detection.lacosmic` is verbose in stdout and stderr.
-
-    TODO
-    ----
-    Use logging.
     
     References
     ----------
     .. [1] http://photutils.readthedocs.org/en/latest/_modules/photutils/detection/lacosmic.html
     .. [2] van Dokkum, 2001. http://adsabs.harvard.edu/abs/2001PASP..113.1420V
     .. [3] https://github.com/astropy/ccdproc/issues/130
-    .. [4] Princeton Instruments Certificate of Performance for ProEM 1024B EMCCDs
-           with Traditional Amplifier, 1 MHz readout speed, gain setting #3 (highest).
+    .. [4] Princeton Instruments Certificate of Performance for ProEM 1024B EMCCDs with Traditional Amplifier,
+        1 MHz readout speed, gain setting #3 (highest).
     
     """
+    # TODO: Use logging.
     # `photutils.detection.lacosmic` is verbose.
-    (image_cleaned, ray_mask) = lacosmic.lacosmic(image, **lacosmicargs)
-    return (image_cleaned, ray_mask)
+    (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
+                                                  neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
+                                                  **kwargs)
+    return image_cleaned, ray_mask
 
 
+# noinspection PyPep8Naming
 def normalize(array):
     """Normalize an array in a robust way.
 
@@ -509,14 +727,13 @@ def normalize(array):
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
         # TODO: use logging. STH, 2014-08-11
-        print(("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN"),
+        print("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN",
               file=sys.stderr)
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
 
-def find_stars(image,
-               blobargs=dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)):
+def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
@@ -527,13 +744,19 @@ def find_stars(image,
     ----------
     image : array_like
         2D array of image.
-    blobargs : {dict(min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)}, optional
-        Dict of keyword arguments for `skimage.feature.blob_log` [3]_.
-        Because image is normalized, `threshold` is the number of stdandard deviations
-        above image median for counts per pixel.
-        Example for extended sources:
-            `blobargs`=dict(`min_sigma`=1, `max_sigma`=30, `num_sigma`=10, `threshold`=3)
-    
+    min_sigma : {1}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma to use for Gaussian kernel.
+    max_sigma : {1}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma to use for Gaussian kernel.
+    num_sigma : {1}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas to use
+        for Gaussian kernel.
+    threshold : {3}, float, optional
+        Keyword argument for `skimage.feature.blob_log` [3]_. Because image is normalized, `threshold` is the number
+        of standard deviations above the image median for counts per source pixel.
+    **kwargs:
+        Other keyword arguments for `skimage.feature.blob_log` [3]_.
+
     Returns
     -------
     stars : pandas.DataFrame
@@ -560,9 +783,11 @@ def find_stars(image,
     PIPELINE_SEQUENCE_NUMBER : 4.0
     Can generalize to extended sources but for increased execution time.
         Execution times for 256x256 image:
-        - For example for extended sources above: 0.33 sec/frame
+        Example for extended sources:
         - For default above: 0.02 sec/frame
-    Use `find_stars` after removing cosmic rays to prevent spurrious sources.
+        - For extended sources example below: 0.33 sec/frame
+        extended_sources = find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)
+    Use `find_stars` after removing cosmic rays to prevent spurious sources.
     
     References
     ----------
@@ -574,13 +799,13 @@ def find_stars(image,
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(feature.blob_log(image_normd, **blobargs),
+    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma,
+                                          threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-def plot_stars(image, stars, radius=3,
-               imshowargs=dict(interpolation='none')):
+def plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -598,8 +823,10 @@ def plot_stars(image, stars, radius=3,
             `y_pix` : y-coordinate (pixels) of star.
     radius : {3}, optional, float or int
         The radius of the circle around each star in pixels.
-    imshowargs : {dict(interpolation='none')}, optional
-        ``dict`` of keyword arguments for `matplotlib.pyplot.imshow`.
+    interpolation : 'none', string, optional
+        Keyword argument for `matplotlib.pyplot.imshow`.
+    **kwargs :
+        Other keyword arguments for `matplotlib.pyplot.imshow`.
 
     Returns
     -------
@@ -622,7 +849,7 @@ def plot_stars(image, stars, radius=3,
     
     """
     (fig, ax) = plt.subplots(1, 1)
-    ax.imshow(image, **imshowargs)
+    ax.imshow(image, interpolation=interpolation, **kwargs)
     for (idx, x_pix, y_pix) in stars[['x_pix', 'y_pix']].itertuples():
         circle = plt.Circle((x_pix, y_pix), radius=radius,
                             color='yellow', linewidth=1, fill=False)
@@ -668,6 +895,7 @@ def is_odd(num):
     return tf_odd
 
 
+# noinspection PyPep8Naming
 def subtract_subframe_background(subframe, threshold_sigma=3):
     """Subtract the background intensity from a subframe centered on a source.
 
@@ -720,7 +948,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
                        "  height = {ht}").format(wid=width,
                                                  ht=height))
     # Choose border width such ratio of number of background pixels to source pixels is >= 3.
-    border = int(math.ceil(width / 4))
+    border = int(math.ceil(width / 4.0))
     arr_longtop_longbottom = np.append(subframe_np[:border],
                                        subframe_np[-border:])
     arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
@@ -742,45 +970,13 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     return subframe_sub
 
 
-def sigma_to_fwhm(sigma):
-    """Convert the standard deviation sigma of a Gaussian into
-    the full width at half maximum (FWHM).
-
-    Parameters
-    ----------
-    :rtype : object
-    sigma : float or int
-
-    Returns
-    -------
-    fwhm : float
-        FWHM = 2*sqrt(2*ln(2))*sigma [1]_.
-
-    See Also
-    --------
-    center_stars : Within `center_stars`, the centroid fitting method that
-        maximizes the flux yielded from an aperture calls `sigma_to_fwhm`.
-        
-    Notes
-    -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.2
-            
-    References
-    ----------
-    .. [1] http://en.wikipedia.org/wiki/Full_width_at_half_maximum
-    
-    """
-    fwhm = 2.0 * math.sqrt(2.0 * math.log(2.0)) * sigma
-    return fwhm
-
-
+# noinspection PyRedundantParentheses,PyUnresolvedReferences
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
     Extract a square subframe around each star. Side-length of the subframe box is `box_sigma`*`sigma_pix`.
     Subtract the background from the subframe and set pixels with fewer counts than the threshold to 0.
-    With the given method, return a dataframe with sub-pixel coordinates of the centroid and
-    sigma standard deviation.
+    With the given method, return a dataframe with sub-pixel coordinates of the centroid and sigma standard deviation.
 
     Parameters
     ----------
@@ -798,7 +994,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a square subframe around the source.
         `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
         the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
-        accomodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
+        accommodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
     threshold_sigma : {3}, float or int, optional
         `threshold_sigma` is the number of standard deviations above the subframe median
         for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
@@ -846,9 +1042,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
         - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2. 
-    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
-    q50, q75 = 50th, 75th quartiles (q50 == median)
+        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
             
     References
     ----------
@@ -864,8 +1058,8 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n" +
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
-    # Make square subframes and compute centroids and sigma by chosed method.
-    # Each star or extende source may have a different sigma. Store results in a dataframe.
+    # Make square subframes and compute centroids and sigma by chosen method.
+    # Each star or extended source may have a different sigma. Store results in a dataframe.
     stars_init = stars.copy()
     stars_finl = stars.copy()
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
@@ -924,7 +1118,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - See photutils [1]_ and astropy [2]_.
             # - To calculate the standard deviation for the 2D Gaussian:
             # zvec = xvec + yvec
-            #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+            # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
             #   ==> Var(z) = Var(x + y)
@@ -947,7 +1141,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - Model the photons hitting the pixels of the subframe and
             # robustly fit a bivariate normal distribution.
             # - Conservatively assume that photons hit each pixel, even those of the star,
-            #   with a uniform distribution. See [3]_, [4]_.
+            # with a uniform distribution. See [3]_, [4]_.
             # - Seed the random number generator only once per call to this method for reproducibility.
             # - To calculate the standard deviation for the 2D Gaussian:
             #   zvec = xvec + yvec
@@ -978,25 +1172,28 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # # standard deviation as a 2D Gaussian.
         # # elif method == 'centroid_com':
         # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
-        #     # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
+        # # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
         #     # sensitivity to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
         #     # - For varying subframes, method does not converge to final centroid solution.
         #     # - For 7x7 to 11x11 subframes, centroid solution agrees with centroid_2dg centroid solution within
-        #     #   +/- 0.01 pix, but then diverges from solution with larger subframes. Method is susceptible to outliers.
-        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_sigma and alwyas takes ~3 ms.
-        #     (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
-        # elif method == 'fit_max_phot_flux':
-        #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from computing the
-        #     # centroid that yields the largest photometric flux. Method is fast, but, as of 2014-08-08 (STH), implementation
-        #     # is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7), and method is possibly sensitive to outliers.
+        #     #   +/- 0.01 pix, but then diverges from solution with larger subframes.
+        #     #   Method is susceptible to outliers.
+        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_sigma and always
+        #     #   takes ~3 ms.
+        #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
+        #     # elif method == 'fit_max_phot_flux':
+        #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from
+        #     # computing the centroid that yields the largest photometric flux. Method is fast, but,
+        #     # as of 2014-08-08 (STH), implementation is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7),
+        #     # and method is possibly sensitive to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
-        #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at 7x7 subframe,
-        #     #   however final centoid solution disagrees with other methods' centroid solutions.
+        #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at
+        #     #   7x7 subframe, however final centroid solution disagrees with other methods' centroid solutions.
         #     # - For 7x7 subframe, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subframe
         #     #   by ~0.1 pix. Method may be susceptible to outliers.
         #     # - For 7x7 subframe, method takes ~130 ms. Method scales \propto box_sigma.
@@ -1023,8 +1220,10 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #
         #         References
         #         ----------
-        #         .. [1] http://photutils.readthedocs.org/en/latest/api/photutils.CircularAperture.html#photutils.CircularAperture
-        #         .. [2] http://photutils.readthedocs.org/en/latest/api/photutils.aperture_photometry.html#photutils.aperture_photometry
+        #         .. [1] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.CircularAperture.html#photutils.CircularAperture
+        #         .. [2] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.aperture_photometry.html#photutils.aperture_photometry
         #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
         #
         #         """
@@ -1057,8 +1256,10 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #
         #         References
         #         ----------
-        #         .. [1] http://photutils.readthedocs.org/en/latest/api/photutils.CircularAperture.html#photutils.CircularAperture
-        #         .. [2] http://photutils.readthedocs.org/en/latest/api/photutils.aperture_photometry.html#photutils.aperture_photometry
+        #         .. [1] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.CircularAperture.html#photutils.CircularAperture
+        #         .. [2] http://photutils.readthedocs.org/en/latest/api/
+        #                photutils.aperture_photometry.html#photutils.aperture_photometry
         #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
         #
         #         """
