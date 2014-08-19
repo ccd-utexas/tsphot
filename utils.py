@@ -236,12 +236,12 @@ def gain_readnoise_from_master(bias, flat):
     Notes
     -----
     from [1]_:
-        bias_fwhm = readnoise / gain
+        fwhm_bias = readnoise / gain
     from [2]_:
-        flat_fwhm = sqrt(flat_mean * gain) / gain
+        fwhm_flat = sqrt(flat_mean * gain) / gain
     Solving for gain and readnoise:
-        gain = flat_mean / flat_fwhm**2
-        readnoise = gain * bias_fwhm
+        gain = flat_mean / fwhm_flat**2
+        readnoise = gain * fwhm_bias
     from [3]_:
         Using the median as estimator of average because robust to outliers.
         Using sigmaG as estimator of standard deviation because robust to outliers.
@@ -256,16 +256,13 @@ def gain_readnoise_from_master(bias, flat):
 
     """
     # TODO : In See Also, complete next step in pipeline.
-    bias_sigmaG = astroML_stats.sigmaG(bias)
-    bias_fwhm = sigma_to_fwhm(bias_sigmaG)
-    # TEST:
-    print('bias_fwhm', bias_fwhm)
-    flat_sigmaG = astroML_stats.sigmaG(flat)
-    flat_fwhm = sigma_to_fwhm(flat_sigmaG)
-    print('flat_fhwm', flat_fwhm)
-    flat_median = np.median(flat)
-    gain = (flat_median / (flat_fwhm ** 2.0))
-    readnoise = (gain * bias_fwhm)
+    sigmaG_bias = astroML_stats.sigmaG(bias)
+    fwhm_bias = sigma_to_fwhm(sigmaG_bias)
+    sigmaG_flat = astroML_stats.sigmaG(flat)
+    fwhm_flat = sigma_to_fwhm(sigmaG_flat)
+    median_flat = np.median(flat)
+    gain = (median_flat / (fwhm_flat ** 2.0))
+    readnoise = (gain * fwhm_bias)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
 
@@ -318,17 +315,17 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
     """
     # TODO: In See Also, complete next step in pipeline.
-    bias1_median = np.median(bias1)
-    bias2_median = np.median(bias2)
-    diff_bias12 = bias1 - bias2
-    diff_bias12_sigmaG = astroML_stats.sigmaG(diff_bias12)
-    flat1_median = np.median(flat1)
-    flat2_median = np.median(flat2)
-    diff_flat12 = flat1 - flat2
-    diff_flat12_sigmaG = astroML_stats.sigmaG(diff_flat12)
-    gain = (((flat1_median + flat2_median) - (bias1_median + bias2_median)) /
-            (diff_flat12_sigmaG ** 2.0 - diff_bias12_sigmaG ** 2.0))
-    readnoise = gain * diff_bias12_sigmaG / math.sqrt(2.0)
+    b1 = np.median(bias1)
+    b2 = np.median(bias2)
+    diff_b12 = np.subtract(bias1, bias2)
+    sigmaG_db12 = astroML_stats.sigmaG(diff_b12)
+    f1 = np.median(flat1)
+    f2 = np.median(flat2)
+    diff_f12 = np.subtract(flat1, flat2)
+    sigmaG_df12 = astroML_stats.sigmaG(diff_f12)
+    gain = (((f1 + f2) - (b1 + b2)) /
+            (sigmaG_df12 ** 2.0 - sigmaG_db12 ** 2.0))
+    readnoise = gain * sigmaG_db12 / math.sqrt(2.0)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
 
