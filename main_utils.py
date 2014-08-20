@@ -143,6 +143,7 @@ def main(fconfig, rereduce=False, verbose=False):
     if flog is not None:
         # noinspection PyUnboundLocalVariable
         logger.removeHandler(fhandler)
+    
     return None
 
 
