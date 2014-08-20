@@ -62,8 +62,10 @@ from astroML import stats as astroML_stats
 import read_spe
 
 
-# noinspection PyUnusedLocal
-def create_config(fjson='config.json'):
+# TODO: def create_logging_config (for logging dictconfig)
+
+
+def create_reduce_config(fjson='reduce_config.json'):
     """Create JSON configuration file for data reduction.
 
     Parameters
@@ -77,7 +79,7 @@ def create_config(fjson='config.json'):
 
     See Also
     --------
-    spe_to_dict : Next step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
+    spe_to_dict : Next step in pipeline. Run `create_reduce_config` to create a JSON configuration file. Edit the file
         and use as the input to `spe_to_dict`.
 
     Notes
@@ -87,10 +89,15 @@ def create_config(fjson='config.json'):
     """
     # To omit an argument in the config file, set it to `None`.
     config_settings = collections.OrderedDict()
-    config_settings['comments'] = ["Insert multiline comments here.",
-                                   "For empty values, use JSON `null`. See example below.",
-                                   "For T/F values, use JSON `true`/`false`.",
-                                   "See http://json.org/"]
+    config_settings['comments'] = ["Insert multiline comments here. For formatting, see http://json.org/",
+                                   "Use JSON `null`/`true`/`false` for empty/T/F values.",
+                                   "  Example in ['master']['dark'].",
+                                   "For ['logging']['level'], choices are (from most to least verbose):",
+                                   "  ['DEBUG','INFO','WARNING','ERROR','CRITICAL']",
+                                   "  See https://docs.python.org/2/library/logging.html#logging-levels"]
+    config_settings['logging'] = collections.OrderedDict()
+    config_settings['logging']['filename'] = "tsphot.log"
+    config_settings['logging']['level'] = "INFO"
     config_settings['calib'] = collections.OrderedDict()
     config_settings['calib']['bias'] = "calib_bias.spe"
     config_settings['calib']['dark'] = "calib_dark.spe"
@@ -105,6 +112,87 @@ def create_config(fjson='config.json'):
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     with open(fjson, 'wb') as fp:
         json.dump(config_settings, fp, sort_keys=False, indent=4)
+    return None
+
+
+def check_reduce_config(dobj):
+    """Check configuration settings for data reduction.
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` of configuration settings.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    IOError
+        Raised when file doesn't exists, file extension is wrong, or keywords are missing.
+
+    See Also
+    --------
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to create a JSON configuration file.
+        Edit the file and use as the input to `check_reduce_config`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : -0.9
+
+    """
+    # Logging file path need not be defined, but if it is then it must be .log.
+    fname = dobj['logging']['filename']
+    if fname is not None:
+        (fbase, ext) = os.path.splitext(os.path.basename(fname))
+        if ext != '.log':
+            raise IOError("Logging filename extension is not '.log': {fpath}".foramt(fpath=fname))
+    # Logging level must be set and be one of https://docs.python.org/2/library/logging.html#logging-levels
+    valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    level = dobj['logging']['level']
+    if level not in valid_levels:
+        raise IOError(("Invalid logging level: {level}\n" +
+                       "Valid logging levels: {vlevels}").format(level=level, vlevels=valid_levels))
+    # Calibration frame file paths need not be defined, but if they are then they must exist and be .spe.
+    calib_fpath = dobj['calib']
+    for imtype in calib_fpath:
+        cfpath = calib_fpath[imtype]
+        if cfpath is not None:
+            if not os.path.isfile(cfpath):
+                raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
+            (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
+            if ext != '.spe':
+                raise IOError("Calibration frame file extension is not '.spe': {fpath}".format(fpath=cfpath))
+    # Master calibration frame file paths need not be defined, but if they are then they must be .pkl.
+    master_fpath = dobj['master']
+    for imtype in master_fpath:
+        mfpath = master_fpath[imtype]
+        if mfpath is not None:
+            (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+            if ext != '.pkl':
+                raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
+    # All calibration frame image types must have a corresponding type for master frame,
+    # even if the file path is not defined.
+    for imtype in calib_fpath:
+        if imtype not in master_fpath:
+            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n" +
+                           "calibration frame image type: {imtype}\n" +
+                           "master frame image types: {imtypes}").format(imtype=imtype,
+                                                                         imtypes=master_fpath.keys()))
+    # Raw object frame file path must exist and must be .spe.
+    rawfpath = dobj['object']['raw']
+    if (rawfpath is None) or (not os.path.isfile(rawfpath)):
+        raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
+    (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
+    if ext != '.spe':
+        raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
+    # Reduced object frame file path need not be defined, but if it is then it must be .pkl.
+    redfpath = dobj['object']['reduced']
+    if redfpath is not None:
+        (fbase, ext) = os.path.splitext(os.path.basename(redfpath))
+        if ext != '.pkl':
+            raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
     return None
 
 
@@ -126,84 +214,16 @@ def dict_to_class(dobj):
 
     See Also
     --------
-    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
-        and use as the input to `dict_to_class`.
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to create a JSON configuration file.
+        Edit the file and use as the input to `dict_to_class`.
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : -0.0.9
+    PIPELINE_SEQUENCE_NUMBER : -0.8.9
 
     """
     Dclass = collections.namedtuple('Dclass', dobj.keys())
     return Dclass(**dobj)
-
-
-def check_config(dobj):
-    """Check configuration settings.
-
-    Parameters
-    ----------
-    dobj : dict
-        ``dict`` of configuration settings.
-
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    IOError
-        Raised when file doesn't exists, file extension is wrong, or keywords are missing.
-
-    See Also
-    --------
-    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
-        and use as the input to `check_config`.
-
-    Notes
-    -----
-    PIPELINE_SEQUENCE_NUMBER : -0.9
-
-    """
-    # Calibration frames need not exist, but if they do they must be .spe.
-    calib_fpath = dobj['calib']
-    for imtype in calib_fpath:
-        cfpath = calib_fpath[imtype]
-        if cfpath is not None:
-            if not os.path.isfile(cfpath):
-                raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
-            (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
-            if ext != '.spe':
-                raise IOError("Calibration frame file extension is not '.spe': {fpath}".format(fpath=cfpath))
-    # Master calibration frames need not exist nor be saved, but if they do they must be .pkl.
-    master_fpath = dobj['master']
-    for imtype in master_fpath:
-        mfpath = master_fpath[imtype]
-        if mfpath is not None:
-            (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
-            if ext != '.pkl':
-                raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
-    # All calibration frame image types must have a corresponding type for master frame (even if null valued).
-    for imtype in calib_fpath:
-        if imtype not in master_fpath:
-            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n" +
-                           "calibration frame image type: {imtype}\n" +
-                           "master frame image types: {imtypes}").format(imtype=imtype,
-                                                                         imtypes=master_fpath.keys()))
-    # Raw object frame image must exist and must be .spe.
-    rawfpath = dobj['object']['raw']
-    if (rawfpath is None) or (not os.path.isfile(rawfpath)):
-        raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
-    (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
-    if ext != '.spe':
-        raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
-    # Reduced object frame need not exist nor be saved, but it does then it must be .pkl.
-    redfpath = dobj['object']['reduced']
-    if redfpath is not None:
-        (fbase, ext) = os.path.splitext(os.path.basename(redfpath))
-        if ext != '.pkl':
-            raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
-    return None
 
 
 # noinspection PyDictCreation
@@ -223,7 +243,7 @@ def spe_to_dict(fpath):
 
     See Also
     --------
-    create_config : Previous step in pipeline. Run `create_config` to a create JSON configuration file. Edit the file
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to a create JSON configuration file. Edit the file
         and use as the input to `spe_to_dict`.
     create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.

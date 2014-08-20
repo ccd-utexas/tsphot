@@ -1,0 +1,28 @@
+{
+    "comments": [
+        "Insert multiline comments here. For formatting, see http://json.org/", 
+        "Use JSON `null`/`true`/`false` for empty/T/F values.", 
+        "  Example in ['master']['dark'].", 
+        "For ['logging']['level'], choices are (from most to least verbose):", 
+        "  ['DEBUG','INFO','WARNING','ERROR','CRITICAL']", 
+        "  See https://docs.python.org/2/library/logging.html#logging-levels"
+    ], 
+    "logging": {
+        "filename": "tsphot.log", 
+        "level": "INFO"
+    }, 
+    "calib": {
+        "bias": "calib_bias.spe", 
+        "dark": "calib_dark.spe", 
+        "flat": "calib_flat.spe"
+    }, 
+    "master": {
+        "bias": "master_bias.pkl", 
+        "dark": null, 
+        "flat": "master_flat.pkl"
+    }, 
+    "object": {
+        "raw": "object_raw.spe", 
+        "reduced": "object_reduced.pkl"
+    }
+}

@@ -41,7 +41,7 @@ import utils
 
 
 # noinspection PyShadowingNames
-def main(fconfig, rereduce=False, verbose=0):
+def main(fconfig, rereduce=False, verbose=False):
     """Time-series photometry pipeline.
 
     Parameters
@@ -50,8 +50,8 @@ def main(fconfig, rereduce=False, verbose=0):
         Path to input configuration file as .json.
     rereduce : {False}, bool, optional
         Re-reduce all files. Overwrite previously reduced files. If false, use previously reduced files.
-    verbose : {0}, int
-        Print 'INFO:' messages to stdout with increasing verbosity.
+    verbose : {False}, bool, optional
+        Print logging messages to stdout.
 
     Returns
     -------
@@ -65,13 +65,39 @@ def main(fconfig, rereduce=False, verbose=0):
     """
     # Read configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
-    # TODO: remove verbose variable
-    logging.info("Reading configuration file {fconfig}".format(fconfig=fconfig))
+    if verbose:
+        print("INFO: Reading configuration file {fpath}".format(fpath=fconfig))
     with open(fconfig, 'rb') as fp:
         config_settings = json.load(fp, object_pairs_hook=collections.OrderedDict)
-    logging.debug("Configuration file settings: {settings}".format(settings=config_settings))
+    if verbose:
+        print("INFO: Configuration file settings: {settings}".format(settings=config_settings))
     # Check configuration file.
-    utils.check_config(dobj=config_settings)
+    if verbose:
+        print("INFO: Checking configuration.")
+    utils.check_reduce_config(dobj=config_settings)
+    # Create logger.
+    logger = logging.getLogger(__name__)
+    logger.setLevel(level=getattr(logging, config_settings['logging']['level'].upper()))
+    fmt = '"%(asctime)s","%(name)s","%(levelname)s","%(message)s"'
+    formatter = logging.Formatter(fmt=fmt)
+    flog = config_settings['logging']['filename']
+    if flog is not None:
+        fhandler = logging.FileHandler(filename=flog, filemode='ab')
+        fhandler.setFormatter(formatter)
+        logger.addHandler(fhandler)
+    if verbose:
+        print("INFO: Transferring stdout to logger stream handler.")
+        shandler = logging.StreamHandler()
+        shandler.setFormatter(formatter)
+        logger.addHandler(shandler)
+    # TEST:
+    logger.info("Log format: {fmt}".format(fmt=fmt.replace('\"','\'')))
+    logger.info("Logging timestamps: local time")
+    logger.info("Configuration file settings: {settings}".format(settings=config_settings))
+    logger.debug("debug message")
+    logger.info("info message")
+    logger.warning("warning message")
+    logger.critical("critical message")
     # Create master calibration (calib.)frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
@@ -121,23 +147,12 @@ def main(fconfig, rereduce=False, verbose=0):
 
 
 if __name__ == '__main__':
-    defaults = {'fconfig' : 'config.json',
-                'flog'    : 'tsphot.log',
-                'loglevel': 'INFO'}
+    defaults = {'freduce_config' : 'reduce_config.json'}
     parser = argparse.ArgumentParser(description="Read configuration file and reduce data.")
     parser.add_argument('--fconfig',
                         default=defaults['fconfig'],
-                        help=(("Input JSON configuration file.\n" +
+                        help=(("Input JSON configuration file for data reduction.\n" +
                                "Default: {dflt}").format(dflt=defaults['fconfig'])))
-    parser.add_argument('--flog',
-                        default=defaults['flog'],
-                        help=(("Output event log file.\n" +
-                               "Default: {dflt}").format(dflt=defaults['flog'])))
-    parser.add_argument('--loglevel',
-                        default=defaults['loglevel'],
-                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                        help=(("Logging level. Determines verbosity threshold for event tracking.\n"+
-                               "Default: {dflt}").format(dflt=defaults['loglevel'])))
     parser.add_argument('--rereduce',
                         action='store_true',
                         help=("Re-reduce all files. Overwrite previously reduced files.\n" +
@@ -146,14 +161,11 @@ if __name__ == '__main__':
                         action='store_true',
                         help="Print logging messages to stdout.")
     args = parser.parse_args()
-    logging.basicConfig(filename='tsphot.log', level=getattr(logging, args.loglevel.upper()))
-    logging.info("Arguments: {args}".format(args=args))
+    if args.verbose:
+        print("INFO: Arguments: {args}".format(args=args))
     if not os.path.isfile(args.fconfig):
-        raise IOError("Configuration file does not exist: {fconfig}".format(fconfig=args.fconfig))
+        raise IOError("Configuration file does not exist: {fpath}".format(fpath=args.fconfig))
     (fbase, ext) = os.path.splitext(args.fconfig)
     if ext != '.json':
-        raise IOError("Configuration file extension is not '.json': {fconfig}".format(fconfig=args.fconfig))
-    if args.verbose:
-        #TODO: set logging level
-        pass
+        raise IOError("Configuration file extension is not '.json': {fpath}".format(fpath=args.fconfig))
     main(fconfig=args.fconfig, rereduce=args.rereduce, verbose=args.verbose)
