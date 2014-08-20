@@ -28,6 +28,7 @@ from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
 import os
+import time
 import json
 import pickle
 import logging
@@ -51,7 +52,7 @@ def main(fconfig, rereduce=False, verbose=False):
     rereduce : {False}, bool, optional
         Re-reduce all files. Overwrite previously reduced files. If false, use previously reduced files.
     verbose : {False}, bool, optional
-        Print logging messages to stdout.
+        Print startup 'INFO:' messages to stdout.
 
     Returns
     -------
@@ -65,45 +66,41 @@ def main(fconfig, rereduce=False, verbose=False):
     """
     # Read configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
-    if verbose:
-        print("INFO: Reading configuration file {fpath}".format(fpath=fconfig))
+    if verbose: print("INFO: Reading configuration file {fpath}".format(fpath=fconfig))
     with open(fconfig, 'rb') as fp:
         config_settings = json.load(fp, object_pairs_hook=collections.OrderedDict)
-    if verbose:
-        print("INFO: Configuration file settings: {settings}".format(settings=config_settings))
+    if verbose: print("INFO: Configuration file settings: {settings}".format(settings=config_settings))
     # Check configuration file.
-    if verbose:
-        print("INFO: Checking configuration.")
+    if verbose: print("INFO: Checking configuration.")
     utils.check_reduce_config(dobj=config_settings)
     # Create logger.
+    # TODO: make stdout from logger look like output to file.
+    if verbose: print("INFO: stdout now controlled by logger.")
     logger = logging.getLogger(__name__)
     logger.setLevel(level=getattr(logging, config_settings['logging']['level'].upper()))
     fmt = '"%(asctime)s","%(name)s","%(levelname)s","%(message)s"'
     formatter = logging.Formatter(fmt=fmt)
+    formatter.converter = time.gmtime
     flog = config_settings['logging']['filename']
     if flog is not None:
         fhandler = logging.FileHandler(filename=flog, mode='ab')
         fhandler.setFormatter(formatter)
         logger.addHandler(fhandler)
-    if verbose:
-        print("INFO: Transferring stdout to logger stream handler.")
-        shandler = logging.StreamHandler()
-        shandler.setFormatter(formatter)
-        logger.addHandler(shandler)
+    logger.info("STAGE: BEGIN_LOG")
     logger.info("Log format: {fmt}".format(fmt=fmt.replace('\"', '\'')))
-    logger.info("Log timestamps: local time")
+    logger.info("Log date format: default ISO 8601, UTC")
     logger.info("Configuration file settings: {settings}".format(settings=config_settings))
     # Create master calibration (calib.)frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
-    logging.info("Creating master calibration files.")
+    logger.info("STAGE: MASTER_CALIBRATIONS")
     master_ccddata = {}
     master_fpath = config_settings['master']
     # If master calib. frame files already exists, load them. Otherwise initialize master calib. frame as None.
     for imtype in master_fpath:
         mfpath = master_fpath[imtype]
         if (mfpath is not None) and os.path.isfile(mfpath):
-            logging.debug("Loading master calibration frame from: {fpath}".format(fpath=mfpath))
+            logger.info("Loading master calibration frame from: {fpath}".format(fpath=mfpath))
             with open(mfpath, 'rb') as fp:
                 master_ccddata[imtype] = pickle.load(fp)
         else:
@@ -115,11 +112,11 @@ def main(fconfig, rereduce=False, verbose=False):
         cfpath = calib_fpath[imtype]
         mfpath = master_fpath[imtype]
         if master_ccddata[imtype] is None:
-            logging.debug("Creating master calibration frame from: {fpath}".format(fpath=cfpath))
+            logger.info("Creating master calibration frame from: {fpath}".format(fpath=cfpath))
             dobj = utils.spe_to_dict(fpath=cfpath)
             master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
             if mfpath is not None:
-                logging.debug("Writing master calibration frame to: {fpath}".format(fpath=mfpath))
+                logger.info("Writing master calibration frame to: {fpath}".format(fpath=mfpath))
                 with open(mfpath, 'wb') as fp:
                     pickle.dump(master_ccddata[imtype], fp)
     # If re-reduce flag given, recreate all master calib. frames.
@@ -130,14 +127,15 @@ def main(fconfig, rereduce=False, verbose=False):
             mfpath = master_fpath[imtype]
             if (cfpath is None) or (not os.path.isfile(cfpath)):
                 raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
-            logging.debug("Creating master calibration frame from: {fpath}".format(fpath=cfpath))
+            logger.info("Creating master calibration frame from: {fpath}".format(fpath=cfpath))
             dobj = utils.spe_to_dict(fpath=cfpath)
             master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
             if mfpath is not None:
-                logging.debug("Writing master calibration frame to: {fpath}".format(fpath=mfpath))
+                logger.info("Writing master calibration frame to: {fpath}".format(fpath=mfpath))
                 with open(mfpath, 'wb') as fp:
                     pickle.dump(master_ccddata[imtype], fp)
     # TODO: resume here
+    logger.removeHandler(fhandler)
     return None
 
 
@@ -154,7 +152,7 @@ if __name__ == '__main__':
                               "If option omitted, use previously reduced files."))
     parser.add_argument('--verbose', '-v',
                         action='store_true',
-                        help="Print logging messages to stdout.")
+                        help="Print startup 'INFO:' messages to stdout.")
     args = parser.parse_args()
     if args.verbose:
         print("INFO: Arguments: {args}".format(args=args))

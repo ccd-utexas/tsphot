@@ -677,14 +677,14 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # - scale and subtract master dark from master flat
     if bias is not None:
         if dark is not None:
-            logging.info("Subtracting master bias from master dark.")
+            logger.info("Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
         if flat is not None:
-            logging.info("Subtracting master bias from master flat.")
+            logger.info("Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
     if ((dark is not None) and
             (flat is not None)):
-        logging.info("Subtracting master dark from master flat.")
+        logger.info("Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
@@ -704,7 +704,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         key_idx = int(math.ceil((keys_len - 1) * progress))
         key = keys_sortedlist[key_idx]
         key_progress[key] = progress
-    logging.info("Reducing object data.")
+    logger.info("Reducing object data.")
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
             if bias is not None:
@@ -716,7 +716,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
             if flat is not None:
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
-                logging.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
+                logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
     return dobj
 
 
@@ -823,7 +823,7 @@ def normalize(array):
     median = np.median(array_np)
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
-        logging.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
+        logger.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
@@ -1187,7 +1187,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
                                            sigma_init=sigma_init, box_sigma=box_sigma,
                                            width=width, height=height,
                                            width_actl=width_actl, height_actl=height_actl)
-            logging.error(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+            logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
                            "Variables: {vars}").format(vars=vars))
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
