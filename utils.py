@@ -39,7 +39,6 @@ from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
 import os
-import sys
 import math
 import json
 import logging
@@ -64,7 +63,7 @@ import read_spe
 
 
 # Initiate logger.
-logger =  logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # TODO: def create_logging_config (for logging dictconfig)
@@ -495,11 +494,11 @@ max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
       sec 4.3. Calculation of read noise and gain, Howell
       Needed by cosmic ray cleaner.
 """
-    """
+"""
     def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
                      readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
-        """
-        """
+"""
+"""
         sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
               (abs(gain_new - gain_old)    < tol_pre_gain) and
               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
@@ -555,6 +554,7 @@ max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
         (gain_finl, readnoise_finl) = (None, None)
     return(gain_finl, readnoise_finl)
 """
+
 
 def get_exptime_prog(spe_footer_xml):
     """Get the programmed exposure time in seconds from
@@ -1182,6 +1182,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             x_init_sub = (width_actl - 1) / 2
             y_init_sub = (height_actl - 1) / 2
         else:
+            # noinspection PyShadowingBuiltins
             vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                            sigma_init=sigma_init, box_sigma=box_sigma,
                                            width=width, height=height,
@@ -1205,7 +1206,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - To calculate the standard deviation for the 2D Gaussian:
             # zvec = xvec + yvec
             # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
-            #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+            # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
             #   ==> Var(z) = Var(x + y)
             #              = Var(x) + Var(y) + 2*Cov(x, y)
@@ -1230,7 +1231,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # with a uniform distribution. See [3]_, [4]_.
             # - Seed the random number generator only once per call to this method for reproducibility.
             # - To calculate the standard deviation for the 2D Gaussian:
-            #   zvec = xvec + yvec
+            # zvec = xvec + yvec
             #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
@@ -1259,7 +1260,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # # elif method == 'centroid_com':
         # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
         # # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
-        #     # sensitivity to outliers.
+        # # sensitivity to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
