@@ -157,7 +157,7 @@ def check_config(dobj):
 
     See Also
     --------
-    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edite the file
+    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
         and use as the input to `check_config`.
 
     Notes
@@ -182,18 +182,18 @@ def check_config(dobj):
             if ext != '.pkl':
                 raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
     for imtype in calib_fpath:
-        if imtype is not in master_fpath:
-            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n"+
-                           "calibration frame image type: {imtype}\n"+
+        if imtype not in master_fpath:
+            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n" +
+                           "calibration frame image type: {imtype}\n" +
                            "master frame image types: {imtypes}").format(imtype=imtype,
                                                                          imtypes=master_fpath.keys()))
-    rawfpath = config_settings['object']['raw']
-    if not os.path.isfile(rawpath):
+    rawfpath = dobj['object']['raw']
+    if not os.path.isfile(rawfpath):
         raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
     (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
     if ext != '.spe':
         raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
-    redfpath = config_settings['object']['reduced']
+    redfpath = dobj['object']['reduced']
     if ext != '.pkl':
         raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
     return None
@@ -439,15 +439,15 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     # TODO: In See Also, complete next step in pipeline.
     # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
     # Note: As of 2014-08-18, `ccdproc.CCDData` objects give `numpy.ndarrays` that with 16-bit unsigned ints.
-    #   Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
+    # Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
     b1 = np.median(bias1)
     b2 = np.median(bias2)
-    sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1)**2.0 + astroML_stats.sigmaG(bias2)**2.0)
+    sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1) ** 2.0 + astroML_stats.sigmaG(bias2) ** 2.0)
     f1 = np.median(flat1)
     f2 = np.median(flat2)
-    sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1)**2.0 + astroML_stats.sigmaG(flat2)**2.0)
+    sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1) ** 2.0 + astroML_stats.sigmaG(flat2) ** 2.0)
     gain = (((f1 + f2) - (b1 + b2)) /
-            (sigmaG_diff_f12**2.0 - sigmaG_diff_b12**2.0))
+            (sigmaG_diff_f12 ** 2.0 - sigmaG_diff_b12 ** 2.0))
     readnoise = gain * sigmaG_diff_b12 / math.sqrt(2.0)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
@@ -455,8 +455,8 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
 # TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
 # def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
-#                          max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
-#     """Calculate gain and readnoise using both master frames
+# max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
+# """Calculate gain and readnoise using both master frames
 #     and random frames.
 #       Compare with frame difference/sum method also from
 #       sec 4.3. Calculation of read noise and gain, Howell
