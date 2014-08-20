@@ -106,7 +106,7 @@ def main(fconfig, rereduce=False, verbose=0):
                     print("DEBUG: Writing master calibration frame to: {fpath}".format(fpath=mfpath))
                 with open(mfpath, 'wb') as fp:
                     pickle.dump(master_ccddata[imtype], fp)
-    # If re-reduce flag, recreate all master calib. frames.
+    # If re-reduce flag given, recreate all master calib. frames.
     # If master calib. frame file is specified, save master calib. frame to file.
     if rereduce:
         for imtype in calib_fpath:
