@@ -165,6 +165,7 @@ def check_config(dobj):
     PIPELINE_SEQUENCE_NUMBER : -0.9
 
     """
+    # Calibration frames need not exist, but if they do they must be .spe.
     calib_fpath = dobj['calib']
     for imtype in calib_fpath:
         cfpath = calib_fpath[imtype]
@@ -174,6 +175,7 @@ def check_config(dobj):
             (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
             if ext != '.spe':
                 raise IOError("Calibration frame file extension is not '.spe': {fpath}".format(fpath=cfpath))
+    # Master calibration frames need not exist nor be saved, but if they do they must be .pkl.
     master_fpath = dobj['master']
     for imtype in master_fpath:
         mfpath = master_fpath[imtype]
@@ -181,21 +183,26 @@ def check_config(dobj):
             (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
             if ext != '.pkl':
                 raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
+    # All calibration frame image types must have a corresponding type for master frame (even if null valued).
     for imtype in calib_fpath:
         if imtype not in master_fpath:
             raise IOError(("Calibration frame image type is not in master calibration frame image types.\n" +
                            "calibration frame image type: {imtype}\n" +
                            "master frame image types: {imtypes}").format(imtype=imtype,
                                                                          imtypes=master_fpath.keys()))
+    # Raw object frame image must exist and must be .spe.
     rawfpath = dobj['object']['raw']
-    if not os.path.isfile(rawfpath):
+    if (rawfpath is None) or (not os.path.isfile(rawfpath)):
         raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
     (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
     if ext != '.spe':
         raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
+    # Reduced object frame need not exist nor be saved, but it does then it must be .pkl.
     redfpath = dobj['object']['reduced']
-    if ext != '.pkl':
-        raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
+    if redfpath is not None:
+        (fbase, ext) = os.path.splitext(os.path.basename(redfpath))
+        if ext != '.pkl':
+            raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
     return None
 
 
@@ -657,23 +664,23 @@ def reduce_ccddata(dobj, dobj_exptime=None,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
-        # Print progress through dict.
-        # Operations:
-        # - subtract master bias from object image
-        # - scale and subtract master dark from object image
-        # - divide object image by corrected master flat
-        keys_sortedlist = sorted(dobj.keys())
-        keys_len = len(keys_sortedlist)
-        prog_interval = 0.05
-        prog_divs = int(math.ceil(1 / prog_interval))
-        key_progress = {}
-        for idx in xrange(0, prog_divs + 1):
-            progress = (idx / prog_divs)
-            key_idx = int(math.ceil((keys_len - 1) * progress))
-            key = keys_sortedlist[key_idx]
-            key_progress[key] = progress
-        print("INFO: Reducing object data.\n" +
-              "  Progress (%):", end=' ')
+    # Print progress through dict.
+    # Operations:
+    # - subtract master bias from object image
+    # - scale and subtract master dark from object image
+    # - divide object image by corrected master flat
+    keys_sortedlist = sorted(dobj.keys())
+    keys_len = len(keys_sortedlist)
+    prog_interval = 0.05
+    prog_divs = int(math.ceil(1 / prog_interval))
+    key_progress = {}
+    for idx in xrange(0, prog_divs + 1):
+        progress = (idx / prog_divs)
+        key_idx = int(math.ceil((keys_len - 1) * progress))
+        key = keys_sortedlist[key_idx]
+        key_progress[key] = progress
+    print("INFO: Reducing object data.\n" +
+          "  Progress (%):", end=' ')
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
             if bias is not None:

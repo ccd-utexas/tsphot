@@ -31,6 +31,7 @@ import os
 import json
 import pickle
 import argparse
+import collections
 
 # External package imports. Grouped procedurally then categorically.
 
@@ -61,55 +62,65 @@ def main(fconfig, rereduce=False, verbose=0):
         $ python main_utils.py --fconfig path/to/config.json -v
 
     """
-    # Read and check configuration file.
+    # Read configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     if verbose >= 1:
         print("INFO: Reading configuration file {fconfig}".format(fconfig=fconfig))
     with open(fconfig, 'rb') as fp:
-        config_settings = json.load(fp)
+        config_settings = json.load(fp, object_pairs_hook=collections.OrderedDict)
     if verbose >= 2:
         print("DEBUG: Configuration file settings: {settings}".format(settings=config_settings))
-    # Create master calibration frames.
+    # Check configuration file.
+    utils.check_config(dobj=config_settings)
+    # Create master calibration (calib.)frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
+    # TODO: logging
     if verbose >= 1:
         print("INFO: Creating master calibration files.")
     master_ccddata = {}
     master_fpath = config_settings['master']
+    # If master calib. frame files already exists, load them. Otherwise initialize master calib. frame as None.
     for imtype in master_fpath:
         mfpath = master_fpath[imtype]
-        if os.path.isfile(mfpath):
+        if (mfpath is not None) and os.path.isfile(mfpath):
             if verbose >= 2:
-                print("DEBUG: Loading master calibration frame from: {mfpath}".format(mfpath=mfpath))
+                print("DEBUG: Loading master calibration frame from: {fpath}".format(fpath=mfpath))
             with open(mfpath, 'rb') as fp:
                 master_ccddata[imtype] = pickle.load(fp)
         else:
             master_ccddata[imtype] = None
+    # If calib. frames exist and if master calib. frames do not yet exist, create master calib. frames.
+    # If master calib. frame file is specified, save master calib. frame to file.
     calib_fpath = config_settings['calib']
     for imtype in master_fpath:
+        cfpath = calib_fpath[imtype]
+        mfpath = master_fpath[imtype]
         if master_ccddata[imtype] is None:
-            cfpath = calib_fpath[imtype]
             if verbose >= 2:
-                print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
+                print("DEBUG: Creating master calibration frame from: {fpath}".format(fpath=cfpath))
             dobj = utils.spe_to_dict(fpath=cfpath)
             master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
-            mfpath = master_fpath[imtype]
             if mfpath is not None:
                 if verbose >= 2:
-                    print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
+                    print("DEBUG: Writing master calibration frame to: {fpath}".format(fpath=mfpath))
                 with open(mfpath, 'wb') as fp:
                     pickle.dump(master_ccddata[imtype], fp)
+    # If re-reduce flag, recreate all master calib. frames.
+    # If master calib. frame file is specified, save master calib. frame to file.
     if rereduce:
         for imtype in calib_fpath:
             cfpath = calib_fpath[imtype]
+            mfpath = master_fpath[imtype]
+            if (cfpath is None) or (not os.path.isfile(cfpath)):
+                raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
             if verbose >= 2:
-                print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
+                print("DEBUG: Creating master calibration frame from: {fpath}".format(fpath=cfpath))
             dobj = utils.spe_to_dict(fpath=cfpath)
             master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
-            mfpath = master_fpath[imtype]
             if mfpath is not None:
                 if verbose >= 2:
-                    print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
+                    print("DEBUG: Writing master calibration frame to: {fpath}".format(fpath=mfpath))
                 with open(mfpath, 'wb') as fp:
                     pickle.dump(master_ccddata[imtype], fp)
     # TODO: resume here
