@@ -69,20 +69,38 @@ def main(fconfig, rereduce=False, verbose=0):
         config_settings = json.load(fp)
     if verbose >= 2:
         print("DEBUG: Configuration file settings: {settings}".format(settings=config_settings))
-    # TODO: Calib files must exist and be .spe
-    # TODO: master files must be .pkl
+    calib_fpath = config_settings['calib']
+    for imtype in calib_fpath:
+        cfpath = calib_fpath[imtype]
+        if cfpath is not None:
+            if not os.path.isfile(cfpath):
+                raise IOError("Calibration frame file does not exist: {cfpath}".format(cfpath=cfpath))
+            (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
+            if ext != '.spe':
+                raise IOError("Calibration frame file extension is not '.spe': {cfpath}".format(cfpath=cfpath))
+    master_fpath = config_settings['master']
+    for imtype in master_fpath:
+        mfpath = master_fpath[imtype]
+        if mfpath is not None:
+            (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+            if ext != '.pkl':
+                raise IOError("Master calibration frame file extension is not '.pkl': {mfpath}".format(mfpath=mfpath))
+    for imtype in calib_fpath:
+        if imtype is not in master_fpath:
+            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n"+
+                           "calibration frame image type: {cimtype}\n"+
+                           "master frame image types: {mimtypes}").format(cimtype=imtype,
+                                                                          mimtypes=master_fpath.keys()))
     # Create master calibration frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
-    # TODO: remove file checks below
     if verbose >= 1:
         print("INFO: Creating master calibration files.")
     master_ccddata = {}
     master_fpath = config_settings['master']
-    for imtype in sorted(master_fpath):
+    for imtype in master_fpath:
         mfpath = master_fpath[imtype]
-        (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
-        if os.path.isfile(mfpath) and (ext == '.pkl'):
+        if os.path.isfile(mfpath):
             if verbose >= 2:
                 print("DEBUG: Loading master calibration frame from: {mfpath}".format(mfpath=mfpath))
             with open(mfpath, 'rb') as fp:
@@ -90,24 +108,8 @@ def main(fconfig, rereduce=False, verbose=0):
         else:
             master_ccddata[imtype] = None
     calib_fpath = config_settings['calib']
-    for imtype in sorted(master_fpath):
+    for imtype in master_fpath:
         if master_ccddata[imtype] is None:
-            cfpath = calib_fpath[imtype]
-            if os.path.isfile(cfpath):
-                if verbose >= 2:
-                    print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
-                dobj = utils.spe_to_dict(fpath=cfpath)
-                master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
-                mfpath = master_fpath[imtype]
-                if mfpath is not None:
-                    (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
-                    if ext == '.pkl':
-                        if verbose >= 2:
-                            print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
-                        with open(mfpath, 'wb') as fp:
-                            pickle.dump(master_ccddata[imtype], fp)
-    if rereduce:
-        for imtype in sorted(calib_fpath):
             cfpath = calib_fpath[imtype]
             if verbose >= 2:
                 print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
@@ -115,15 +117,23 @@ def main(fconfig, rereduce=False, verbose=0):
             master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
             mfpath = master_fpath[imtype]
             if mfpath is not None:
-                (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
-                if ext == '.pkl':
-                    if verbose >= 2:
-                        print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
-                    with open(mfpath, 'wb') as fp:
-                        pickle.dump(master_ccddata[imtype], fp)
-                else:
-                    print(("WARNING: Master calibration frame file extension " +
-                           "is not '.pkl': {mfpath}").format(mfpath=mfpath))
+                if verbose >= 2:
+                    print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
+                with open(mfpath, 'wb') as fp:
+                    pickle.dump(master_ccddata[imtype], fp)
+    if rereduce:
+        for imtype in calib_fpath:
+            cfpath = calib_fpath[imtype]
+            if verbose >= 2:
+                print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
+            dobj = utils.spe_to_dict(fpath=cfpath)
+            master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
+            mfpath = master_fpath[imtype]
+            if mfpath is not None:
+                if verbose >= 2:
+                    print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
+                with open(mfpath, 'wb') as fp:
+                    pickle.dump(master_ccddata[imtype], fp)
     # TODO: resume here
     return None
 
