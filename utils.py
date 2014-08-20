@@ -39,9 +39,9 @@ from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
 import os
-import sys
 import math
 import json
+import logging
 import collections
 
 # External package imports. Grouped procedurally then categorically.
@@ -62,8 +62,14 @@ from astroML import stats as astroML_stats
 import read_spe
 
 
-# noinspection PyUnusedLocal
-def create_config(fjson='config.json'):
+# Initiate logger.
+logger = logging.getLogger(__name__)
+
+
+# TODO: def create_logging_config (for logging dictconfig)
+
+
+def create_reduce_config(fjson='reduce_config.json'):
     """Create JSON configuration file for data reduction.
 
     Parameters
@@ -77,7 +83,7 @@ def create_config(fjson='config.json'):
 
     See Also
     --------
-    spe_to_dict : Next step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
+    spe_to_dict : Next step in pipeline. Run `create_reduce_config` to create a JSON configuration file. Edit the file
         and use as the input to `spe_to_dict`.
 
     Notes
@@ -86,26 +92,115 @@ def create_config(fjson='config.json'):
 
     """
     # To omit an argument in the config file, set it to `None`.
-    setting_value = collections.OrderedDict()
-    setting_value['comments'] = ["Insert multiline",
-                                 "comments here."]
-    setting_value['calib'] = collections.OrderedDict()
-    setting_value['calib']['bias'] = "calib_bias.spe"
-    setting_value['calib']['dark'] = "calib_dark.spe"
-    setting_value['calib']['flat'] = "calib_flat.spe"
-    setting_value['master'] = collections.OrderedDict()
-    setting_value['master']['bias'] = "master_bias.pkl"
-    setting_value['master']['dark'] = "master_dark.pkl"
-    setting_value['master']['flat'] = "master_flat.pkl"
-    setting_value['object'] = collections.OrderedDict()
-    setting_value['object']['raw'] = "object_raw.spe"
-    setting_value['object']['reduced'] = "object_reduced.pkl"
+    config_settings = collections.OrderedDict()
+    config_settings['comments'] = ["Insert multiline comments here. For formatting, see http://json.org/",
+                                   "Use JSON `null`/`true`/`false` for empty/T/F values.",
+                                   "  Example in ['master']['dark'].",
+                                   "For ['logging']['level'], choices are (from most to least verbose):",
+                                   "  ['DEBUG','INFO','WARNING','ERROR','CRITICAL']",
+                                   "  See https://docs.python.org/2/library/logging.html#logging-levels"]
+    config_settings['logging'] = collections.OrderedDict()
+    config_settings['logging']['filename'] = "tsphot.log"
+    config_settings['logging']['level'] = "INFO"
+    config_settings['calib'] = collections.OrderedDict()
+    config_settings['calib']['bias'] = "calib_bias.spe"
+    config_settings['calib']['dark'] = "calib_dark.spe"
+    config_settings['calib']['flat'] = "calib_flat.spe"
+    config_settings['master'] = collections.OrderedDict()
+    config_settings['master']['bias'] = "master_bias.pkl"
+    config_settings['master']['dark'] = None
+    config_settings['master']['flat'] = "master_flat.pkl"
+    config_settings['object'] = collections.OrderedDict()
+    config_settings['object']['raw'] = "object_raw.spe"
+    config_settings['object']['reduced'] = "object_reduced.pkl"
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     with open(fjson, 'wb') as fp:
-        json.dump(setting_value, fp, sort_keys=False, indent=4)
+        json.dump(config_settings, fp, sort_keys=False, indent=4)
     return None
 
 
+def check_reduce_config(dobj):
+    """Check configuration settings for data reduction.
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` of configuration settings.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    IOError
+        Raised when file doesn't exists, file extension is wrong, or keywords are missing.
+
+    See Also
+    --------
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to create a JSON configuration file.
+        Edit the file and use as the input to `check_reduce_config`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : -0.9
+
+    """
+    # Logging file path need not be defined, but if it is then it must be .log.
+    fname = dobj['logging']['filename']
+    if fname is not None:
+        (fbase, ext) = os.path.splitext(os.path.basename(fname))
+        if ext != '.log':
+            raise IOError("Logging filename extension is not '.log': {fpath}".format(fpath=fname))
+    # Logging level must be set and be one of https://docs.python.org/2/library/logging.html#logging-levels
+    valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    level = dobj['logging']['level']
+    if level not in valid_levels:
+        raise IOError(("Invalid logging level: {level}\n" +
+                       "Valid logging levels: {vlevels}").format(level=level, vlevels=valid_levels))
+    # Calibration frame file paths need not be defined, but if they are then they must exist and be .spe.
+    calib_fpath = dobj['calib']
+    for imtype in calib_fpath:
+        cfpath = calib_fpath[imtype]
+        if cfpath is not None:
+            if not os.path.isfile(cfpath):
+                raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
+            (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
+            if ext != '.spe':
+                raise IOError("Calibration frame file extension is not '.spe': {fpath}".format(fpath=cfpath))
+    # Master calibration frame file paths need not be defined, but if they are then they must be .pkl.
+    master_fpath = dobj['master']
+    for imtype in master_fpath:
+        mfpath = master_fpath[imtype]
+        if mfpath is not None:
+            (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+            if ext != '.pkl':
+                raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
+    # All calibration frame image types must have a corresponding type for master frame,
+    # even if the file path is not defined.
+    for imtype in calib_fpath:
+        if imtype not in master_fpath:
+            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n" +
+                           "calibration frame image type: {imtype}\n" +
+                           "master frame image types: {imtypes}").format(imtype=imtype,
+                                                                         imtypes=master_fpath.keys()))
+    # Raw object frame file path must exist and must be .spe.
+    rawfpath = dobj['object']['raw']
+    if (rawfpath is None) or (not os.path.isfile(rawfpath)):
+        raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
+    (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
+    if ext != '.spe':
+        raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
+    # Reduced object frame file path need not be defined, but if it is then it must be .pkl.
+    redfpath = dobj['object']['reduced']
+    if redfpath is not None:
+        (fbase, ext) = os.path.splitext(os.path.basename(redfpath))
+        if ext != '.pkl':
+            raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
+    return None
+
+
+# noinspection PyPep8Naming
 def dict_to_class(dobj):
     """Convert keys of a ``dict`` into attributes of a ``Class``.
 
@@ -118,19 +213,22 @@ def dict_to_class(dobj):
 
     Returns
     -------
-    Dclass : Class
-        ``Class`` where Dclass.key = value.
+    dclass : Class
+        ``Class`` where dclass.key = value.
 
     See Also
     --------
-    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
-        and use as the input to `dict_to_class`.
-    spe_to_dict : Next step in pipeline. Run `dict_to_class` to collect keyword arguments from a ``dict`` and pass to
-        `spe_to_dict`.
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to create a JSON configuration file.
+        Edit the file and use as the input to `dict_to_class`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : -0.8.9
 
     """
     Dclass = collections.namedtuple('Dclass', dobj.keys())
     return Dclass(**dobj)
+
 
 # noinspection PyDictCreation
 def spe_to_dict(fpath):
@@ -149,8 +247,8 @@ def spe_to_dict(fpath):
 
     See Also
     --------
-    create_config : Previous step in pipeline. Run `create_config` to a create JSON configuration file. Edit the file
-        and use as the input to `spe_to_dict`.
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to a create JSON configuration file.
+        Edit the file and use as the input to `spe_to_dict`.
     create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     read_spe : Module for reading SPE files.
@@ -259,7 +357,7 @@ def sigma_to_fwhm(sigma):
     return fwhm
 
 
-# noinspection PyPep8Naming, PyRedundantParentheses
+# noinspection PyPep8Naming
 def gain_readnoise_from_master(bias, flat):
     """Calculate the gain and readnoise from a master bias frame and a master flat frame.
 
@@ -372,88 +470,90 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     # TODO: In See Also, complete next step in pipeline.
     # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
     # Note: As of 2014-08-18, `ccdproc.CCDData` objects give `numpy.ndarrays` that with 16-bit unsigned ints.
-    #   Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
+    # Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
     b1 = np.median(bias1)
     b2 = np.median(bias2)
-    sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1)**2.0 + astroML_stats.sigmaG(bias2)**2.0)
+    sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1) ** 2.0 + astroML_stats.sigmaG(bias2) ** 2.0)
     f1 = np.median(flat1)
     f2 = np.median(flat2)
-    sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1)**2.0 + astroML_stats.sigmaG(flat2)**2.0)
+    sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1) ** 2.0 + astroML_stats.sigmaG(flat2) ** 2.0)
     gain = (((f1 + f2) - (b1 + b2)) /
-            (sigmaG_diff_f12**2.0 - sigmaG_diff_b12**2.0))
+            (sigmaG_diff_f12 ** 2.0 - sigmaG_diff_b12 ** 2.0))
     readnoise = gain * sigmaG_diff_b12 / math.sqrt(2.0)
     return (gain * (astropy.units.electron / astropy.units.adu),
             readnoise * astropy.units.electron)
 
 
 # TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
-# def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
-#                          max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
-#     """Calculate gain and readnoise using both master frames
-#     and random frames.
-#       Compare with frame difference/sum method also from
-#       sec 4.3. Calculation of read noise and gain, Howell
-#       Needed by cosmic ray cleaner.
-#
-#     """
-#     def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
-#                      readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
-#         """
-#         """
-#         sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
-#               (abs(gain_new - gain_old)    < tol_pre_gain) and
-#               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
-#               (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
-#         return sc
-#     # randomly select 2 bias frames and 2 flat frames
-#     # Accuracy and precision are set to same.
-#     # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
-#     # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
-#     # Initialize
-#     np.random.seed(0)
-#     is_first_iter = True
-#     is_converged = False
-#     num_consec_success = 0
-#     (gain_finl, readnoise_finl) = (None, None)
-#     sc_kwargs = {}
-#     (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
-#     (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
-#     (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
-#     # TODO: calc masters from dobjs if None.
-#     (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
-#     # TODO: Collect an array of values.
-#     # TODO: redo new, old. new is new median. old is old median.
-#     for iter in xrange(max_iters):
-#         # TODO: Use bootstrap sample
-#         (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
-#         if not is_first_iter:
-#             if (success_crit(**sc_kwargs)):
-#                 num_consec_success += 1
-#             else:
-#                 num_consec_success = 0
-#         if num_consec_success >= max_successes:
-#             is_converged = True
-#             break
-#         # Ready for next iteration.
-#         (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
-#         is_first_iter = False
-#     # After loop.
-#     if is_converged:
-#         # todo: give details
-#         assert iter+1 > max_successes
-#         assert ((abs(gain_new - gain_master) < tol_acc_gain) and
-#                 (abs(gain_new - gain_old)    < tol_pre_gain) and
-#                 (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
-#                 (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
-#         print("INFO: Converged")
-#         (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
-#     else:
-#         # todo: assertion error statement
-#         assert iter == (max_iters - 1)
-#         # todo: warning stderr description.
-#         print("WARNING: Did not converge")
-#         (gain_finl, readnoise_finl) = (None, None)
-#     return(gain_finl, readnoise_finl)
+"""
+def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
+max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
+""""""Calculate gain and readnoise using both master frames
+    and random frames.
+      Compare with frame difference/sum method also from
+      sec 4.3. Calculation of read noise and gain, Howell
+      Needed by cosmic ray cleaner.
+"""
+"""
+    def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
+                     readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
+"""
+"""
+        sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
+              (abs(gain_new - gain_old)    < tol_pre_gain) and
+              (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+              (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+        return sc
+    # randomly select 2 bias frames and 2 flat frames
+    # Accuracy and precision are set to same.
+    # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
+    # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
+    # Initialize
+    np.random.seed(0)
+    is_first_iter = True
+    is_converged = False
+    num_consec_success = 0
+    (gain_finl, readnoise_finl) = (None, None)
+    sc_kwargs = {}
+    (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
+    (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
+    (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
+    # TODO: calc masters from dobjs if None.
+    (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
+    # TODO: Collect an array of values.
+    # TODO: redo new, old. new is new median. old is old median.
+    for iter in xrange(max_iters):
+        # TODO: Use bootstrap sample
+        (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
+        if not is_first_iter:
+            if (success_crit(**sc_kwargs)):
+                num_consec_success += 1
+            else:
+                num_consec_success = 0
+        if num_consec_success >= max_successes:
+            is_converged = True
+            break
+        # Ready for next iteration.
+        (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
+        is_first_iter = False
+    # After loop.
+    if is_converged:
+        # todo: give details
+        assert iter+1 > max_successes
+        assert ((abs(gain_new - gain_master) < tol_acc_gain) and
+                (abs(gain_new - gain_old)    < tol_pre_gain) and
+                (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+                (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+        logging.info("Calculations for gain and readnoise converged.")
+        (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
+    else:
+        # todo: assertion error statement
+        assert iter == (max_iters - 1)
+        # todo: warning stderr description.
+        logging.warning("Calculations for gain and readnoise did not converge")
+        (gain_finl, readnoise_finl) = (None, None)
+    return(gain_finl, readnoise_finl)
+"""
 
 
 def get_exptime_prog(spe_footer_xml):
@@ -558,7 +658,6 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     .. [1] Howell, 2006, "Handbook of CCD Astronomy"
     
     """
-    # TODO : Use logging rather than print.
     # Check input.
     # If there is a `dark`...
     if dark is not None:
@@ -578,35 +677,34 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # - scale and subtract master dark from master flat
     if bias is not None:
         if dark is not None:
-            print("INFO: Subtracting master bias from master dark.")
+            logger.info("Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
         if flat is not None:
-            print("INFO: Subtracting master bias from master flat.")
+            logger.info("Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
     if ((dark is not None) and
             (flat is not None)):
-        print("INFO: Subtracting master dark from master flat.")
+        logger.info("Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
-        # Print progress through dict.
-        # Operations:
-        # - subtract master bias from object image
-        # - scale and subtract master dark from object image
-        # - divide object image by corrected master flat
-        keys_sortedlist = sorted(dobj.keys())
-        keys_len = len(keys_sortedlist)
-        prog_interval = 0.05
-        prog_divs = int(math.ceil(1 / prog_interval))
-        key_progress = {}
-        for idx in xrange(0, prog_divs + 1):
-            progress = (idx / prog_divs)
-            key_idx = int(math.ceil((keys_len - 1) * progress))
-            key = keys_sortedlist[key_idx]
-            key_progress[key] = progress
-        print("INFO: Reducing object data.\n" +
-              "  Progress (%):", end=' ')
+    # Print progress through dict.
+    # Operations:
+    # - subtract master bias from object image
+    # - scale and subtract master dark from object image
+    # - divide object image by corrected master flat
+    keys_sortedlist = sorted(dobj.keys())
+    keys_len = len(keys_sortedlist)
+    prog_interval = 0.05
+    prog_divs = int(math.ceil(1 / prog_interval))
+    key_progress = {}
+    for idx in xrange(0, prog_divs + 1):
+        progress = (idx / prog_divs)
+        key_idx = int(math.ceil((keys_len - 1) * progress))
+        key = keys_sortedlist[key_idx]
+        key_progress[key] = progress
+    logger.info("Reducing object data.")
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
             if bias is not None:
@@ -618,7 +716,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
             if flat is not None:
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
-                print(int(key_progress[key] * 100), end=' ')
+                logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
     return dobj
 
 
@@ -677,7 +775,6 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
         1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # TODO: Use logging.
     # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
@@ -726,9 +823,7 @@ def normalize(array):
     median = np.median(array_np)
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
-        # TODO: use logging. STH, 2014-08-11
-        print("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN",
-              file=sys.stderr)
+        logger.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
@@ -970,7 +1065,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     return subframe_sub
 
 
-# noinspection PyRedundantParentheses,PyUnresolvedReferences
+# noinspection PyUnresolvedReferences
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
@@ -1087,21 +1182,13 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             x_init_sub = (width_actl - 1) / 2
             y_init_sub = (height_actl - 1) / 2
         else:
-            # TODO: log events. STH, 2014-08-08
-            print(("ERROR: Star is too close to the edge of the frame. Square subframe could not be extracted.\n" +
-                   "  idx = {idx}\n" +
-                   "  (x_init, y_init) = ({x_init}, {y_init})\n" +
-                   "  sigma_init = {sigma_init}\n" +
-                   "  box_sigma = {box_sigma}\n" +
-                   "  (width, height) = ({width}, {height})\n" +
-                   "  (width_actl, height_actl) = ({width_actl}, {height_actl})").format(idx=idx,
-                                                                                         x_init=x_init, y_init=y_init,
-                                                                                         sigma_init=sigma_init,
-                                                                                         box_sigma=box_sigma,
-                                                                                         width=width, height=height,
-                                                                                         width_actl=width_actl,
-                                                                                         height_actl=height_actl),
-                  file=sys.stderr)
+            # noinspection PyShadowingBuiltins
+            vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
+                                           sigma_init=sigma_init, box_sigma=box_sigma,
+                                           width=width, height=height,
+                                           width_actl=width_actl, height_actl=height_actl)
+            logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+                           "Variables: {vars}").format(vars=vars))
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
@@ -1119,7 +1206,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - To calculate the standard deviation for the 2D Gaussian:
             # zvec = xvec + yvec
             # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
-            #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+            # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
             #   ==> Var(z) = Var(x + y)
             #              = Var(x) + Var(y) + 2*Cov(x, y)
@@ -1144,7 +1231,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # with a uniform distribution. See [3]_, [4]_.
             # - Seed the random number generator only once per call to this method for reproducibility.
             # - To calculate the standard deviation for the 2D Gaussian:
-            #   zvec = xvec + yvec
+            # zvec = xvec + yvec
             #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
@@ -1173,7 +1260,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # # elif method == 'centroid_com':
         # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
         # # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
-        #     # sensitivity to outliers.
+        # # sensitivity to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
@@ -1286,7 +1373,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #                                   bounds=((0, width), (0, height)))
         #     (x_finl_sub, y_finl_sub) = res.x
         else:
-            raise AssertionError(("Program error. Method not accounted for: {meth}").format(meth=method))
+            raise AssertionError("Program error. Method not accounted for: {meth}".format(meth=method))
         # Compute the centroid coordinates relative to the entire image.
         # Return the dataframe with centroid coordinates and sigma.
         (x_offset, y_offset) = (x_finl_sub - x_init_sub,
