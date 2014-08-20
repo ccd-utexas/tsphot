@@ -42,6 +42,7 @@ import os
 import sys
 import math
 import json
+import logging
 import collections
 
 # External package imports. Grouped procedurally then categorically.
@@ -60,6 +61,10 @@ from astroML import stats as astroML_stats
 
 # Internal package imports.
 import read_spe
+
+
+# Initiate logger.
+logger =  logging.getLogger(__name__)
 
 
 # TODO: def create_logging_config (for logging dictconfig)
@@ -481,74 +486,75 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
 
 # TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
-# def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
-# max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
-# """Calculate gain and readnoise using both master frames
-#     and random frames.
-#       Compare with frame difference/sum method also from
-#       sec 4.3. Calculation of read noise and gain, Howell
-#       Needed by cosmic ray cleaner.
-#
-#     """
-#     def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
-#                      readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
-#         """
-#         """
-#         sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
-#               (abs(gain_new - gain_old)    < tol_pre_gain) and
-#               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
-#               (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
-#         return sc
-#     # randomly select 2 bias frames and 2 flat frames
-#     # Accuracy and precision are set to same.
-#     # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
-#     # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
-#     # Initialize
-#     np.random.seed(0)
-#     is_first_iter = True
-#     is_converged = False
-#     num_consec_success = 0
-#     (gain_finl, readnoise_finl) = (None, None)
-#     sc_kwargs = {}
-#     (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
-#     (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
-#     (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
-#     # TODO: calc masters from dobjs if None.
-#     (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
-#     # TODO: Collect an array of values.
-#     # TODO: redo new, old. new is new median. old is old median.
-#     for iter in xrange(max_iters):
-#         # TODO: Use bootstrap sample
-#         (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
-#         if not is_first_iter:
-#             if (success_crit(**sc_kwargs)):
-#                 num_consec_success += 1
-#             else:
-#                 num_consec_success = 0
-#         if num_consec_success >= max_successes:
-#             is_converged = True
-#             break
-#         # Ready for next iteration.
-#         (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
-#         is_first_iter = False
-#     # After loop.
-#     if is_converged:
-#         # todo: give details
-#         assert iter+1 > max_successes
-#         assert ((abs(gain_new - gain_master) < tol_acc_gain) and
-#                 (abs(gain_new - gain_old)    < tol_pre_gain) and
-#                 (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
-#                 (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
-#         print("INFO: Converged")
-#         (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
-#     else:
-#         # todo: assertion error statement
-#         assert iter == (max_iters - 1)
-#         # todo: warning stderr description.
-#         print("WARNING: Did not converge")
-#         (gain_finl, readnoise_finl) = (None, None)
-#     return(gain_finl, readnoise_finl)
-
+"""
+def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
+max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
+""""""Calculate gain and readnoise using both master frames
+    and random frames.
+      Compare with frame difference/sum method also from
+      sec 4.3. Calculation of read noise and gain, Howell
+      Needed by cosmic ray cleaner.
+"""
+    """
+    def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
+                     readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
+        """
+        """
+        sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
+              (abs(gain_new - gain_old)    < tol_pre_gain) and
+              (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+              (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+        return sc
+    # randomly select 2 bias frames and 2 flat frames
+    # Accuracy and precision are set to same.
+    # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
+    # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
+    # Initialize
+    np.random.seed(0)
+    is_first_iter = True
+    is_converged = False
+    num_consec_success = 0
+    (gain_finl, readnoise_finl) = (None, None)
+    sc_kwargs = {}
+    (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
+    (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
+    (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
+    # TODO: calc masters from dobjs if None.
+    (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
+    # TODO: Collect an array of values.
+    # TODO: redo new, old. new is new median. old is old median.
+    for iter in xrange(max_iters):
+        # TODO: Use bootstrap sample
+        (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
+        if not is_first_iter:
+            if (success_crit(**sc_kwargs)):
+                num_consec_success += 1
+            else:
+                num_consec_success = 0
+        if num_consec_success >= max_successes:
+            is_converged = True
+            break
+        # Ready for next iteration.
+        (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
+        is_first_iter = False
+    # After loop.
+    if is_converged:
+        # todo: give details
+        assert iter+1 > max_successes
+        assert ((abs(gain_new - gain_master) < tol_acc_gain) and
+                (abs(gain_new - gain_old)    < tol_pre_gain) and
+                (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+                (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+        logging.info("Calculations for gain and readnoise converged.")
+        (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
+    else:
+        # todo: assertion error statement
+        assert iter == (max_iters - 1)
+        # todo: warning stderr description.
+        logging.warning("Calculations for gain and readnoise did not converge")
+        (gain_finl, readnoise_finl) = (None, None)
+    return(gain_finl, readnoise_finl)
+"""
 
 def get_exptime_prog(spe_footer_xml):
     """Get the programmed exposure time in seconds from
@@ -652,7 +658,6 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     .. [1] Howell, 2006, "Handbook of CCD Astronomy"
     
     """
-    # TODO : Use logging rather than print.
     # Check input.
     # If there is a `dark`...
     if dark is not None:
@@ -672,14 +677,14 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # - scale and subtract master dark from master flat
     if bias is not None:
         if dark is not None:
-            print("INFO: Subtracting master bias from master dark.")
+            logging.info("Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
         if flat is not None:
-            print("INFO: Subtracting master bias from master flat.")
+            logging.info("Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
     if ((dark is not None) and
             (flat is not None)):
-        print("INFO: Subtracting master dark from master flat.")
+        logging.info("Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
@@ -699,8 +704,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         key_idx = int(math.ceil((keys_len - 1) * progress))
         key = keys_sortedlist[key_idx]
         key_progress[key] = progress
-    print("INFO: Reducing object data.\n" +
-          "  Progress (%):", end=' ')
+    logging.info("Reducing object data.")
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
             if bias is not None:
@@ -712,7 +716,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
             if flat is not None:
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
-                print(int(key_progress[key] * 100), end=' ')
+                logging.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
     return dobj
 
 
@@ -771,7 +775,6 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
         1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # TODO: Use logging.
     # `photutils.detection.lacosmic` is verbose.
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
@@ -820,9 +823,7 @@ def normalize(array):
     median = np.median(array_np)
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
-        # TODO: use logging. STH, 2014-08-11
-        print("WARNING: sigmaG = 0. Normalized array will be all numpy.NaN",
-              file=sys.stderr)
+        logging.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
@@ -1181,21 +1182,12 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             x_init_sub = (width_actl - 1) / 2
             y_init_sub = (height_actl - 1) / 2
         else:
-            # TODO: log events. STH, 2014-08-08
-            print(("ERROR: Star is too close to the edge of the frame. Square subframe could not be extracted.\n" +
-                   "  idx = {idx}\n" +
-                   "  (x_init, y_init) = ({x_init}, {y_init})\n" +
-                   "  sigma_init = {sigma_init}\n" +
-                   "  box_sigma = {box_sigma}\n" +
-                   "  (width, height) = ({width}, {height})\n" +
-                   "  (width_actl, height_actl) = ({width_actl}, {height_actl})").format(idx=idx,
-                                                                                         x_init=x_init, y_init=y_init,
-                                                                                         sigma_init=sigma_init,
-                                                                                         box_sigma=box_sigma,
-                                                                                         width=width, height=height,
-                                                                                         width_actl=width_actl,
-                                                                                         height_actl=height_actl),
-                  file=sys.stderr)
+            vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
+                                           sigma_init=sigma_init, box_sigma=box_sigma,
+                                           width=width, height=height,
+                                           width_actl=width_actl, height_actl=height_actl)
+            logging.error(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+                           "Variables: {vars}").format(vars=vars))
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.

@@ -90,14 +90,9 @@ def main(fconfig, rereduce=False, verbose=False):
         shandler = logging.StreamHandler()
         shandler.setFormatter(formatter)
         logger.addHandler(shandler)
-    # TEST:
     logger.info("Log format: {fmt}".format(fmt=fmt.replace('\"', '\'')))
     logger.info("Log timestamps: local time")
     logger.info("Configuration file settings: {settings}".format(settings=config_settings))
-    logger.debug("debug message")
-    logger.info("info message")
-    logger.warning("warning message")
-    logger.critical("critical message")
     # Create master calibration (calib.)frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
