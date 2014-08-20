@@ -86,15 +86,17 @@ def create_config(fjson='config.json'):
     """
     # To omit an argument in the config file, set it to `None`.
     config_settings = collections.OrderedDict()
-    config_settings['comments'] = ["Insert multiline",
-                                   "comments here."]
+    config_settings['comments'] = ["Insert multiline comments here.",
+                                   "For empty values, use JSON `null`. Example below.",
+                                   "For T/F values, use JSON `true`/`false`.",
+                                   "See http://json.org/"]
     config_settings['calib'] = collections.OrderedDict()
     config_settings['calib']['bias'] = "calib_bias.spe"
     config_settings['calib']['dark'] = "calib_dark.spe"
     config_settings['calib']['flat'] = "calib_flat.spe"
     config_settings['master'] = collections.OrderedDict()
     config_settings['master']['bias'] = "master_bias.pkl"
-    config_settings['master']['dark'] = "master_dark.pkl"
+    config_settings['master']['dark'] = None
     config_settings['master']['flat'] = "master_flat.pkl"
     config_settings['object'] = collections.OrderedDict()
     config_settings['object']['raw'] = "object_raw.spe"

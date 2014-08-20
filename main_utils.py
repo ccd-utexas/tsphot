@@ -61,18 +61,20 @@ def main(fconfig, rereduce=False, verbose=0):
         $ python main_utils.py --fconfig path/to/config.json -v
 
     """
-    # Read configuration file.
+    # Read and check configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     if verbose >= 1:
         print("INFO: Reading configuration file {fconfig}".format(fconfig=fconfig))
     with open(fconfig, 'rb') as fp:
         config_settings = json.load(fp)
     if verbose >= 2:
-        print("DEBUG: Configuration file contents:")
-        print(config_settings)
+        print("DEBUG: Configuration file settings: {settings}".format(settings=config_settings))
+    # TODO: Calib files must exist and be .spe
+    # TODO: master files must be .pkl
     # Create master calibration frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
+    # TODO: remove file checks below
     if verbose >= 1:
         print("INFO: Creating master calibration files.")
     master_ccddata = {}
@@ -119,6 +121,9 @@ def main(fconfig, rereduce=False, verbose=0):
                         print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
                     with open(mfpath, 'wb') as fp:
                         pickle.dump(master_ccddata[imtype], fp)
+                else:
+                    print(("WARNING: Master calibration frame file extension " +
+                           "is not '.pkl': {mfpath}").format(mfpath=mfpath))
     # TODO: resume here
     return None
 
@@ -149,4 +154,4 @@ if __name__ == '__main__':
         print("INFO: Arguments:")
         for arg in sorted(args.__dict__):
             print('', arg, args.__dict__[arg])
-    main(sorted(**args.__dict__))
+    main(**args.__dict__)
