@@ -38,6 +38,7 @@ References
 from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
+import os
 import sys
 import math
 import json
@@ -127,12 +128,75 @@ def dict_to_class(dobj):
     --------
     create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edit the file
         and use as the input to `dict_to_class`.
-    spe_to_dict : Next step in pipeline. Run `dict_to_class` to collect keyword arguments from a ``dict`` and pass to
-        `spe_to_dict`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : -0.0.9
 
     """
     Dclass = collections.namedtuple('Dclass', dobj.keys())
     return Dclass(**dobj)
+
+
+def check_config(dobj):
+    """Check configuration settings.
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` of configuration settings.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    IOError
+        Raised when file doesn't exists, file extension is wrong, or keywords are missing.
+
+    See Also
+    --------
+    create_config : Previous step in pipeline. Run `create_config` to create a JSON configuration file. Edite the file
+        and use as the input to `check_config`.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : -0.9
+
+    """
+    calib_fpath = dobj['calib']
+    for imtype in calib_fpath:
+        cfpath = calib_fpath[imtype]
+        if cfpath is not None:
+            if not os.path.isfile(cfpath):
+                raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
+            (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
+            if ext != '.spe':
+                raise IOError("Calibration frame file extension is not '.spe': {fpath}".format(fpath=cfpath))
+    master_fpath = dobj['master']
+    for imtype in master_fpath:
+        mfpath = master_fpath[imtype]
+        if mfpath is not None:
+            (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+            if ext != '.pkl':
+                raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
+    for imtype in calib_fpath:
+        if imtype is not in master_fpath:
+            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n"+
+                           "calibration frame image type: {imtype}\n"+
+                           "master frame image types: {imtypes}").format(imtype=imtype,
+                                                                         imtypes=master_fpath.keys()))
+    rawfpath = config_settings['object']['raw']
+    if not os.path.isfile(rawpath):
+        raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
+    (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
+    if ext != '.spe':
+        raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
+    redfpath = config_settings['object']['reduced']
+    if ext != '.pkl':
+        raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
+    return None
 
 
 # noinspection PyDictCreation

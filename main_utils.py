@@ -44,7 +44,7 @@ def main(fconfig, rereduce=False, verbose=0):
 
     Parameters
     ----------
-     fconfig : string
+    fconfig : string
         Path to input configuration file as .json.
     rereduce : {False}, bool, optional
         Re-reduce all files. Overwrite previously reduced files. If false, use previously reduced files.
@@ -69,28 +69,6 @@ def main(fconfig, rereduce=False, verbose=0):
         config_settings = json.load(fp)
     if verbose >= 2:
         print("DEBUG: Configuration file settings: {settings}".format(settings=config_settings))
-    calib_fpath = config_settings['calib']
-    for imtype in calib_fpath:
-        cfpath = calib_fpath[imtype]
-        if cfpath is not None:
-            if not os.path.isfile(cfpath):
-                raise IOError("Calibration frame file does not exist: {cfpath}".format(cfpath=cfpath))
-            (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
-            if ext != '.spe':
-                raise IOError("Calibration frame file extension is not '.spe': {cfpath}".format(cfpath=cfpath))
-    master_fpath = config_settings['master']
-    for imtype in master_fpath:
-        mfpath = master_fpath[imtype]
-        if mfpath is not None:
-            (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
-            if ext != '.pkl':
-                raise IOError("Master calibration frame file extension is not '.pkl': {mfpath}".format(mfpath=mfpath))
-    for imtype in calib_fpath:
-        if imtype is not in master_fpath:
-            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n"+
-                           "calibration frame image type: {cimtype}\n"+
-                           "master frame image types: {mimtypes}").format(cimtype=imtype,
-                                                                          mimtypes=master_fpath.keys()))
     # Create master calibration frames.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
