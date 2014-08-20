@@ -1,7 +1,9 @@
 {
     "comments": [
-        "Insert multiline", 
-        "comments here."
+        "Insert multiline comments here.", 
+        "For empty values, use JSON `null`. See example below.", 
+        "For T/F values, use JSON `true`/`false`.", 
+        "See http://json.org/"
     ], 
     "calib": {
         "bias": "calib_bias.spe", 
@@ -10,7 +12,7 @@
     }, 
     "master": {
         "bias": "master_bias.pkl", 
-        "dark": "master_dark.pkl", 
+        "dark": null, 
         "flat": "master_flat.pkl"
     }, 
     "object": {
