@@ -105,6 +105,7 @@ def create_config(fjson='config.json'):
     return None
 
 
+# noinspection PyPep8Naming
 def dict_to_class(dobj):
     """Convert keys of a ``dict`` into attributes of a ``Class``.
 
@@ -128,8 +129,8 @@ def dict_to_class(dobj):
         `spe_to_dict`.
 
     """
-    dclass = collections.namedtuple('dclass', dobj.keys())
-    return dclass(**dobj)
+    Dclass = collections.namedtuple('Dclass', dobj.keys())
+    return Dclass(**dobj)
 
 
 # noinspection PyDictCreation
@@ -259,7 +260,7 @@ def sigma_to_fwhm(sigma):
     return fwhm
 
 
-# noinspection PyPep8Naming, PyRedundantParentheses
+# noinspection PyPep8Naming
 def gain_readnoise_from_master(bias, flat):
     """Calculate the gain and readnoise from a master bias frame and a master flat frame.
 
@@ -970,7 +971,7 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
     return subframe_sub
 
 
-# noinspection PyRedundantParentheses,PyUnresolvedReferences
+# noinspection PyUnresolvedReferences
 def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
@@ -1286,7 +1287,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #                                   bounds=((0, width), (0, height)))
         #     (x_finl_sub, y_finl_sub) = res.x
         else:
-            raise AssertionError(("Program error. Method not accounted for: {meth}").format(meth=method))
+            raise AssertionError("Program error. Method not accounted for: {meth}".format(meth=method))
         # Compute the centroid coordinates relative to the entire image.
         # Return the dataframe with centroid coordinates and sigma.
         (x_offset, y_offset) = (x_finl_sub - x_init_sub,

@@ -38,6 +38,7 @@ import argparse
 import utils
 
 
+# noinspection PyShadowingNames
 def main(fconfig, rereduce=False, verbose=0):
     """Time-series photometry pipeline.
 
@@ -63,24 +64,61 @@ def main(fconfig, rereduce=False, verbose=0):
     # Read configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     if verbose >= 1:
-        print("INFO: Reading config file {fconfig}".format(fconfig=fconfig))
+        print("INFO: Reading configuration file {fconfig}".format(fconfig=fconfig))
     with open(fconfig, 'rb') as fp:
-        # noinspection PyUnusedLocal
         config_settings = json.load(fp)
     if verbose >= 2:
-        print("DEBUG: Config file contents:")
+        print("DEBUG: Configuration file contents:")
         print(config_settings)
     # Create master calibration frames.
+    # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     # TODO: parallelize
     if verbose >= 1:
         print("INFO: Creating master calibration files.")
     master_ccddata = {}
-    for calib in sorted(config_settings['calib']):
-        fpath = config_settings['calib'][calib]
-        dobj = utils.spe_to_dict(fpath=fpath)
-        master_ccddata[calib] = utils.create_master_calib(dobj=dobj)
-    # TEST:
-    print(master_ccddata.keys())
+    master_fpath = config_settings['master']
+    for imtype in sorted(master_fpath):
+        mfpath = master_fpath[imtype]
+        (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+        if os.path.isfile(mfpath) and (ext == '.pkl'):
+            if verbose >= 2:
+                print("DEBUG: Loading master calibration frame from: {mfpath}".format(mfpath=mfpath))
+            with open(mfpath, 'rb') as fp:
+                master_ccddata[imtype] = pickle.load(fp)
+        else:
+            master_ccddata[imtype] = None
+    calib_fpath = config_settings['calib']
+    for imtype in sorted(master_fpath):
+        if master_ccddata[imtype] is None:
+            cfpath = calib_fpath[imtype]
+            if os.path.isfile(cfpath):
+                if verbose >= 2:
+                    print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
+                dobj = utils.spe_to_dict(fpath=cfpath)
+                master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
+                mfpath = master_fpath[imtype]
+                if mfpath is not None:
+                    (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+                    if ext == '.pkl':
+                        if verbose >= 2:
+                            print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
+                        with open(mfpath, 'wb') as fp:
+                            pickle.dump(master_ccddata[imtype], fp)
+    if rereduce:
+        for imtype in sorted(calib_fpath):
+            cfpath = calib_fpath[imtype]
+            if verbose >= 2:
+                print("DEBUG: Creating master calibration frame from: {cfpath}".format(cfpath=cfpath))
+            dobj = utils.spe_to_dict(fpath=cfpath)
+            master_ccddata[imtype] = utils.create_master_calib(dobj=dobj)
+            mfpath = master_fpath[imtype]
+            if mfpath is not None:
+                (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
+                if ext == '.pkl':
+                    if verbose >= 2:
+                        print("DEBUG: Writing master calibration frame to: {mfpath}".format(mfpath=mfpath))
+                    with open(mfpath, 'wb') as fp:
+                        pickle.dump(master_ccddata[imtype], fp)
     # TODO: resume here
     return None
 
@@ -104,11 +142,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if not os.path.isfile(args.fconfig):
         raise IOError("Configuration file does not exist: {fconfig}".format(fconfig=args.fconfig))
-    (fconfig_base, ext) = os.path.splitext(args.fconfig)
+    (fbase, ext) = os.path.splitext(args.fconfig)
     if ext != '.json':
         raise IOError("Configuration file extension is not '.json': {fconfig}".format(fconfig=args.fconfig))
     if args.verbose:
         print("INFO: Arguments:")
-        for arg in args.__dict__:
+        for arg in sorted(args.__dict__):
             print('', arg, args.__dict__[arg])
     main(sorted(**args.__dict__))
