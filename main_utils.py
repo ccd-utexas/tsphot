@@ -82,7 +82,7 @@ def main(fconfig, rereduce=False, verbose=False):
     formatter = logging.Formatter(fmt=fmt)
     flog = config_settings['logging']['filename']
     if flog is not None:
-        fhandler = logging.FileHandler(filename=flog, filemode='ab')
+        fhandler = logging.FileHandler(filename=flog, mode='ab')
         fhandler.setFormatter(formatter)
         logger.addHandler(fhandler)
     if verbose:
@@ -91,8 +91,8 @@ def main(fconfig, rereduce=False, verbose=False):
         shandler.setFormatter(formatter)
         logger.addHandler(shandler)
     # TEST:
-    logger.info("Log format: {fmt}".format(fmt=fmt.replace('\"','\'')))
-    logger.info("Logging timestamps: local time")
+    logger.info("Log format: {fmt}".format(fmt=fmt.replace('\"', '\'')))
+    logger.info("Log timestamps: local time")
     logger.info("Configuration file settings: {settings}".format(settings=config_settings))
     logger.debug("debug message")
     logger.info("info message")
@@ -147,7 +147,7 @@ def main(fconfig, rereduce=False, verbose=False):
 
 
 if __name__ == '__main__':
-    defaults = {'freduce_config' : 'reduce_config.json'}
+    defaults = {'fconfig': 'reduce_config.json'}
     parser = argparse.ArgumentParser(description="Read configuration file and reduce data.")
     parser.add_argument('--fconfig',
                         default=defaults['fconfig'],

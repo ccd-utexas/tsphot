@@ -147,7 +147,7 @@ def check_reduce_config(dobj):
     if fname is not None:
         (fbase, ext) = os.path.splitext(os.path.basename(fname))
         if ext != '.log':
-            raise IOError("Logging filename extension is not '.log': {fpath}".foramt(fpath=fname))
+            raise IOError("Logging filename extension is not '.log': {fpath}".format(fpath=fname))
     # Logging level must be set and be one of https://docs.python.org/2/library/logging.html#logging-levels
     valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
     level = dobj['logging']['level']
@@ -243,8 +243,8 @@ def spe_to_dict(fpath):
 
     See Also
     --------
-    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to a create JSON configuration file. Edit the file
-        and use as the input to `spe_to_dict`.
+    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to a create JSON configuration file.
+        Edit the file and use as the input to `spe_to_dict`.
     create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     read_spe : Module for reading SPE files.
