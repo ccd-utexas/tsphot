@@ -132,6 +132,7 @@ def dict_to_class(dobj):
     Dclass = collections.namedtuple('Dclass', dobj.keys())
     return Dclass(**dobj)
 
+
 # noinspection PyDictCreation
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
