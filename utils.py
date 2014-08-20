@@ -38,7 +38,6 @@ References
 from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
-import os
 import sys
 import math
 import json
@@ -86,23 +85,23 @@ def create_config(fjson='config.json'):
 
     """
     # To omit an argument in the config file, set it to `None`.
-    setting_value = collections.OrderedDict()
-    setting_value['comments'] = ["Insert multiline",
-                                 "comments here."]
-    setting_value['calib'] = collections.OrderedDict()
-    setting_value['calib']['bias'] = "calib_bias.spe"
-    setting_value['calib']['dark'] = "calib_dark.spe"
-    setting_value['calib']['flat'] = "calib_flat.spe"
-    setting_value['master'] = collections.OrderedDict()
-    setting_value['master']['bias'] = "master_bias.pkl"
-    setting_value['master']['dark'] = "master_dark.pkl"
-    setting_value['master']['flat'] = "master_flat.pkl"
-    setting_value['object'] = collections.OrderedDict()
-    setting_value['object']['raw'] = "object_raw.spe"
-    setting_value['object']['reduced'] = "object_reduced.pkl"
+    config_settings = collections.OrderedDict()
+    config_settings['comments'] = ["Insert multiline",
+                                   "comments here."]
+    config_settings['calib'] = collections.OrderedDict()
+    config_settings['calib']['bias'] = "calib_bias.spe"
+    config_settings['calib']['dark'] = "calib_dark.spe"
+    config_settings['calib']['flat'] = "calib_flat.spe"
+    config_settings['master'] = collections.OrderedDict()
+    config_settings['master']['bias'] = "master_bias.pkl"
+    config_settings['master']['dark'] = "master_dark.pkl"
+    config_settings['master']['flat'] = "master_flat.pkl"
+    config_settings['object'] = collections.OrderedDict()
+    config_settings['object']['raw'] = "object_raw.spe"
+    config_settings['object']['reduced'] = "object_reduced.pkl"
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     with open(fjson, 'wb') as fp:
-        json.dump(setting_value, fp, sort_keys=False, indent=4)
+        json.dump(config_settings, fp, sort_keys=False, indent=4)
     return None
 
 
@@ -118,8 +117,8 @@ def dict_to_class(dobj):
 
     Returns
     -------
-    Dclass : Class
-        ``Class`` where Dclass.key = value.
+    dclass : Class
+        ``Class`` where dclass.key = value.
 
     See Also
     --------
@@ -129,8 +128,8 @@ def dict_to_class(dobj):
         `spe_to_dict`.
 
     """
-    Dclass = collections.namedtuple('Dclass', dobj.keys())
-    return Dclass(**dobj)
+    dclass = collections.namedtuple('dclass', dobj.keys())
+    return dclass(**dobj)
 
 
 # noinspection PyDictCreation

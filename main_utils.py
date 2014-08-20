@@ -28,8 +28,9 @@ from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
 import os
-import argparse
 import json
+import pickle
+import argparse
 
 # External package imports. Grouped procedurally then categorically.
 
@@ -37,48 +38,67 @@ import json
 import utils
 
 
-# noinspection PyShadowingNames
-def main(args):
+def main(fconfig, rereduce=False, verbose=0):
     """Time-series photometry pipeline.
 
     Parameters
     ----------
-    args : argparse.ArgumentParser
-        Class with arguments as attributes.
+     fconfig : string
+        Path to input configuration file as .json.
+    rereduce : {False}, bool, optional
+        Re-reduce all files. Overwrite previously reduced files. If false, use previously reduced files.
+    verbose : {0}, int
+        Print 'INFO:' messages to stdout with increasing verbosity.
 
     Returns
     -------
     None
 
-    See Also
-    --------
-
     Notes
     -----
-
+    Call as top-level script. Example usage:
+        $ python main_utils.py --fconfig path/to/config.json -v
 
     """
-    # TODO: reduce then create lightcurve
+    # Read configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
-    with open(args.fconfig, 'rb') as fp:
+    if verbose >= 1:
+        print("INFO: Reading config file {fconfig}".format(fconfig=fconfig))
+    with open(fconfig, 'rb') as fp:
         # noinspection PyUnusedLocal
-        args_fconfig = utils.dict_to_class(json.load(fp))
+        config_settings = json.load(fp)
+    if verbose >= 2:
+        print("DEBUG: Config file contents:")
+        print(config_settings)
+    # Create master calibration frames.
+    # TODO: parallelize
+    if verbose >= 1:
+        print("INFO: Creating master calibration files.")
+    master_ccddata = {}
+    for calib in sorted(config_settings['calib']):
+        fpath = config_settings['calib'][calib]
+        dobj = utils.spe_to_dict(fpath=fpath)
+        master_ccddata[calib] = utils.create_master_calib(dobj=dobj)
+    # TEST:
+    print(master_ccddata.keys())
     # TODO: resume here
     return None
 
 
 if __name__ == '__main__':
     # TODO: use logging
-    # noinspection PyDictCreation
-    defaults = {}
-    defaults['fconfig'] = "config.json"
+    defaults = {'fconfig': 'config.json'}
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description="Read configuration file and reduce data.")
-    parser.add_argument("--fconfig",
+    parser.add_argument('--fconfig',
                         default=defaults['fconfig'],
                         help=(("Input configuration file as .json.\n" +
-                               "Default: {default}").format(default=defaults['fconfig'])))
-    parser.add_argument("--verbose", "-v",
+                               "Default: {dflt}").format(dflt=defaults['fconfig'])))
+    parser.add_argument('--rereduce',
+                        action='store_true',
+                        help=("Re-reduce all files. Overwrite previously reduced files.\n" +
+                              "If option omitted, use previously reduced files."))
+    parser.add_argument('--verbose', '-v',
                         action='count',
                         help="Print 'INFO:' messages to stdout.")
     args = parser.parse_args()
@@ -90,5 +110,5 @@ if __name__ == '__main__':
     if args.verbose:
         print("INFO: Arguments:")
         for arg in args.__dict__:
-            print("", arg, args.__dict__[arg])
-    main(args)
+            print('', arg, args.__dict__[arg])
+    main(sorted(**args.__dict__))
