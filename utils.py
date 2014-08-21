@@ -802,16 +802,14 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
         1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # TODO: Silence `photutils.detection.lacosmic`. The method is verbose. Redirect for now.
-    sys.stdout = logger.debug
+    # TODO: Silence `photutils.detection.lacosmic`. Hack: http://stackoverflow.com/questions/14058453 and 19425736
     tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
                                          neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                          **kwargs)
-    logger.debug("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
+    logger.info("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                                   **kwargs)
-    sys.stdout = sys.__stdout__
     return image_cleaned, ray_mask
 
 
