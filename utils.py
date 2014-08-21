@@ -39,6 +39,7 @@ from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
 import os
+import sys
 import math
 import json
 import logging
@@ -60,10 +61,6 @@ from astroML import stats as astroML_stats
 
 # Internal package imports.
 import read_spe
-
-
-# Initiate logger.
-logger = logging.getLogger(__name__)
 
 
 # TODO: def create_logging_config (for logging dictconfig)
@@ -91,6 +88,7 @@ def create_reduce_config(fjson='reduce_config.json'):
     PIPELINE_SEQUENCE_NUMBER: -1.0
 
     """
+    # TODO: Describe key, value pairs in docstring.
     # To omit an argument in the config file, set it to `None`.
     config_settings = collections.OrderedDict()
     config_settings['comments'] = ["Insert multiline comments here. For formatting, see http://json.org/",
@@ -146,6 +144,7 @@ def check_reduce_config(dobj):
     PIPELINE_SEQUENCE_NUMBER : -0.9
 
     """
+    # TODO: Describe conditionals in docstring.
     # Logging file path need not be defined, but if it is then it must be .log.
     fname = dobj['logging']['filename']
     if fname is not None:
@@ -198,6 +197,14 @@ def check_reduce_config(dobj):
         if ext != '.pkl':
             raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
     return None
+
+
+########################################################################################################################
+# CREATE LOGGER
+# Note: Use logger only after checking configuration file.
+# Note: For non-root-level loggers, use `getLogger(__name__)`
+# http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
+logger = logging.getLogger(__name__)
 
 
 # noinspection PyPep8Naming
@@ -403,8 +410,7 @@ def gain_readnoise_from_master(bias, flat):
         sec 3.2, "Descriptive Statistics"
 
     """
-    # TODO : In See Also, complete next step in pipeline.
-    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
+    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree. Check formulas.
     sigmaG_bias = astroML_stats.sigmaG(bias)
     fwhm_bias = sigma_to_fwhm(sigmaG_bias)
     sigmaG_flat = astroML_stats.sigmaG(flat)
@@ -467,8 +473,7 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     .. [3] http://mathworld.wolfram.com/NormalDifferenceDistribution.html
 
     """
-    # TODO: In See Also, complete next step in pipeline.
-    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree.
+    # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree. Check formulas.
     # Note: As of 2014-08-18, `ccdproc.CCDData` objects give `numpy.ndarrays` that with 16-bit unsigned ints.
     # Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
     b1 = np.median(bias1)
@@ -488,7 +493,8 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 """
 def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
 max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
-""""""Calculate gain and readnoise using both master frames
+"""
+"""Calculate gain and readnoise using both master frames
     and random frames.
       Compare with frame difference/sum method also from
       sec 4.3. Calculation of read noise and gain, Howell
@@ -595,6 +601,7 @@ def get_exptime_prog(spe_footer_xml):
     return exptime_prog_sec
 
 
+# noinspection PyUnresolvedReferences
 def reduce_ccddata(dobj, dobj_exptime=None,
                    bias=None,
                    dark=None, dark_exptime=None,
@@ -645,6 +652,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 2.0
+    As of 2014-08-20, correlated errors in image frames are not supported by astropy.
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
@@ -659,31 +667,41 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     
     """
     # Check input.
-    # If there is a `dark`...
+    if bias is not None:
+        has_bias = True
+    else:
+        has_bias = False
     if dark is not None:
-        # ...but no `dobj_exptime` or `dark_exptime`:
-        if ((dobj_exptime is None) or
-                (dark_exptime is None)):
-            raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
-    # If there is a `flat`...
+        has_dark = True
+    else:
+        has_dark = False
     if flat is not None:
-        # ...but no `flat_exptime`:
+        has_flat = True
+    else:
+        has_flat = False
+    # If there is a `dark` but no `dobj_exptime` or `dark_exptime`:
+    if has_dark:
+        if (dobj_exptime is None) or (dark_exptime is None):
+            raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
+    # If there is a `flat` but no `flat_exptime`:
+    if has_flat:
         if flat_exptime is None:
             raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
+    # Silence warnings about correlated errors.
+    astropy.nddata.conf.warn_unsupported_correlated = False
     # Note: Modify frames in-place to reduce memory overhead.
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
     # - scale and subtract master dark from master flat
-    if bias is not None:
-        if dark is not None:
+    if has_bias:
+        if has_dark:
             logger.info("Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
-        if flat is not None:
+        if has_flat:
             logger.info("Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
-    if ((dark is not None) and
-            (flat is not None)):
+    if has_dark and has_flat:
         logger.info("Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
@@ -694,26 +712,37 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # - subtract master bias from object image
     # - scale and subtract master dark from object image
     # - divide object image by corrected master flat
-    keys_sortedlist = sorted(dobj.keys())
-    keys_len = len(keys_sortedlist)
+    # TODO: Make a class to track progress.
+    key_list = []
+    for key in dobj:
+        if isinstance(dobj[key], ccdproc.CCDData):
+            key_list.append(key)
+    key_sortedlist = sorted(key_list)
+    key_len = len(key_sortedlist)
     prog_interval = 0.05
-    prog_divs = int(math.ceil(1 / prog_interval))
+    prog_divs = int(math.ceil(1.0 / prog_interval))
     key_progress = {}
     for idx in xrange(0, prog_divs + 1):
         progress = (idx / prog_divs)
-        key_idx = int(math.ceil((keys_len - 1) * progress))
-        key = keys_sortedlist[key_idx]
+        key_idx = int(math.ceil((key_len - 1) * progress))
+        key = key_sortedlist[key_idx]
         key_progress[key] = progress
-    logger.info("Reducing object data.")
+    logger.info("Reducing object frames.")
+    logger.info("Subtracting master bias from object frames: {tf}".format(tf=has_bias))
+    logger.info("Subtracting master dark from object frames: {tf}".format(tf=has_dark))
+    logger.info("Correcting with master flat for object frames: {tf}".format(tf=has_flat))
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
-            if bias is not None:
+            if has_bias:
+                logger.debug("Subtracting master bias from object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
-            if dark is not None:
+            if has_dark:
+                logger.debug("Subtracting master dark from object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
                                                   dark_exposure=dark_exptime,
                                                   data_exposure=dobj_exptime)
-            if flat is not None:
+            if has_flat:
+                logger.debug("Correcting with master flat for object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
                 logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
@@ -775,7 +804,12 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
         1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # `photutils.detection.lacosmic` is verbose.
+    # TODO: Silence `photutils.detection.lacosmic`. Hack: http://stackoverflow.com/questions/14058453 and 19425736
+    # TODO: Silence `photutils.detection.lacosmic`. directing stdout, stderr causes lacosmic to hang at end.
+    tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
+                                         neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
+                                         **kwargs)
+    logger.debug("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                                   **kwargs)
@@ -1183,12 +1217,12 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             y_init_sub = (height_actl - 1) / 2
         else:
             # noinspection PyShadowingBuiltins
-            vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
-                                           sigma_init=sigma_init, box_sigma=box_sigma,
-                                           width=width, height=height,
-                                           width_actl=width_actl, height_actl=height_actl)
+            tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
+                                               sigma_init=sigma_init, box_sigma=box_sigma,
+                                               width=width, height=height,
+                                               width_actl=width_actl, height_actl=height_actl)
             logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
-                           "Variables: {vars}").format(vars=vars))
+                            "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
