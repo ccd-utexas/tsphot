@@ -88,6 +88,7 @@ def create_reduce_config(fjson='reduce_config.json'):
     PIPELINE_SEQUENCE_NUMBER: -1.0
 
     """
+    # TODO: Describe key, value pairs in docstring.
     # To omit an argument in the config file, set it to `None`.
     config_settings = collections.OrderedDict()
     config_settings['comments'] = ["Insert multiline comments here. For formatting, see http://json.org/",
@@ -143,6 +144,7 @@ def check_reduce_config(dobj):
     PIPELINE_SEQUENCE_NUMBER : -0.9
 
     """
+    # TODO: Describe conditionals in docstring.
     # Logging file path need not be defined, but if it is then it must be .log.
     fname = dobj['logging']['filename']
     if fname is not None:
