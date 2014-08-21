@@ -36,6 +36,7 @@ import argparse
 import collections
 
 # External package imports. Grouped procedurally then categorically.
+import astropy
 
 # Internal package imports.
 import utils
@@ -64,6 +65,7 @@ def main(fconfig, rereduce=False, verbose=False):
         $ python main_utils.py --fconfig path/to/config.json -v
 
     """
+    # TODO: write out fits files
     # Read configuration file.
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
     if verbose:
@@ -76,11 +78,14 @@ def main(fconfig, rereduce=False, verbose=False):
     if verbose:
         print("INFO: Checking configuration.")
     utils.check_reduce_config(dobj=config_settings)
+    ################################################################################
     # Create logger.
+    # Note: For root-level logger, use `getLogger()`, not `getLogger(__name__)`
+    # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
     # TODO: make stdout from logger look like output to file.
     if verbose:
         print("INFO: stdout now controlled by logger.")
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger()
     logger.setLevel(level=getattr(logging, config_settings['logging']['level'].upper()))
     fmt = '"%(asctime)s","%(name)s","%(levelname)s","%(message)s"'
     formatter = logging.Formatter(fmt=fmt)
@@ -94,8 +99,8 @@ def main(fconfig, rereduce=False, verbose=False):
     logger.info("Log format: {fmt}".format(fmt=fmt.replace('\"', '\'')))
     logger.info("Log date format: default ISO 8601, UTC")
     logger.info("Configuration file settings: {settings}".format(settings=config_settings))
-    # Create master calibration (calib.)frames.
-    # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
+    ################################################################################
+    # Create master calibration (calib.) frames.
     # TODO: parallelize
     logger.info("STAGE: MASTER_CALIBRATIONS")
     master_ccddata = {}
@@ -138,12 +143,34 @@ def main(fconfig, rereduce=False, verbose=False):
                 logger.info("Writing master {imtype} to: {fpath}".format(imtype=imtype, fpath=mfpath))
                 with open(mfpath, 'wb') as fp:
                     pickle.dump(master_ccddata[imtype], fp)
-    # TODO: resume here
+    ################################################################################
+    # Reduce object frames.
+    logger.info("STAGE: REDUCE_DATA")
+    rawfpath = config_settings['object']['raw']
+    redfpath = config_settings['object']['reduced']
+    # TODO: if reduced data exists, read that
+    # TODO: if rereduce is true, rereduce and overwrite
+    logger.info("Reading raw object data: {fpath}".format(fpath=rawfpath))
+    object_ccddata = utils.spe_to_dict(rawfpath)
+    flat_exptime = utils.get_exptime_prog(spe_footer_xml=master_ccddata['flat'].meta['footer_xml'])*astropy.units.second
+    dark_exptime = utils.get_exptime_prog(spe_footer_xml=master_ccddata['dark'].meta['footer_xml'])*astropy.units.second
+    object_exptime = utils.get_exptime_prog(spe_footer_xml=object_ccddata['footer_xml'])*astropy.units.second
+    exps = dict(dobj_exptime=object_exptime, dark_exptime=dark_exptime, flat_exptime=flat_exptime)
+    logger.info("Exposure times: {exps}".format(exps=exps))
+    logger.info("Reducing data.")
+    astropy.nddata.conf.warn_unsupported_correlated = False
+    object_ccddata = utils.reduce_ccddata(dobj=object_ccddata, dobj_exptime=object_exptime,
+                                          bias=master_ccddata['bias'],
+                                          dark=master_ccddata['dark'], dark_exptime=dark_exptime,
+                                          flat=master_ccddata['flat'], flat_exptime=flat_exptime)
+
+    # TODO: RESUME PIPELINE HERE
+    # TODO: check programmed/actual exposure times since pulses could have been missed
+    # TODO: check default experiments with footer metadata to confirm correct experiment settings for calib. frames
     # Clean up.
     if flog is not None:
         # noinspection PyUnboundLocalVariable
         logger.removeHandler(fhandler)
-    
     return None
 
 
