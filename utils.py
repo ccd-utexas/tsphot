@@ -201,7 +201,7 @@ def check_reduce_config(dobj):
 # Note: Use logger only after checking configuration file.
 # Note: For non-root-level loggers, use `getLogger(__name__)`
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
-utils_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # noinspection PyPep8Naming
@@ -598,6 +598,7 @@ def get_exptime_prog(spe_footer_xml):
     return exptime_prog_sec
 
 
+# noinspection PyUnresolvedReferences
 def reduce_ccddata(dobj, dobj_exptime=None,
                    bias=None,
                    dark=None, dark_exptime=None,
@@ -648,6 +649,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 2.0
+    As of 2014-08-20, correlated errors in image frames are not supported by astropy.
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
@@ -662,33 +664,42 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     
     """
     # Check input.
-    # If there is a `dark`...
-    utils_logger.info("TEST: reducing data")
+    if bias is not None:
+        has_bias = True
+    else:
+        has_bias = False
     if dark is not None:
-        # ...but no `dobj_exptime` or `dark_exptime`:
-        if ((dobj_exptime is None) or
-                (dark_exptime is None)):
-            raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
-    # If there is a `flat`...
+        has_dark = True
+    else:
+        has_dark = False
     if flat is not None:
-        # ...but no `flat_exptime`:
+        has_flat = True
+    else:
+        has_flat = False
+    # If there is a `dark` but no `dobj_exptime` or `dark_exptime`:
+    if has_dark:
+        if (dobj_exptime is None) or (dark_exptime is None):
+            raise IOError("If `dark` is provided, both `dobj_exptime` and `dark_exptime` must also be provided.")
+    # If there is a `flat` but no `flat_exptime`:
+    if has_flat:
         if flat_exptime is None:
             raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
+    # Silence warnings about correlated errors.
+    astropy.nddata.conf.warn_unsupported_correlated = False
     # Note: Modify frames in-place to reduce memory overhead.
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
     # - scale and subtract master dark from master flat
-    if bias is not None:
-        if dark is not None:
-            utils_logger.info("Subtracting master bias from master dark.")
+    if has_bias:
+        if has_dark:
+            logger.info("Subtracting master bias from master dark.")
             dark = ccdproc.subtract_bias(dark, bias)
-        if flat is not None:
-            utils_logger.info("Subtracting master bias from master flat.")
+        if has_flat:
+            logger.info("Subtracting master bias from master flat.")
             flat = ccdproc.subtract_bias(flat, bias)
-    if ((dark is not None) and
-            (flat is not None)):
-        utils_logger.info("Subtracting master dark from master flat.")
+    if has_dark and has_flat:
+        logger.info("Subtracting master dark from master flat.")
         flat = ccdproc.subtract_dark(flat, dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
@@ -698,8 +709,9 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # - subtract master bias from object image
     # - scale and subtract master dark from object image
     # - divide object image by corrected master flat
+    # TODO: Make a class to track progress.
     key_list = []
-    for key in sorted(dobj):
+    for key in dobj:
         if isinstance(dobj[key], ccdproc.CCDData):
             key_list.append(key)
     key_sortedlist = sorted(key_list)
@@ -712,19 +724,25 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         key_idx = int(math.ceil((key_len - 1) * progress))
         key = key_sortedlist[key_idx]
         key_progress[key] = progress
-    utils_logger.info("Reducing object data.")
+    logger.info("Reducing object frames.")
+    logger.info("Subtracting master bias from object frames: {tf}".format(tf=has_bias))
+    logger.info("Subtracting master dark from object frames: {tf}".format(tf=has_dark))
+    logger.info("Correcting with master flat for object frames: {tf}".format(tf=has_flat))
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
-            if bias is not None:
+            if has_bias:
+                logger.debug("Subtracting master bias from object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
-            if dark is not None:
+            if has_dark:
+                logger.debug("Subtracting master dark from object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
                                                   dark_exposure=dark_exptime,
                                                   data_exposure=dobj_exptime)
-            if flat is not None:
+            if has_flat:
+                logger.debug("Correcting with master flat for object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
             if key in key_progress:
-                utils_logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
+                logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
     return dobj
 
 
@@ -783,7 +801,11 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
         1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # `photutils.detection.lacosmic` is verbose.
+    # TODO: Silence `photutils.detection.lacosmic`. The method is verbose.
+    tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
+                                         neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
+                                         **kwargs)
+    logger.debug("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                                   **kwargs)
@@ -831,7 +853,7 @@ def normalize(array):
     median = np.median(array_np)
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
-        utils_logger.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
+        logger.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
     array_normd = (array_np - median) / sigmaG
     return array_normd
 
@@ -1191,12 +1213,12 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             y_init_sub = (height_actl - 1) / 2
         else:
             # noinspection PyShadowingBuiltins
-            vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
-                                           sigma_init=sigma_init, box_sigma=box_sigma,
-                                           width=width, height=height,
-                                           width_actl=width_actl, height_actl=height_actl)
-            utils_logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
-                            "Variables: {vars}").format(vars=vars))
+            tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
+                                               sigma_init=sigma_init, box_sigma=box_sigma,
+                                               width=width, height=height,
+                                               width_actl=width_actl, height_actl=height_actl)
+            logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+                            "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
