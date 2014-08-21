@@ -803,6 +803,7 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     
     """
     # TODO: Silence `photutils.detection.lacosmic`. Hack: http://stackoverflow.com/questions/14058453 and 19425736
+    # TODO: Silence `photutils.detection.lacosmic`. directing stdout, stderr causes lacosmic to hang at end.
     tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
                                          neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                          **kwargs)

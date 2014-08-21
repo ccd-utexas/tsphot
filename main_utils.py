@@ -207,7 +207,6 @@ def main(fconfig, rereduce=False, verbose=False):
             for key in sorted(object_ccddata):
                 if isinstance(object_ccddata[key], ccdproc.CCDData):
                     # TODO: give dict with readnoise, gain
-                    # TODO: silence remove_cosmic_rays. directing stdout, stderr causes lacosmic to hang at end.
                     (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
                     if key in key_progress:
                         logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
@@ -257,7 +256,6 @@ def main(fconfig, rereduce=False, verbose=False):
         for key in sorted(object_ccddata):
             if isinstance(object_ccddata[key], ccdproc.CCDData):
                 # TODO: give dict with readnoise, gain
-                # TODO: silence remove_cosmic_rays. directing stdout, stderr causes lacosmic to hang at end.
                 (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
                 if key in key_progress:
                     logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
