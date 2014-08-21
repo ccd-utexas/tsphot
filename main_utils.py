@@ -210,7 +210,7 @@ def main(fconfig, rereduce=False, verbose=False):
                     # TODO: silence remove_cosmic_rays. directing stdout, stderr causes lacosmic to hang at end.
                     (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
                     if key in key_progress:
-                        logger.info("Progress (%): {pct}".format(prog=int(key_progress[key] * 100)))
+                        logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
             if redfpath is not None:
                 logger.info("Writing reduced object data to: {fpath}".format(fpath=redfpath))
                 with open(redfpath, 'wb') as fp:
@@ -260,7 +260,7 @@ def main(fconfig, rereduce=False, verbose=False):
                 # TODO: silence remove_cosmic_rays. directing stdout, stderr causes lacosmic to hang at end.
                 (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
                 if key in key_progress:
-                    logger.info("Progress (%): {pct}".format(prog=int(key_progress[key] * 100)))
+                    logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
         if redfpath is not None:
             logger.info("Writing reduced object data to: {fpath}".format(fpath=redfpath))
             with open(redfpath, 'wb') as fp:

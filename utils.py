@@ -39,6 +39,7 @@ from __future__ import division, absolute_import, print_function
 
 # Standard library imports.
 import os
+import sys
 import math
 import json
 import logging
@@ -801,7 +802,8 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
         1 MHz readout speed, gain setting #3 (highest).
     
     """
-    # TODO: Silence `photutils.detection.lacosmic`. The method is verbose.
+    # TODO: Silence `photutils.detection.lacosmic`. The method is verbose. Redirect for now.
+    sys.stdout = logger.debug
     tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
                                          neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                          **kwargs)
@@ -809,6 +811,7 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                                   **kwargs)
+    sys.stdout = sys.__stdout__
     return image_cleaned, ray_mask
 
 
