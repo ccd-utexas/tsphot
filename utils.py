@@ -595,8 +595,8 @@ def get_exptime_prog(spe_footer_xml):
 
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
-    exptime_prog = int(footer_xml.find(name='ExposureTime').contents[0])
-    exptime_prog_res = int(footer_xml.find(name='DelayResolution').contents[0])
+    exptime_prog = float(footer_xml.find(name='ExposureTime').contents[0])
+    exptime_prog_res = float(footer_xml.find(name='DelayResolution').contents[0])
     exptime_prog_sec = (exptime_prog / exptime_prog_res)
     return exptime_prog_sec
 
