@@ -806,7 +806,7 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
                                          neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                          **kwargs)
-    logger.info("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
+    logger.debug("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
                                                   **kwargs)
