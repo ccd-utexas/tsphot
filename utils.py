@@ -595,13 +595,10 @@ def get_exptime_prog(spe_footer_xml):
 
     """
     footer_xml = BeautifulSoup(spe_footer_xml, 'xml')
-    # TEST:
-    print(footer_xml)
-    print(footer_xml.find(name='ExposureTime'))
-    # exptime_prog = float(footer_xml.find(name='ExposureTime').contents[0])
-    # exptime_prog_res = float(footer_xml.find(name='DelayResolution').contents[0])
-    # exptime_prog_sec = (exptime_prog / exptime_prog_res)
-    # return exptime_prog_sec
+    exptime_prog = float(footer_xml.find(name='ExposureTime').contents[0])
+    exptime_prog_res = float(footer_xml.find(name='DelayResolution').contents[0])
+    exptime_prog_sec = (exptime_prog / exptime_prog_res)
+    return exptime_prog_sec
 
 
 # noinspection PyUnresolvedReferences
