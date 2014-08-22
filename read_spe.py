@@ -164,13 +164,7 @@ class File(object):
         else:
             self._fid.seek(xml_offset)
             # All XML footer metadata is contained within one line.
-            # Strip anything before '<SpeFormat' or after 'SpeFormat>'
-            xml = self._fid.read()
-            pieces = xml.partition('<SpeFormat')
-            xml = ''.join(pieces[1:])
-            pieces = xml.rpartition('SpeFormat>')
-            xml = ''.join(pieces[:-1])
-            self.footer_metadata = xml
+            self.footer_metadata = self._fid.read()
         return None
 
     def _get_start_offset(self):
