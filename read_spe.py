@@ -20,6 +20,7 @@ import sys
 import numpy as np
 import pandas as pd
 
+
 class File(object):
     """
     Handle an SPE file.
@@ -62,7 +63,6 @@ class File(object):
         self._load_header_metadata()
         self._load_footer_metadata()
         self.current_frame_idx = 0
-        return None
 
     # TODO: make __del__ method to close file automatically.
 
@@ -71,12 +71,12 @@ class File(object):
         Check that the file exists and is .spe.
         """
         if not os.path.isfile(self._fname):
-            raise IOError(("File does not exist: {fname}").format(fname=self._fname))
+            raise IOError("File does not exist: {fname}".format(fname=self._fname))
         (fbase, fext) = os.path.splitext(self._fname)
         if fext != '.spe':
-            raise IOError(("File extension not '.spe': {fname}").format(fname=self._fname))
+            raise IOError("File extension not '.spe': {fname}".format(fname=self._fname))
         return None
-    
+
     def _read_at(self, offset, size, ntype):
         """
         Seek to offset byte position then read size number of bytes in ntype format from file.
@@ -124,7 +124,7 @@ class File(object):
         for idx in xrange(len(self.header_metadata)):
             offset = self.header_metadata["Offset"][idx]
             try:
-                size = (self.header_metadata["Offset"][idx+1]
+                size = (self.header_metadata["Offset"][idx + 1]
                         - self.header_metadata["Offset"][idx]
                         - 1)
             # Key error if at last value in the header
@@ -146,9 +146,9 @@ class File(object):
         version = self.header_metadata[tf_mask]["Value"].values[0]
         if version != 3:
             print(("WARNING: File is not SPE version 3.\n"
-                   +" SPE version: {ver}").format(ver=version), file=sys.stderr)
+                   + " SPE version: {ver}").format(ver=version), file=sys.stderr)
         return None
-    
+
     def _load_footer_metadata(self):
         """
         Load SPE metadata from XML footer as a string
@@ -160,11 +160,17 @@ class File(object):
         xml_offset = self.header_metadata[tf_mask]["Value"].values[0]
         if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
-                  +" {fname}").format(fname=self._fname))
+                   + " {fname}").format(fname=self._fname))
         else:
             self._fid.seek(xml_offset)
             # All XML footer metadata is contained within one line.
-            self.footer_metadata = self._fid.read()
+            # Strip anything before '<SpeFormat' or after 'SpeFormat>'
+            xml = self._fid.read()
+            pieces = xml.partition('<SpeFormat')
+            xml = ''.join(pieces[1:])
+            pieces = xml.rpartition('SpeFormat>')
+            xml = ''.join(pieces[:-1])
+            self.footer_metadata = xml
         return None
 
     def _get_start_offset(self):
@@ -237,14 +243,15 @@ class File(object):
         bytes_per_frame = int(pixels_per_frame * (bits_per_pixel / File._bits_per_byte))
         return bytes_per_frame
 
-    def _get_bytes_per_metadata_elt(self):
+    @staticmethod
+    def _get_bytes_per_metadata_elt():
         """
         Return number of bytes per element of metadata.
         """
         # TODO: use footer metadata if it exists.
         # From SPE 3.0 File Format Specification, Ch 1 (with clarifications):
         # bytes_per_metadata_elt = 8 bytes per metadata element
-        #   metadata element includes time stamps, frame tracking number, etc with 8 bytes each.
+        # metadata element includes time stamps, frame tracking number, etc with 8 bytes each.
         bits_per_metadata_elt = File._ntype_to_bits[File._metadata_ntype]
         bytes_per_metadata_elt = int(bits_per_metadata_elt / File._bits_per_byte)
         return bytes_per_metadata_elt
@@ -266,7 +273,7 @@ class File(object):
         bytes_per_metadata_set = self._get_bytes_per_metadata_set()
         bytes_per_stride = int(bytes_per_frame + bytes_per_metadata_set)
         return bytes_per_stride
-        
+
     def get_num_frames(self):
         """
         Return number of frames currently in an SPE file.
@@ -284,7 +291,8 @@ class File(object):
         eof_offset = self._get_eof_offset()
         num_frames = int((eof_offset - start_offset) // bytes_per_stride)
         return num_frames
-                
+
+    # noinspection PyShadowingNames
     def get_frame(self, frame_idx):
         """
         Return a frame and per-frame metadata from the file.
@@ -328,21 +336,21 @@ class File(object):
         mftracknum_offset = mtsexpend_offset + bytes_per_metadata_elt
         metadata = {}
         mtsexpstart = self._read_at(mtsexpstart_offset, 1, File._metadata_ntype)[0]
-        mtsexpend   = self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]
-        mftracknum  = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
+        mtsexpend = self._read_at(mtsexpend_offset, 1, File._metadata_ntype)[0]
+        mftracknum = self._read_at(mftracknum_offset, 1, File._metadata_ntype)[0]
         metadata["time_stamp_exposure_started"] = mtsexpstart
         metadata["time_stamp_exposure_ended"] = mtsexpend
         metadata["frame_tracking_number"] = mftracknum
-        return (frame, metadata)
+        return frame, metadata
 
     # # TODO: make generator. for now use get_frame
     # def get_frames(self, frame_idx_list):
-    #     """
-    #     Yield a frame and per-frame metadata from the file.
-    #     Return a frame and per-frame metadata from the file.
-    #     Frame is returned as a numpy 2D array.
-    #     Time stamp metadata is returned as Python datetime object.
-    #     frame_list argument is python indexed: 0 is first frame.
+    # """
+    # Yield a frame and per-frame metadata from the file.
+    # Return a frame and per-frame metadata from the file.
+    # Frame is returned as a numpy 2D array.
+    # Time stamp metadata is returned as Python datetime object.
+    # frame_list argument is python indexed: 0 is first frame.
     #     """
     #     # get_num_frames()
     #     # self.current_frame_idx
@@ -357,6 +365,8 @@ class File(object):
         self._fid.close()
         return None
 
+
+# noinspection PyShadowingNames
 def main(args):
     """
     Read a numbered frame from the SPE file.
@@ -365,29 +375,30 @@ def main(args):
     fid = File(args.fname)
     (frame, metadata) = fid.get_frame(args.frame_idx)
     fid.close()
-    return (frame, metadata)
-            
+    return frame, metadata
+
+
 if __name__ == "__main__":
     # TODO: have defaults for metadata
     fname_default = "test_yes_footer.spe"
     frame_idx_default = -1
-    parser = argparse.ArgumentParser(description="Read a SPE file and return ndarray frame and dict metadata variables.")
+    parser = argparse.ArgumentParser(
+        description="Read a SPE file and return ndarray frame and dict metadata variables.")
     parser.add_argument("--fname",
                         default=fname_default,
                         help=("Path to SPE file. "
-                              +"Default: {default}".format(default=fname_default)))
+                              + "Default: {default}".format(default=fname_default)))
     parser.add_argument("--frame_idx",
                         default=frame_idx_default,
                         help=("Frame index to read in. First frame is 0. Last frame is -1. "
-                              +"Default: {default}".format(default=frame_idx_default)))
+                              + "Default: {default}".format(default=frame_idx_default)))
     parser.add_argument("--verbose",
                         "-v",
                         action='store_true',
-                        help=("Print 'INFO:' messages to stdout."))
+                        help="Print 'INFO:' messages to stdout.")
     args = parser.parse_args()
     if args.verbose:
         print("INFO: Arguments:")
         for arg in args.__dict__:
             print(arg, args.__dict__[arg])
     (frame, metadata) = main(args)
-    
