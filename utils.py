@@ -874,12 +874,12 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     image : array_like
         2D array of image.
     min_sigma : {1}, float, optional
-        Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma to use for Gaussian kernel.
+        Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
     max_sigma : {1}, float, optional
-        Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma to use for Gaussian kernel.
+        Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
     num_sigma : {1}, float, optional
-        Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas to use
-        for Gaussian kernel.
+        Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
+        to use for Gaussian kernel.
     threshold : {3}, float, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Because image is normalized, `threshold` is the number
         of standard deviations above the image median for counts per source pixel.
