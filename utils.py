@@ -1024,6 +1024,36 @@ def is_odd(num):
     return tf_odd
 
 
+def get_square_subframe(image, width, position):
+    """
+    :param image:
+    :param width:
+    :param position:
+    :return:
+    """
+    # Note:
+    # - Dimensions of subframe must be odd so that star is centered.
+    # - Shape order (width, height) is reverse of position order (x, y).
+    # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x). (0,0) is in upper left.
+    # - Subframe may not be square due to star's proximity to frame edge.
+    width = np.rint(width)
+    if width < 3:
+        width = 3
+    if not is_odd(width):
+        width += 1
+    height = width
+    subframe = imageutils.extract_array_2d(array_large=image,
+                                           shape=(height, width),
+                                           position=position)
+    (height_actl, width_actl) = subframe.shape
+    if ((width_actl != width) or (height_actl != height)):
+        # noinspection PyShadowingBuiltins
+        tmp_vars = collections.OrderedDict(width=width, position=position)
+        logger.debug(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+                      "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+    return subframe
+
+
 # noinspection PyPep8Naming
 def subtract_subframe_background(subframe, threshold_sigma=3):
     """Subtract the background intensity from a subframe centered on a source.
@@ -1194,36 +1224,23 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
         width = int(math.ceil(box_sigma * sigma_init))
-        if width < 3:
-            width = 3
-        if not is_odd(width):
-            width += 1
-        height = width
-        # Note:
-        # - Subframe may be shortened due to proximity to frame edge.
-        # - width, height order is reverse of position x, y order
-        # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x)
-        # - (0,0) is in upper left.
-        subframe = imageutils.extract_array_2d(array_large=image,
-                                               shape=(height, width),
-                                               position=(x_init, y_init))
-        # Compute the initial position for the star relative to the subframe.
+        subframe = get_square_subframe(image=image, width=width, position=(x_init, y_init))
+        # If the star was too close to the frame edge to extract the square subframe, skip the star.
+        # Otherwise, compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
-        # If the star was too close to the frame edge to extract the subframe, skip the star.
         (height_actl, width_actl) = subframe.shape
-        if ((width_actl == width) and
-                (height_actl == height)):
-            x_init_sub = (width_actl - 1) / 2
-            y_init_sub = (height_actl - 1) / 2
-        else:
+        if ((width_actl != width) or (height_actl != width)):
             # noinspection PyShadowingBuiltins
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                                sigma_init=sigma_init, box_sigma=box_sigma,
-                                               width=width, height=height,
-                                               width_actl=width_actl, height_actl=height_actl)
-            logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
-                            "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+                                               width=width, width_actl=width_actl, height_actl=height_actl)
+            logger.debug(("Star was too close to the edge of the frame to extract a square subframe. " +
+                          "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
+        x_init_sub = (width_actl - 1) / 2
+        y_init_sub = (height_actl - 1) / 2
+
+
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
         subframe = subtract_subframe_background(subframe, threshold_sigma)
