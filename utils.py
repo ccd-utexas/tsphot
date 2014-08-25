@@ -1083,8 +1083,8 @@ def get_square_subframe(image, position, width=11):
     if (width_actl != width) or (height_actl != height):
         # noinspection PyShadowingBuiltins
         tmp_vars = collections.OrderedDict(width=width, position=position)
-        logger.info(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
-                     "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+        logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+                     "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
     return subframe
 
 
@@ -1268,8 +1268,8 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                                sigma_init=sigma_init, box_pix=box_pix,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
-            logger.info(("Star was too close to the edge of the frame to extract a square subframe. " +
-                         "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+            logger.info(("Star was too close to the edge of the frame to extract a square subframe. Skipping star. " +
+                         "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         x_init_sub = (width_actl - 1) / 2
         y_init_sub = (height_actl - 1) / 2
