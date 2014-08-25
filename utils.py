@@ -1036,7 +1036,8 @@ def get_square_subframe(image, position, width=11):
     position : tuple
         (x, y) pixel coordinate position of center of square subframe. Accepts ``float`` or ``int``.
     width : {11}, optional
-        Width of square subframe in pixels. Accepts ``float`` or ``int``.
+        `width` x `width` are the dimensions for a square subframe in pixels. Accepts ``float`` or ``int``.
+        `width` will be be corrected to be odd and >= 3 so that the subframe is centered on a pixel.
 
     Returns
     -------
@@ -1165,11 +1166,10 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
 
 
 # noinspection PyUnresolvedReferences
-def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dgaussian'):
+def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
-    Extract a square subframe around each star. Side-length of the subframe box is `box_sigma`*`sigma_pix`.
-    Subtract the background from the subframe and set pixels with fewer counts than the threshold to 0.
+    Extract a square subframe around each star. Side-length of the subframe box is `box_pix`.
     With the given method, return a dataframe with sub-pixel coordinates of the centroid and sigma standard deviation.
 
     Parameters
@@ -1184,24 +1184,23 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
-    box_sigma : {11}, int, float, optional
-        `box_sigma`*`sigma` x `box_sigma`*`sigma` are the dimensions for a square subframe around the source.
-        `box_sigma`*`sigma` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
-        the initial `x_pix`, `y_pix`. `box_sigma` is used rather than a fixed box in pixels in order to
-        accommodate extended sources. Fitting methods converge to within agreement by `box_sigma` = 11.
-    threshold_sigma : {3}, float or int, optional
-        `threshold_sigma` is the number of standard deviations above the subframe median
-        for counts per pixel. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
+    box_pix : {11}, optional
+        `box_pix` x `box_pix` are the dimensions for a square subframe around the source.
+        `box_pix` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
+        the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement by `box_pix` = 11.
+    threshold_sigma : {3}, optional
+        `threshold_sigma` is the number of standard deviations above the subframe median for counts per pixel.
+        Accepts ``float`` or ``int``. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
     method : {fit_2dgaussian, fit_bivariate_normal}, optional
         The method by which to compute the centroids and sigma.
         `fit_2dgaussian` : Method is from photutils [1]_ and astropy [2]_. Return the centroid coordinates and
             standard devaition sigma from fitting a 2D Gaussian to the intensity distribution. `fit_2dgaussian`
             executes quickly, agrees with `fit_bivariate_normal`, and converges within agreement
-            by `box_sigma` = 11. See example below.
+            by `box_pix` = 11. See example below.
         `fit_bivariate_normal` : Model the photon counts within each pixel of the subframe as from a uniform
             distribution [3]_. Return the centroid coordinates and standard deviation sigma from fitting
             a bivariate normal (Gaussian) distribution to the modeled the photon count distribution [4]_.
-            `fit_bivariate_sigma` is statistically robust and converges by `box_sigma`= 11, but it executes slowly.
+            `fit_bivariate_sigma` is statistically robust and converges by `box_pix`= 11, but it executes slowly.
             See example below.
         
     Returns
@@ -1224,19 +1223,19 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     -----
     PIPELINE_SEQUENCE_NUMBER : 5.0
     Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with peak
-        18000 ADU above background, FHWM ~3.8 pix, initial `sigma_pix` = 1, `box_sigma` = 3 to 33. 2014-08-11, STH. 
+        18000 ADU above background, FHWM ~3.8 pix, initial `sigma_pix` = 1, `box_pix` = 3 to 33. 2014-08-11, STH.
         For `fit_2dgaussian`:
         - For varying subframes, position converges to within 0.01 pix of final solution at 11x11 subframe.
         - For varying subframes, sigma converges to within 0.05 pix of final solution at 11x11 subframe.
         - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_sigma.
+        - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_pix.
         For `fit_bivariate_normal`:
         - For varying subframes, position converges to within 0.02 pix of final solution at 11x11 subframe.
         - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
         - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
+        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_pix**2.
             
     References
     ----------
@@ -1258,7 +1257,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     stars_finl = stars.copy()
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        width = int(math.ceil(box_sigma * sigma_init))
+        width = int(math.ceil(box_pix))
         subframe = get_square_subframe(image=image, position=(x_init, y_init), width=width)
         # If the star was too close to the frame edge to extract the square subframe, skip the star.
         # Otherwise, compute the initial position for the star relative to the subframe.
@@ -1267,7 +1266,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         if (width_actl != width) or (height_actl != width):
             # noinspection PyShadowingBuiltins
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
-                                               sigma_init=sigma_init, box_sigma=box_sigma,
+                                               sigma_init=sigma_init, box_pix=box_pix,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
             logger.info(("Star was too close to the edge of the frame to extract a square subframe. " +
                          "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
@@ -1284,7 +1283,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - For varying subframes, sigma converges to within 0.05 pix of final solution at 11x11 subframe.
             # - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
             # - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
-            # - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_sigma.
+            # - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_pix.
             # Method description:
             # - See photutils [1]_ and astropy [2]_.
             # - To calculate the standard deviation for the 2D Gaussian:
@@ -1307,7 +1306,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             # - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
             # - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
             # - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-            # - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_sigma**2.
+            # - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_pix**2.
             # Method description:
             # - Model the photons hitting the pixels of the subframe and
             # robustly fit a bivariate normal distribution.
@@ -1343,7 +1342,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # # standard deviation as a 2D Gaussian.
         # # elif method == 'centroid_com':
         # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
-        # # Method is very fast but only accurate between 7 <= `box_sigma` <= 11 given `sigma`=1 due to
+        # # Method is very fast but only accurate between 7 <= `box_pix` <= 11 given `sigma`=1 due to
         # # sensitivity to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
@@ -1352,13 +1351,13 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #     # - For 7x7 to 11x11 subframes, centroid solution agrees with centroid_2dg centroid solution within
         #     #   +/- 0.01 pix, but then diverges from solution with larger subframes.
         #     #   Method is susceptible to outliers.
-        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_sigma and always
+        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_pix and always
         #     #   takes ~3 ms.
         #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
         #     # elif method == 'fit_max_phot_flux':
         #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from
         #     # computing the centroid that yields the largest photometric flux. Method is fast, but,
-        #     # as of 2014-08-08 (STH), implementation is inaccurate by ~0.1 pix (given `sigma`=1, `box_sigma`=7),
+        #     # as of 2014-08-08 (STH), implementation is inaccurate by ~0.1 pix (given `sigma`=1, `box_pix`=7),
         #     # and method is possibly sensitive to outliers.
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
@@ -1367,7 +1366,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         #     #   7x7 subframe, however final centroid solution disagrees with other methods' centroid solutions.
         #     # - For 7x7 subframe, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subframe
         #     #   by ~0.1 pix. Method may be susceptible to outliers.
-        #     # - For 7x7 subframe, method takes ~130 ms. Method scales \propto box_sigma.
+        #     # - For 7x7 subframe, method takes ~130 ms. Method scales \propto box_pix.
         #     # TODO: Test different minimization methods
         #     def obj_func(subframe, position, radius):
         #         """Objective function to minimize: -1*photometric flux from star.
