@@ -1068,6 +1068,7 @@ def get_square_subframe(image, position, width=11):
     # - Shape order (width, height) is reverse of position order (x, y).
     # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x). (0,0) is in upper left.
     # - Subframe may not be square due to star's proximity to frame edge.
+    # noinspection PyUnresolvedReferences
     width = np.rint(width)
     if width < 3:
         width = 3
@@ -1078,11 +1079,11 @@ def get_square_subframe(image, position, width=11):
                                            shape=(height, width),
                                            position=position)
     (height_actl, width_actl) = subframe.shape
-    if ((width_actl != width) or (height_actl != height)):
+    if (width_actl != width) or (height_actl != height):
         # noinspection PyShadowingBuiltins
         tmp_vars = collections.OrderedDict(width=width, position=position)
         logger.info(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
-                      "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+                     "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
     return subframe
 
 
@@ -1263,13 +1264,13 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
         # Otherwise, compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
         (height_actl, width_actl) = subframe.shape
-        if ((width_actl != width) or (height_actl != width)):
+        if (width_actl != width) or (height_actl != width):
             # noinspection PyShadowingBuiltins
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                                sigma_init=sigma_init, box_sigma=box_sigma,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
             logger.info(("Star was too close to the edge of the frame to extract a square subframe. " +
-                          "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+                         "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         x_init_sub = (width_actl - 1) / 2
         y_init_sub = (height_actl - 1) / 2
