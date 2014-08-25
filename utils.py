@@ -1024,12 +1024,44 @@ def is_odd(num):
     return tf_odd
 
 
-def get_square_subframe(image, width, position):
-    """
-    :param image:
-    :param width:
-    :param position:
-    :return:
+def get_square_subframe(image, position, width=11):
+    """Extract a square subframe centered on a coordinate position.
+
+    If the coordinate position is too close to a frame edge, a rectangular subframe is returned.
+
+    Parameters
+    ----------
+    image : array_like
+        2D array of image.
+    position : tuple
+        (x, y) pixel coordinate position of center of square subframe. Accepts ``float`` or ``int``.
+    width : {11}, optional
+        Width of square subframe in pixels. Accepts ``float`` or ``int``.
+
+    Returns
+    -------
+    subframe : numpy.ndarray
+        Square subframe with odd number of pixels per side. If the coordinate position is too close to a frame edge,
+        a rectangular subframe is returned.
+
+    See Also
+    --------
+    find_stars : Previous step in pipeline. Run `find_stars` then use the output star coordinate positions as the
+        input to `get_square_subframe`.
+    subtract_subframe_background : Next step in pipeline. Run `get_square_subframe` to extract a subframe around a star
+        then use the output subframe as the input to `subtract_subframe_background`.
+    center_stars : `center_stars` calls `get_square_subframe` to extract subframes around stars for centroid fitting
+        algorithms.
+
+    Notes
+    -----
+    PIPELINE_SEQUENCE_NUMBER : 4.2.1
+    Uses imageutils.extract_array_2d to extract the subframe [1]_.
+
+    References
+    ----------
+    .. [1] http://imageutils.readthedocs.org/en/latest/api/imageutils.extract_array_2d.html#imageutils.extract_array_2d
+
     """
     # Note:
     # - Dimensions of subframe must be odd so that star is centered.
@@ -1049,7 +1081,7 @@ def get_square_subframe(image, width, position):
     if ((width_actl != width) or (height_actl != height)):
         # noinspection PyShadowingBuiltins
         tmp_vars = collections.OrderedDict(width=width, position=position)
-        logger.debug(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+        logger.info(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
                       "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
     return subframe
 
@@ -1080,12 +1112,14 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
 
     See Also
     --------
-    center_stars : `center_stars` calls `subtract_subframe_background` to
+    get_square_subframe : Previous step in pipeline. Run `get_square_subframe` then use the output subframe as
+        the input `subtract_subframe_background`.
+    center_stars : Next step in pipeline. `center_stars` calls `subtract_subframe_background` to
         preprocess subframes around stars for centroid fitting algorithms.
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.1
+    PIPELINE_SEQUENCE_NUMBER : 4.2.2
     The source must be centered to within ~ +/- 1/4 of the subframe width.
     At least 3 times as many border pixels used in estimating the background
         as compared to the source [1]_.
@@ -1224,7 +1258,7 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
         width = int(math.ceil(box_sigma * sigma_init))
-        subframe = get_square_subframe(image=image, width=width, position=(x_init, y_init))
+        subframe = get_square_subframe(image=image, position=(x_init, y_init), width=width)
         # If the star was too close to the frame edge to extract the square subframe, skip the star.
         # Otherwise, compute the initial position for the star relative to the subframe.
         # The initial position relative to the subframe is an integer pixel.
@@ -1234,13 +1268,11 @@ def center_stars(image, stars, box_sigma=11, threshold_sigma=3, method='fit_2dga
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                                sigma_init=sigma_init, box_sigma=box_sigma,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
-            logger.debug(("Star was too close to the edge of the frame to extract a square subframe. " +
+            logger.info(("Star was too close to the edge of the frame to extract a square subframe. " +
                           "Variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         x_init_sub = (width_actl - 1) / 2
         y_init_sub = (height_actl - 1) / 2
-
-
         # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
         # using the selected method. Subtract background to fit counts only belonging to the source.
         subframe = subtract_subframe_background(subframe, threshold_sigma)
