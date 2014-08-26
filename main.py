@@ -183,6 +183,9 @@ def main(fconfig, rereduce=False, verbose=False):
     if do_reduction:
         logger.info("Reading raw object data from: {fpath}".format(fpath=rawfpath))
         object_ccddata = utils.spe_to_dict(rawfpath)
+        # TEST:
+        logger.info("TEST: using only first 5 frames.")
+        object_ccddata = object_ccddata[:5]
         dark_exptime = None
         if master_ccddata['dark'] is not None:
             dark_spe_footer_xml = master_ccddata['dark'].meta['footer_xml']
@@ -203,29 +206,28 @@ def main(fconfig, rereduce=False, verbose=False):
         # TODO: calculate gain and readnoise. correct for gain.
         # TODO: Make a class to track progress.
         # TODO: for online analysis, skip cleaning cosmic rays
-        # # TEST:
-        # logger.info("Cleaning cosmic rays.")
-        # key_list = []
-        # for key in object_ccddata:
-        #     if isinstance(object_ccddata[key], ccdproc.CCDData):
-        #         key_list.append(key)
-        # key_sortedlist = sorted(key_list)
-        # key_len = len(key_sortedlist)
-        # prog_interval = 0.05
-        # prog_divs = int(math.ceil(1.0 / prog_interval))
-        # key_progress = {}
-        # for idx in xrange(0, prog_divs + 1):
-        #     progress = (idx / prog_divs)
-        #     key_idx = int(math.ceil((key_len - 1) * progress))
-        #     key = key_sortedlist[key_idx]
-        #     key_progress[key] = progress
-        # for key in sorted(object_ccddata):
-        #     if isinstance(object_ccddata[key], ccdproc.CCDData):
-        #         # TODO: give dict with readnoise, gain
-        #         # TODO: save ray_mask in ccd_data
-        #         (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
-        #         if key in key_progress:
-        #             logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
+        logger.info("Cleaning cosmic rays.")
+        key_list = []
+        for key in object_ccddata:
+            if isinstance(object_ccddata[key], ccdproc.CCDData):
+                key_list.append(key)
+        key_sortedlist = sorted(key_list)
+        key_len = len(key_sortedlist)
+        prog_interval = 0.05
+        prog_divs = int(math.ceil(1.0 / prog_interval))
+        key_progress = {}
+        for idx in xrange(0, prog_divs + 1):
+            progress = (idx / prog_divs)
+            key_idx = int(math.ceil((key_len - 1) * progress))
+            key = key_sortedlist[key_idx]
+            key_progress[key] = progress
+        for key in sorted(object_ccddata):
+            if isinstance(object_ccddata[key], ccdproc.CCDData):
+                # TODO: give dict with readnoise, gain
+                # TODO: save ray_mask in ccd_data
+                (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
+                if key in key_progress:
+                    logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
         if redfpath is not None:
             logger.info("Writing reduced object data to: {fpath}".format(fpath=redfpath))
             with open(redfpath, 'wb') as fp:
