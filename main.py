@@ -183,9 +183,13 @@ def main(fconfig, rereduce=False, verbose=False):
     if do_reduction:
         logger.info("Reading raw object data from: {fpath}".format(fpath=rawfpath))
         object_ccddata = utils.spe_to_dict(rawfpath)
-        # TEST:
+        # TEST: BEGIN
         logger.info("TEST: using only first 5 frames.")
-        object_ccddata = object_ccddata[:5]
+        test = {}
+        for key in ['footer_xml', 0, 1, 2, 3, 4]
+            test[key] = object_ccddata[key]
+        object_ccddata = test
+        # TEST: END
         dark_exptime = None
         if master_ccddata['dark'] is not None:
             dark_spe_footer_xml = master_ccddata['dark'].meta['footer_xml']
