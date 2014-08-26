@@ -740,7 +740,8 @@ def reduce_ccddata(dobj, dobj_exptime=None,
                 logger.debug("Subtracting master dark from object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
                                                   dark_exposure=dark_exptime,
-                                                  data_exposure=dobj_exptime)
+                                                  data_exposure=dobj_exptime,
+                                                  scale=True)
             if has_flat:
                 logger.debug("Correcting with master flat for object frame: {key}".format(key=key))
                 dobj[key] = ccdproc.flat_correct(dobj[key], flat)
