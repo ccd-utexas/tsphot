@@ -193,8 +193,8 @@ def main(fconfig, rereduce=False, verbose=False):
             flat_exptime = utils.get_exptime_prog(spe_footer_xml=flat_spe_footer_xml) * astropy.units.second
         object_spe_footer_xml = object_ccddata['footer_xml']
         object_exptime = utils.get_exptime_prog(spe_footer_xml=object_spe_footer_xml) * astropy.units.second
-        exps = dict(dobj_exptime=object_exptime, dark_exptime=dark_exptime, flat_exptime=flat_exptime)
-        logger.info("Exposure times: {exps}".format(exps=exps))
+        exp_times = dict(dobj_exptime=object_exptime, dark_exptime=dark_exptime, flat_exptime=flat_exptime)
+        logger.info("Exposure times: {exp_times}".format(exp_times=exp_times))
         logger.info("Reducing data.")
         object_ccddata = utils.reduce_ccddata(dobj=object_ccddata, dobj_exptime=object_exptime,
                                               bias=master_ccddata['bias'],
@@ -202,6 +202,8 @@ def main(fconfig, rereduce=False, verbose=False):
                                               flat=master_ccddata['flat'], flat_exptime=flat_exptime)
         # TODO: calculate gain and readnoise. correct for gain.
         # TODO: Make a class to track progress.
+        # TODO: for online analysis, skip cleaning cosmic rays
+        logger.info("Cleaning cosmic rays.")
         key_list = []
         for key in object_ccddata:
             if isinstance(object_ccddata[key], ccdproc.CCDData):
@@ -216,10 +218,10 @@ def main(fconfig, rereduce=False, verbose=False):
             key_idx = int(math.ceil((key_len - 1) * progress))
             key = key_sortedlist[key_idx]
             key_progress[key] = progress
-        logger.info("Cleaning cosmic rays.")
         for key in sorted(object_ccddata):
             if isinstance(object_ccddata[key], ccdproc.CCDData):
                 # TODO: give dict with readnoise, gain
+                # TODO: save ray_mask in ccd_data
                 (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
                 if key in key_progress:
                     logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
