@@ -186,7 +186,7 @@ def main(fconfig, rereduce=False, verbose=False):
         # TEST: BEGIN
         logger.info("TEST: using only first 5 frames.")
         test = {}
-        for key in ['footer_xml', 0, 1, 2, 3, 4]
+        for key in ['footer_xml', 0, 1, 2, 3, 4]:
             test[key] = object_ccddata[key]
         object_ccddata = test
         # TEST: END
