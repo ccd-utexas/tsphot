@@ -200,8 +200,8 @@ def main(fconfig, rereduce=False, verbose=False):
             flat_exptime = utils.get_exptime_prog(spe_footer_xml=flat_spe_footer_xml) * astropy.units.second
         object_spe_footer_xml = object_ccddata['footer_xml']
         object_exptime = utils.get_exptime_prog(spe_footer_xml=object_spe_footer_xml) * astropy.units.second
-        exps = dict(dobj_exptime=object_exptime, dark_exptime=dark_exptime, flat_exptime=flat_exptime)
-        logger.info("Exposure times: {exps}".format(exps=exps))
+        exp_times = dict(dobj_exptime=object_exptime, dark_exptime=dark_exptime, flat_exptime=flat_exptime)
+        logger.info("Exposure times: {exp_times}".format(exp_times=exp_times))
         logger.info("Reducing data.")
         object_ccddata = utils.reduce_ccddata(dobj=object_ccddata, dobj_exptime=object_exptime,
                                               bias=master_ccddata['bias'],

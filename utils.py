@@ -697,13 +697,13 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     if has_bias:
         if has_dark:
             logger.info("Subtracting master bias from master dark.")
-            dark = ccdproc.subtract_bias(dark, bias)
+            dark = ccdproc.subtract_bias(ccd=dark, master=bias)
         if has_flat:
             logger.info("Subtracting master bias from master flat.")
-            flat = ccdproc.subtract_bias(flat, bias)
+            flat = ccdproc.subtract_bias(ccd=flat, master=bias)
     if has_dark and has_flat:
         logger.info("Subtracting master dark from master flat.")
-        flat = ccdproc.subtract_dark(flat, dark,
+        flat = ccdproc.subtract_dark(ccd=flat, master=dark,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
@@ -735,16 +735,16 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         if isinstance(dobj[key], ccdproc.CCDData):
             if has_bias:
                 logger.debug("Subtracting master bias from object frame: {key}".format(key=key))
-                dobj[key] = ccdproc.subtract_bias(dobj[key], bias)
+                dobj[key] = ccdproc.subtract_bias(ccd=dobj[key], master=bias)
             if has_dark:
                 logger.debug("Subtracting master dark from object frame: {key}".format(key=key))
-                dobj[key] = ccdproc.subtract_dark(dobj[key], dark,
+                dobj[key] = ccdproc.subtract_dark(ccd=dobj[key], master=dark,
                                                   dark_exposure=dark_exptime,
                                                   data_exposure=dobj_exptime,
                                                   scale=True)
             if has_flat:
                 logger.debug("Correcting with master flat for object frame: {key}".format(key=key))
-                dobj[key] = ccdproc.flat_correct(dobj[key], flat)
+                dobj[key] = ccdproc.flat_correct(ccd=dobj[key], flat=flat)
             if key in key_progress:
                 logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
     return dobj
