@@ -1467,3 +1467,39 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         sigma_finl = sigma_finl_sub
         stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
     return stars_finl
+
+def gaussian_weights(width=11, sigma=3):
+    """
+    Weight pixels depending on distance to center pixel.
+    Sigma is standard deviation of Gaussian weighting function
+    http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
+    http://en.wikipedia.org/wiki/Gaussian_blur
+    """
+    left = int(math.floor(width / 2.0))
+    right = int(math.ceil(width / 2.0))
+    bottom = int(math.floor(width / 2.0))
+    top = int(math.ceil(width / 2.0))
+    (y_pix, x_pix) = np.mgrid[-left:right, -bottom:top]
+    weights = np.zeros(y_pix.shape, dtype=np.double)
+    weights[:] = (1.0 / (2.0 * np.pi * sigma**2.0)) * np.exp(-0.5 * ((x_pix**2.0 / sigma**2.0) + (y_pix**2.0 / sigma**2.0)))
+    return weights
+
+def _plot_match(image1, image2, keypoints1, keypoints2, inliers):
+    """
+    Visualize image matching.
+    http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
+    """
+    (fig, axes) = plt.subplots(nrows=2, ncols=1)
+    inlier_idxs = np.nonzero(inliers)[0]
+    skimage.feature.plot_matches(ax=axes[0], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
+                                 matches=np.column_stack((inlier_idxs, inlier_idxs)), keypoints_color='yellow', matches_color='green')
+    axes[0].axis('off')
+    axes[0].set_title('Correct matches (left: image1, right: image2)')
+    outliers = (inliers == False)
+    outlier_idxs = np.nonzero(outliers)[0]
+    skimage.feature.plot_matches(ax=axes[1], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
+                                 matches=np.column_stack((outlier_idxs, outlier_idxs)), keypoints_color='yellow', matches_color='red')
+    axes[1].axis('off')
+    axes[1].set_title('Incorrect matches (left: image1, right: image2)')
+    plt.show()
+    return None
