@@ -50,7 +50,7 @@ from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
 import scipy
-from skimage import feature
+import skimage
 import matplotlib.pyplot as plt
 import astropy
 import ccdproc
@@ -929,7 +929,7 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma,
+    stars = pd.DataFrame(skimage.feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma,
                                           threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
