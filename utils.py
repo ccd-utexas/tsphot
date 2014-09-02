@@ -40,6 +40,7 @@ from __future__ import division, absolute_import, print_function
 # Standard library imports.
 import os
 import sys
+import pdb
 import math
 import json
 import logging
@@ -1657,14 +1658,15 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
             else:
                 raise AssertionError("Program error. Star already verified: {star}".format(star=row_s1))
             stars1_unverified.drop(idx_m1, inplace=True)
-            stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = True
+            # TODO: Can't set element to True. Report bug?
+            stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
             idx_s2 = row_s2['idx2']
             if idx_s2 not in stars2_verified.index:
                 stars2_verified.loc[idx_s2] = row_s2
             else:
                 raise AssertionError("Program error. Star already verified: {star}".format(star=row_s2))
             stars2_unverified.drop(idx_s2, inplace=True)
-            stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = True
+            stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
             is_verified = True
         # ...otherwise identify unverified stars from transform. Step is necessary if RANSAC was not used.
         else:
@@ -1680,21 +1682,21 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                     else:
                         raise AssertionError("Program error. Star already verified: {star}".format(star=row_s1))
                     stars1_unverified.drop(idx_m1, inplace=True)
-                    stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = True
+                    stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
                     if idx_u2 not in stars2_verified.index:
                         stars2_verified.loc[idx_u2] = row_u2
                     else:
                         raise AssertionError("Program error. Star already verified: {star}".format(star=row_u2))
                     stars2_unverified.drop(idx_u2, inplace=True)
-                    stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = True
+                    stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
                     is_verified = True
         if not is_verified:
             logger.debug("No match in star2 was verified for star1 index {idx}: {row}".format(idx=idx_m1, row=row_m))
             # noinspection PyUnboundLocalVariable
             (x_t, y_t) = row_t[['x_pix', 'y_pix']]
-            stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = False
+            stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 0
             stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix', 'verif2to1']] = (
-                np.NaN, x_t, y_t, np.NaN, False)
+                np.NaN, x_t, y_t, np.NaN, 0)
     # Verify that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
     if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
         logger.debug("Not all stars in stars1 were matched to stars in stars2. stars1_unverified: {s1u}".format(
@@ -1710,6 +1712,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
         stars = pd.concat(df_dict, axis=1)
         stars['stars2'].sort(columns=['y_pix', 'x_pix'], inplace=True)
         stars = stars.reindex(index=range(len(stars)))
+    stars.loc[('stars1', 'verif1to2')] = (stars.loc[('stars1', 'verif1to2')] == 1)
+    stars.loc[('stars2', 'verif2to1')] = (stars.loc[('stars2', 'verif2to1')] == 1)
     # Report results.
     df_dict = {'stars1': stars['stars1'],
                'stars2': stars['stars2'].drop('idx2', axis=1)}
