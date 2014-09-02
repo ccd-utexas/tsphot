@@ -199,7 +199,7 @@ def check_reduce_config(dobj):
     return None
 
 
-########################################################################################################################
+# ######################################################################################################################
 # CREATE LOGGER
 # Note: Use logger only after checking configuration file.
 # Note: For non-root-level loggers, use `getLogger(__name__)`
@@ -863,6 +863,7 @@ def normalize(array):
     return array_normd
 
 
+# noinspection PyUnresolvedReferences
 def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
@@ -929,8 +930,8 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(skimage.feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma,
-                                          threshold=threshold, **kwargs),
+    stars = pd.DataFrame(skimage.feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
+                                                  num_sigma=num_sigma, threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
@@ -1085,7 +1086,7 @@ def get_square_subframe(image, position, width=11):
         # noinspection PyShadowingBuiltins
         tmp_vars = collections.OrderedDict(width=width, position=position)
         logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
-                     "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+                        "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
     return subframe
 
 
@@ -1468,6 +1469,8 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
     return stars_finl
 
+
+# noinspection PyUnresolvedReferences
 def gaussian_weights(width=11, sigma=3):
     """
     Weight pixels depending on distance to center pixel.
@@ -1481,9 +1484,12 @@ def gaussian_weights(width=11, sigma=3):
     top = int(math.ceil(width / 2.0))
     (y_pix, x_pix) = np.mgrid[-left:right, -bottom:top]
     weights = np.zeros(y_pix.shape, dtype=np.double)
-    weights[:] = (1.0 / (2.0 * np.pi * sigma**2.0)) * np.exp(-0.5 * ((x_pix**2.0 / sigma**2.0) + (y_pix**2.0 / sigma**2.0)))
+    weights[:] = (1.0 / (2.0 * np.pi * sigma ** 2.0)) * np.exp(
+        -0.5 * ((x_pix ** 2.0 / sigma ** 2.0) + (y_pix ** 2.0 / sigma ** 2.0)))
     return weights
 
+
+# noinspection PyUnresolvedReferences
 def _plot_match(image1, image2, keypoints1, keypoints2, inliers):
     """
     Visualize image matching.
@@ -1492,18 +1498,23 @@ def _plot_match(image1, image2, keypoints1, keypoints2, inliers):
     (fig, axes) = plt.subplots(nrows=2, ncols=1)
     inlier_idxs = np.nonzero(inliers)[0]
     skimage.feature.plot_matches(ax=axes[0], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
-                                 matches=np.column_stack((inlier_idxs, inlier_idxs)), keypoints_color='yellow', matches_color='green')
+                                 matches=np.column_stack((inlier_idxs, inlier_idxs)), keypoints_color='yellow',
+                                 matches_color='green')
     axes[0].axis('off')
     axes[0].set_title('Correct matches (left: image1, right: image2)')
+    # noinspection PyPep8
     outliers = (inliers == False)
     outlier_idxs = np.nonzero(outliers)[0]
     skimage.feature.plot_matches(ax=axes[1], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
-                                 matches=np.column_stack((outlier_idxs, outlier_idxs)), keypoints_color='yellow', matches_color='red')
+                                 matches=np.column_stack((outlier_idxs, outlier_idxs)), keypoints_color='yellow',
+                                 matches_color='red')
     axes[1].axis('off')
     axes[1].set_title('Incorrect matches (left: image1, right: image2)')
     plt.show()
     return None
 
+
+# noinspection PyUnresolvedReferences
 def match_stars(image1, image2, stars1, stars2, box_pix=11):
     """
     Match stars within two images.
@@ -1533,7 +1544,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                        "stars2 = {stars2}").format(stars2=stars2))
     if num_stars1 != num_stars2:
         logger.info(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
-                      "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
+                     "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
     # Create heirarchical dataframe for tracking star matches. Match from star1 positions to star2 positions.
     # `stars` dataframe has the same number of stars as `stars1`: num_stars = num_stars1
     df_stars1 = stars1.copy()
@@ -1552,12 +1563,13 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
-    # Weight pixels of the subimages by distance to center pixel. Use star with minimum sum of squared difference as the match.
+    # Weight pixels of the subimages by distance to center pixel. Use star with minimum sum of squared difference
+    # as the match.
     # Note: Bad focus on dim stars can cause stars to be lost. Include sigma_pix as metadata for star positions.
     width = int(math.ceil(box_pix))
     weights = gaussian_weights(width=width)
     for (idx1, x1, y1, sigma1) in stars1[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        subimage1 = utils.get_square_subframe(image=image1, position=(x1, y1), width=width)
+        subimage1 = get_square_subframe(image=image1, position=(x1, y1), width=width)
         (height_actl, width_actl) = subimage1.shape
         if (width_actl != width) or (height_actl != width):
             tmp_vars = collections.OrderedDict(dataframe='star1', idx1=idx1,
@@ -1569,14 +1581,14 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
         min_sum_sqr_diff = np.NaN
         min_idx2 = np.NaN
         for (idx2, x2, y2, sigma2) in stars2[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-            subimage2 = utils.get_square_subframe(image=image2, position=(x2, y2), width=width)
+            subimage2 = get_square_subframe(image=image2, position=(x2, y2), width=width)
             (height_actl, width_actl) = subimage2.shape
             if (width_actl != width) or (height_actl != width):
                 tmp_vars = collections.OrderedDict(dataframe='star2', idx2=idx2,
                                                    x2=x2, y2=y2, sigma2=sigma2)
                 raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
                                "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
-            sum_sqr_diff = np.sum(weights * (subimage2 - subimage1)**2.0)
+            sum_sqr_diff = np.sum(weights * (subimage2 - subimage1) ** 2.0)
             if is_first_iter:
                 min_sum_sqr_diff = sum_sqr_diff
                 min_idx2 = idx2
@@ -1586,9 +1598,10 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                     min_sum_sqr_diff = sum_sqr_diff
                     min_idx2 = idx2
         stars.loc[idx1, 'match1to2'].loc['idx2'] = min_idx2
-        stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = stars2.loc[min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
-    # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with the RANSAC algorithm.
-    # If fewer than 3 stars, RANSAC will still yield a transformation.
+        stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = stars2.loc[
+            min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
+    # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with
+    # the RANSAC algorithm. If fewer than 3 stars, RANSAC will still yield a transformation.
     # Matched stars must be within 1 sigma of the median centroid of stars2 to be classified as inliers.
     # This accommodates clouds and close binaries.
     # TODO: use model with limits, or post bug to github
@@ -1600,22 +1613,26 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     print(src)
     dst = stars.loc[:, 'match1to2'].loc[:, ['y_pix', 'x_pix']].values
     print(dst)
-    if (len(src) != num_stars1):
-        raise AssertionError(("Program error. Number of source stars does not equal number from stars1. Mapping must be 1-to-1.\n" +
-                              "Source stars: {src}\n" +
-                              "stars1: {stars1}").format(src=src, stars1=stars1))
-    if (len(dst) != num_stars1):
-        raise AssertionError(("Program error. Number of destination stars does not equal number from stars1. Mapping must be 1-to-1.\n" +
-                              "Source stars: {dst}\n" +
-                              "stars1: {stars1}").format(dst=dst, stars1=stars1))
+    if len(src) != num_stars1:
+        raise AssertionError(
+            ("Program error. Number of source stars does not equal number from stars1. Mapping must be 1-to-1.\n" +
+             "Source stars: {src}\n" +
+             "stars1: {stars1}").format(src=src, stars1=stars1))
+    if len(dst) != num_stars1:
+        raise AssertionError(
+            ("Program error. Number of destination stars does not equal number from stars1. Mapping must be 1-to-1.\n" +
+             "Source stars: {dst}\n" +
+             "stars1: {stars1}").format(dst=dst, stars1=stars1))
     residual_threshold = np.median(stars2[['sigma_pix']])
     logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
     (tform, inliers) = skimage.measure.ransac(data=(src, dst), model_class=skimage.transform.AffineTransform,
                                               min_samples=3, residual_threshold=residual_threshold, max_trials=100)
     # For testing:
     _plot_match(image1=image1, image2=image2, keypoints1=src, keypoints2=dst, inliers=inliers)
+    # noinspection PyPep8
     outliers = (inliers == False)
-    logger.debug("Number of inliers: {ni}, outliers: {no}".format(ni=np.count_nonzero(inliers), no=np.count_nonzero(outliers)))
+    logger.debug(
+        "Number of inliers: {ni}, outliers: {no}".format(ni=np.count_nonzero(inliers), no=np.count_nonzero(outliers)))
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    shear=tform.shear, params=tform.params)
     logger.debug("Transform parameters: {pars}".format(pars=pars))
@@ -1627,7 +1644,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     stars2_verified = pd.DataFrame(columns=stars2.columns)
     stars2_unverified = stars2.copy()
     # Populate `stars2` with the verified, matched stars (inliers).
-    stars.loc[:, 'stars2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']] = stars.loc[:, 'match1to2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']][inliers]
+    stars.loc[:, 'stars2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']] = \
+        stars.loc[:, 'match1to2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']][inliers]
     for (idx_m1, row_m) in stars['match1to2'].iterrows():
         row_s1 = stars.loc[idx_m1, 'stars1']
         is_verified = False
@@ -1655,7 +1673,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
             for (idx_u2, row_u2) in stars2_unverified.iterrows():
                 (x_u2, y_u2, sigma_u2) = row_u2[['x_pix', 'y_pix', 'sigma_pix']]
                 if np.isclose(x_t, x_u2, rtol=0.0, atol=sigma_u2) and np.isclose(y_t, y_u2, rtol=0.0, atol=sigma_u2):
-                    stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix']] = (idx_u2, x_u2, y_u2, sigma_u2)
+                    stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix']] = (
+                        idx_u2, x_u2, y_u2, sigma_u2)
                     if idx_m1 not in stars1_verified.index:
                         stars1_verified.loc[idx_m1] = row_s1
                     else:
@@ -1671,15 +1690,19 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                     is_verified = True
         if not is_verified:
             logger.debug("No match in star2 was verified for star1 index {idx}: {row}".format(idx=idx_m1, row=row_m))
+            # noinspection PyUnboundLocalVariable
             (x_t, y_t) = row_t[['x_pix', 'y_pix']]
             stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = False
-            stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix', 'verif2to1']] = (np.NaN, x_t, y_t, np.NaN, False)
+            stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix', 'verif2to1']] = (
+                np.NaN, x_t, y_t, np.NaN, False)
     # Verify that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
     if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
-        logger.debug("Not all stars in stars1 were matched to stars in stars2. stars1_unverified: {s1u}".format(s1u=stars1_unverified))
+        logger.debug("Not all stars in stars1 were matched to stars in stars2. stars1_unverified: {s1u}".format(
+            s1u=stars1_unverified))
     # TODO: test reindexing with new stars
     if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
-        logger.debug("Not all stars in stars2 were matched to stars in stars1. stars2_unverified: {s2u}".format(s2u=stars2_unverified))
+        logger.debug("Not all stars in stars2 were matched to stars in stars1. stars2_unverified: {s2u}".format(
+            s2u=stars2_unverified))
         df_dict = {'stars1': stars['stars1'].copy(),
                    'match1to2': stars['match1to2'].copy(),
                    'tform1to2': stars['tform1to2'].copy(),
