@@ -122,7 +122,7 @@ class File(object):
         # Index values by offset byte position.
         offset_to_value = {}
         for idx in xrange(len(self.header_metadata)):
-            offset = self.header_metadata["Offset"][idx]
+            offset = int(self.header_metadata["Offset"][idx])
             try:
                 size = (self.header_metadata["Offset"][idx+1]
                         - self.header_metadata["Offset"][idx]
@@ -157,9 +157,7 @@ class File(object):
         since XML footer is more complete.
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
-        xml_offset = self.header_metadata[tf_mask]["Value"].values[0]
-        print('test:')
-        print('xml_offset =', xml_offset)
+        xml_offset = int(self.header_metadata[tf_mask]["Value"].values[0])
         if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
