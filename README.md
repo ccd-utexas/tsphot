@@ -2,6 +2,7 @@
 
 Time series photometry using astropy.
 
+<<<<<<< HEAD
 Top level script: [main.py](main.py)
 
 ## Install requirements
@@ -16,11 +17,23 @@ This proto-package requires:
 
 To display help text:  
 ```bash
+=======
+**Note:** As of 2014-06-01, photutils must be installed from https://github.com/ccd-utexas/photutils
+
+## Examples
+
+To display help text: 
+```
+>>>>>>> master
 $ python main.py --help
 [...displays help text...]
 ```
 
+<<<<<<< HEAD
 See the wiki for additional examples: https://github.com/ccd-utexas/tsphot/wiki
+=======
+See the wiki for this page: https://github.com/ccd-utexas/tsphot/wiki
+>>>>>>> master
 
 ## How to contribute
 
