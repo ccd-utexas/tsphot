@@ -2,7 +2,6 @@
 
 Time series photometry using astropy.
 
-<<<<<<< HEAD
 Top level script: [main.py](main.py)
 
 ## Install requirements
@@ -24,16 +23,13 @@ To display help text:
 
 To display help text: 
 ```
->>>>>>> master
 $ python main.py --help
 [...displays help text...]
 ```
 
-<<<<<<< HEAD
 See the wiki for additional examples: https://github.com/ccd-utexas/tsphot/wiki
 =======
 See the wiki for this page: https://github.com/ccd-utexas/tsphot/wiki
->>>>>>> master
 
 ## How to contribute
 
