@@ -158,6 +158,8 @@ class File(object):
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
         xml_offset = self.header_metadata[tf_mask]["Value"].values[0]
+        print('test:')
+        print('xml_offset =', xml_offset)
         if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
