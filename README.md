@@ -16,11 +16,20 @@ This proto-package requires:
 
 To display help text:  
 ```bash
+=======
+**Note:** As of 2014-06-01, photutils must be installed from https://github.com/ccd-utexas/photutils
+
+## Examples
+
+To display help text: 
+```
 $ python main.py --help
 [...displays help text...]
 ```
 
 See the wiki for additional examples: https://github.com/ccd-utexas/tsphot/wiki
+=======
+See the wiki for this page: https://github.com/ccd-utexas/tsphot/wiki
 
 ## How to contribute
 
