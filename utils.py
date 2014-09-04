@@ -1530,7 +1530,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     num_stars1 = len(stars1.dropna())
     num_stars2 = len(stars2.dropna())
     # TODO: accommodate cloudy conditions and nans.
-    if num_stars1 != len(stars1):
+    if num_stars1 != len(stars1[['x_pix', 'y_pix']]):
         raise IOError(("stars1 has null (NaN) values. NaNs are not allowed.\n" +
                        "stars1 = {stars1}").format(stars1=stars1))
     if num_stars2 != len(stars2[['x_pix', 'y_pix']]):
@@ -1712,8 +1712,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
         stars = pd.concat(df_dict, axis=1)
         stars['stars2'].sort(columns=['y_pix', 'x_pix'], inplace=True)
         stars = stars.reindex(index=range(len(stars)))
-    stars.loc[('stars1', 'verif1to2')] = (stars.loc[('stars1', 'verif1to2')] == 1)
-    stars.loc[('stars2', 'verif2to1')] = (stars.loc[('stars2', 'verif2to1')] == 1)
+    stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
+    stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
     # Report results.
     df_dict = {'stars1': stars['stars1'],
                'stars2': stars['stars2'].drop('idx2', axis=1)}
