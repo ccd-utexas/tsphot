@@ -52,6 +52,7 @@ import numpy as np
 import pandas as pd
 import scipy
 import skimage
+from skimage import feature
 import matplotlib.pyplot as plt
 import astropy
 import ccdproc
@@ -931,7 +932,7 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(skimage.feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
+    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
                                                   num_sigma=num_sigma, threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
@@ -1459,7 +1460,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         #                                   bounds=((0, width), (0, height)))
         #     (x_finl_sub, y_finl_sub) = res.x
         else:
-            raise AssertionError("Program error. Method not accounted for: {meth}".format(meth=method))
+            raise AssertionError("Program error. Method not accounted for:\n{meth}".format(meth=method))
         # Compute the centroid coordinates relative to the entire image.
         # Return the dataframe with centroid coordinates and sigma.
         (x_offset, y_offset) = (x_finl_sub - x_init_sub,
@@ -1490,38 +1491,62 @@ def gaussian_weights(width=11, sigma=3):
     return weights
 
 
+def translate_image(image1, image2):
+    """
+    From http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    """
+    if image1.shape != image2.shape:
+        raise IOError(("Images must have the same shape:\n" +
+                       "image1.shape = {s1}\n" +
+                       "image2.shape = {s2}").format(s1=image1.shape, s2=image2.shape))
+    shape = image1.shape
+    f1 = np.fft.fft2(image1)
+    f2 = np.fft.fft2(image2)
+    ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
+    t0, t1 = numpy.unravel_index(numpy.argmax(ir), shape)
+    if t0 > shape[0] / 2.0:
+        t0 -= shape[0]
+    if t1 > shape[1] / 2.0:
+        t1 -= shape[1]
+    return [t0, t1]
+
 # noinspection PyUnresolvedReferences
-def _plot_match(image1, image2, keypoints1, keypoints2, inliers):
+def _plot_matches(image1, image2, stars1, stars2):
     """
     Visualize image matching.
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
+    if (stars1['verif1to2'] != stars2['verif2to1']).any():
+        raise IOError(("Data frame indices are not verified as matching by 'verif1to2', 'verif2to1' columns:\n" +
+                       "stars1: {stars1}\n" +
+                       "stars2: {stars2}\n").format(stars1=stars1, stars2=stars2))
     (fig, axes) = plt.subplots(nrows=2, ncols=1)
-    inlier_idxs = np.nonzero(inliers)[0]
-    skimage.feature.plot_matches(ax=axes[0], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
-                                 matches=np.column_stack((inlier_idxs, inlier_idxs)), keypoints_color='yellow',
+    keypoints1 = stars1[['y_pix', 'x_pix']].values
+    keypoints2 = stars2[['y_pix', 'x_pix']].values
+    matches = stars1[stars1['verif1to2'] == True].index.tolist()
+    feature.plot_matches(ax=axes[0], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
+                                 matches=np.column_stack((matches, matches)), keypoints_color='yellow',
                                  matches_color='green')
     axes[0].axis('off')
-    axes[0].set_title('Correct matches (left: image1, right: image2)')
+    axes[0].set_title('Verified matches (left: image1, right: image2)')
     # noinspection PyPep8
-    outliers = (inliers == False)
-    outlier_idxs = np.nonzero(outliers)[0]
-    skimage.feature.plot_matches(ax=axes[1], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
-                                 matches=np.column_stack((outlier_idxs, outlier_idxs)), keypoints_color='yellow',
+    not_matches = stars1[stars1['verif1to2'] == False].index.tolist()
+    feature.plot_matches(ax=axes[1], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
+                                 matches=np.column_stack((not_matches, not_matches)), keypoints_color='yellow',
                                  matches_color='red')
     axes[1].axis('off')
-    axes[1].set_title('Incorrect matches (left: image1, right: image2)')
+    axes[1].set_title('Unverified matches (left: image1, right: image2)')
     plt.show()
     return None
 
 
 # noinspection PyUnresolvedReferences
-def match_stars(image1, image2, stars1, stars2, box_pix=11):
+def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     """
     Match stars within two images.
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
-    # TODO: Fix warning:
+    # TODO: Fix warning: SettingWithCopyWarning
     #     SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame
     #     KeyError: 'MultiIndex Slicing requires the index to be fully lexsorted tuple len (2), lexsort depth (1)'
     #     http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-view-versus-copy
@@ -1567,6 +1592,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     # Weight pixels of the subimages by distance to center pixel. Use star with minimum sum of squared difference
     # as the match.
     # Note: Bad focus on dim stars can cause stars to be lost. Include sigma_pix as metadata for star positions.
+    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
     width = int(math.ceil(box_pix))
     weights = gaussian_weights(width=width)
     for (idx1, x1, y1, sigma1) in stars1[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
@@ -1599,8 +1626,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                     min_sum_sqr_diff = sum_sqr_diff
                     min_idx2 = idx2
         stars.loc[idx1, 'match1to2'].loc['idx2'] = min_idx2
-        stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = stars2.loc[
-            min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
+        stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = \
+            stars2.loc[min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
     # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with
     # the RANSAC algorithm. If fewer than 3 stars, RANSAC will still yield a transformation.
     # Matched stars must be within 1 sigma of the median centroid of stars2 to be classified as inliers.
@@ -1610,32 +1637,37 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     #     Only translation should be permitted, no scale, rotation, or shear. Poor fits for the transformation model
     #     are attributed to noise from atmospheric turbulence.
     # Note: skimage uses (row_coordinate, col_coordinate), which is (y_pix, x_pix)
-    src = stars.loc[:, 'stars1'].loc[:, ['y_pix', 'x_pix']].values
-    print(src)
-    dst = stars.loc[:, 'match1to2'].loc[:, ['y_pix', 'x_pix']].values
-    print(dst)
+    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
+    src = stars.loc[('stars1', ['y_pix', 'x_pix'])].values
+    print('test:')
+    print('src =', src)
+    dst = stars.loc[('match1to2', ['y_pix', 'x_pix'])].values
+    print('dst =', dst)
     if len(src) != num_stars1:
         raise AssertionError(
-            ("Program error. Number of source stars does not equal number from stars1. Mapping must be 1-to-1.\n" +
-             "Source stars: {src}\n" +
-             "stars1: {stars1}").format(src=src, stars1=stars1))
+            ("Program error. Number of source stars does not equal number from stars1. Mapping must be 'onto'.\n" +
+             "Source stars:\n{src}\n" +
+             "stars1:\n{stars1}").format(src=src, stars1=stars1))
     if len(dst) != num_stars1:
         raise AssertionError(
-            ("Program error. Number of destination stars does not equal number from stars1. Mapping must be 1-to-1.\n" +
-             "Source stars: {dst}\n" +
-             "stars1: {stars1}").format(dst=dst, stars1=stars1))
-    residual_threshold = np.median(stars2[['sigma_pix']])
+            ("Program error. Number of destination stars does not equal number from stars1. Mapping must be 'onto'.\n" +
+             "Source stars:\n{dst}\n" +
+             "stars1:\n{stars1}").format(dst=dst, stars1=stars1))
+    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
+    residual_threshold = np.median(stars2['sigma_pix'])
+    print(residual_threshold)
     logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
     (tform, inliers) = skimage.measure.ransac(data=(src, dst), model_class=skimage.transform.AffineTransform,
                                               min_samples=3, residual_threshold=residual_threshold, max_trials=100)
-    # For testing:
-    _plot_match(image1=image1, image2=image2, keypoints1=src, keypoints2=dst, inliers=inliers)
     # noinspection PyPep8
     outliers = (inliers == False)
     logger.debug(
         "Number of inliers: {ni}, outliers: {no}".format(ni=np.count_nonzero(inliers), no=np.count_nonzero(outliers)))
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    shear=tform.shear, params=tform.params)
+    # TODO: allow user to give custom translation
     logger.debug("Transform parameters: {pars}".format(pars=pars))
     stars.loc[:, 'tform1to2'].loc[:, ['y_pix', 'x_pix']] = tform(src)
     # Verify that transformed star positions match one and only one star from `stars2` to within 1 sigma of
@@ -1644,19 +1676,46 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     stars1_unverified = stars1.copy()
     stars2_verified = pd.DataFrame(columns=stars2.columns)
     stars2_unverified = stars2.copy()
-    # Populate `stars2` with the verified, matched stars (inliers).
-    stars.loc[:, 'stars2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']] = \
-        stars.loc[:, 'match1to2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']][inliers]
+    # Verify and correct 1-to-1 matched stars.
+    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    #     1-to-1 mapping. This loop verifies and corrects matches.
+    # Populate `stars2` with unverified, matched stars from RANSAC.
+
+    # stars.loc[:, 'stars2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']] = \
+    #     stars.loc[:, 'match1to2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']][inliers]
+
     for (idx_m1, row_m) in stars['match1to2'].iterrows():
-        row_s1 = stars.loc[idx_m1, 'stars1']
         is_verified = False
-        # If there are verified stars, identify them...
+        row_s1 = stars.loc[idx_m1, 'stars1']
         row_s2 = stars.loc[idx_m1, 'stars2']
+        # If the matched coordinate is a RANSAC inlier, check that the matched and transformed coordinates agree
+        # and that the ...
         if row_s2.loc[['x_pix', 'y_pix', 'sigma_pix']].notnull().all():
+            row_t = stars.loc[idx_m1, 'tform1to2']
+            (x_t, y_t) = row_t[['x_pix', 'y_pix']]
+            for (idx_u2, row_u2) in stars2_unverified.iterrows():
+                (x_u2, y_u2, sigma_u2) = row_u2[['x_pix', 'y_pix', 'sigma_pix']]
+                if np.isclose(x_t, x_u2, rtol=0.0, atol=sigma_u2) and np.isclose(y_t, y_u2, rtol=0.0, atol=sigma_u2):
+                    stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix']] = (
+                        idx_u2, x_u2, y_u2, sigma_u2)
+                    if idx_m1 not in stars1_verified.index:
+                        stars1_verified.loc[idx_m1] = row_s1
+                    else:
+                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s1))
+                    stars1_unverified.drop(idx_m1, inplace=True)
+                    stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
+                    if idx_u2 not in stars2_verified.index:
+                        stars2_verified.loc[idx_u2] = row_u2
+                    else:
+                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_u2))
+                    stars2_unverified.drop(idx_u2, inplace=True)
+                    stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
+                    is_verified = True
+
             if idx_m1 not in stars1_verified.index:
                 stars1_verified.loc[idx_m1] = row_s1
             else:
-                raise AssertionError("Program error. Star already verified: {star}".format(star=row_s1))
+                raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s1))
             stars1_unverified.drop(idx_m1, inplace=True)
             # TODO: Can't set element to True. Report bug?
             stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
@@ -1664,11 +1723,14 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
             if idx_s2 not in stars2_verified.index:
                 stars2_verified.loc[idx_s2] = row_s2
             else:
-                raise AssertionError("Program error. Star already verified: {star}".format(star=row_s2))
+                raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s2))
             stars2_unverified.drop(idx_s2, inplace=True)
             stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
             is_verified = True
-        # ...otherwise identify unverified stars from transform. Step is necessary if RANSAC was not used.
+
+
+
+        # ...otherwise check that the matched. Step is necessary if RANSAC was not used.
         else:
             row_t = stars.loc[idx_m1, 'tform1to2']
             (x_t, y_t) = row_t[['x_pix', 'y_pix']]
@@ -1680,16 +1742,19 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
                     if idx_m1 not in stars1_verified.index:
                         stars1_verified.loc[idx_m1] = row_s1
                     else:
-                        raise AssertionError("Program error. Star already verified: {star}".format(star=row_s1))
+                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s1))
                     stars1_unverified.drop(idx_m1, inplace=True)
                     stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
                     if idx_u2 not in stars2_verified.index:
                         stars2_verified.loc[idx_u2] = row_u2
                     else:
-                        raise AssertionError("Program error. Star already verified: {star}".format(star=row_u2))
+                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_u2))
                     stars2_unverified.drop(idx_u2, inplace=True)
                     stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
                     is_verified = True
+
+
+
         if not is_verified:
             logger.debug("No match in star2 was verified for star1 index {idx}: {row}".format(idx=idx_m1, row=row_m))
             # noinspection PyUnboundLocalVariable
@@ -1720,4 +1785,6 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11):
     matched_stars = pd.concat(df_dict, axis=1)
     print('test:')
     print(stars)
+    if test:
+        _plot_matches(image1=image1, image2=image2, stars1=stars['stars1'], stars2=stars['stars2'])
     return matched_stars
