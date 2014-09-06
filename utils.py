@@ -1493,22 +1493,32 @@ def gaussian_weights(width=11, sigma=3):
 
 def translate_image(image1, image2):
     """
+    Determine image translation from phase correlation.
     From http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
     """
+    # Note: numpy is row-major: (y_pix, x_pix)
     if image1.shape != image2.shape:
         raise IOError(("Images must have the same shape:\n" +
+                       "image1.shape = {s1}\n" +
+                       "image2.shape = {s2}").format(s1=image1.shape, s2=image2.shape))
+    if len(image1.shape) != 2:
+        raise IOError(("Images must be 2D:\n" +
                        "image1.shape = {s1}\n" +
                        "image2.shape = {s2}").format(s1=image1.shape, s2=image2.shape))
     shape = image1.shape
     f1 = np.fft.fft2(image1)
     f2 = np.fft.fft2(image2)
     ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
-    t0, t1 = numpy.unravel_index(numpy.argmax(ir), shape)
-    if t0 > shape[0] / 2.0:
-        t0 -= shape[0]
-    if t1 > shape[1] / 2.0:
-        t1 -= shape[1]
-    return [t0, t1]
+    dy, dx = np.unravel_index(np.argmax(ir), shape)
+    # TODO: 1) extract subimage, if can't b/c near center, offset by int(half-frame) in y, x
+    # TODO: 2) get centroid using center_star
+
+    if dy > shape[0] / 2.0:
+        dy -= shape[0]
+    if dx > shape[1] / 2.0:
+        dx -= shape[1]
+    plt.imshow(ir[:5, :5])
+    return [dy, dx]
 
 # noinspection PyUnresolvedReferences
 def _plot_matches(image1, image2, stars1, stars2):
