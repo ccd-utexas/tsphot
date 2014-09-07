@@ -1619,43 +1619,10 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
-
-
-    # # DELETE
-    # # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with
-    # # the RANSAC algorithm. If fewer than 3 stars, RANSAC will still yield a transformation.
-    # # Matched stars must be within 1 sigma of the median centroid of stars2 to be classified as inliers.
-    # # This accommodates clouds and close binaries.
-    # # TODO: use model with limits, or post bug to github
-    # #     model = skimage.transform.AffineTransform(scale=(0.0, 0.0), rotation=0.0, shear=0.0)
-    # #     Only translation should be permitted, no scale, rotation, or shear. Poor fits for the transformation model
-    # #     are attributed to noise from atmospheric turbulence.
-    # # Note: skimage uses (row_coordinate, col_coordinate), which is (y_pix, x_pix)
-    # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    # #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
-    # src = stars.loc[('stars1', ['y_pix', 'x_pix'])].values
-    # print('test:')
-    # print('src =', src)
-    # dst = stars.loc[('match1to2', ['y_pix', 'x_pix'])].values
-    # print('dst =', dst)
-    # if len(src) != num_stars1:
-    #     raise AssertionError(
-    #         ("Program error. Number of source stars does not equal number from stars1. Mapping must be 'onto'.\n" +
-    #          "Source stars:\n{src}\n" +
-    #          "stars1:\n{stars1}").format(src=src, stars1=stars1))
-    # if len(dst) != num_stars1:
-    #     raise AssertionError(
-    #         ("Program error. Number of destination stars does not equal number from stars1.\n" +
-    #          "Mapping must be 'onto'.\n" +
-    #          "Source stars:\n{dst}\n" +
-    #          "stars1:\n{stars1}").format(dst=dst, stars1=stars1))
-    # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    # #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
+    tform = 
     # residual_threshold = np.median(stars2['sigma_pix'])
     # print(residual_threshold)
     # logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
-    # (tform, inliers) = skimage.measure.ransac(data=(src, dst), model_class=skimage.transform.AffineTransform,
-    #                                           min_samples=3, residual_threshold=residual_threshold, max_trials=100)
     # # noinspection PyPep8
     # outliers = (inliers == False)
     # logger.debug(
