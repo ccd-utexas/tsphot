@@ -159,45 +159,45 @@ def check_reduce_config(dobj):
     if level not in valid_levels:
         raise IOError(("Invalid logging level: {level}\n" +
                        "Valid logging levels: {vlevels}").format(level=level, vlevels=valid_levels))
-    # Calibration frame file paths need not be defined, but if they are then they must exist and be .spe.
+    # Calibration image file paths need not be defined, but if they are then they must exist and be .spe.
     calib_fpath = dobj['calib']
     for imtype in calib_fpath:
         cfpath = calib_fpath[imtype]
         if cfpath is not None:
             if not os.path.isfile(cfpath):
-                raise IOError("Calibration frame file does not exist: {fpath}".format(fpath=cfpath))
+                raise IOError("Calibration image file does not exist: {fpath}".format(fpath=cfpath))
             (fbase, ext) = os.path.splitext(os.path.basename(cfpath))
             if ext != '.spe':
-                raise IOError("Calibration frame file extension is not '.spe': {fpath}".format(fpath=cfpath))
-    # Master calibration frame file paths need not be defined, but if they are then they must be .pkl.
+                raise IOError("Calibration image file extension is not '.spe': {fpath}".format(fpath=cfpath))
+    # Master calibration image file paths need not be defined, but if they are then they must be .pkl.
     master_fpath = dobj['master']
     for imtype in master_fpath:
         mfpath = master_fpath[imtype]
         if mfpath is not None:
             (fbase, ext) = os.path.splitext(os.path.basename(mfpath))
             if ext != '.pkl':
-                raise IOError("Master calibration frame file extension is not '.pkl': {fpath}".format(fpath=mfpath))
-    # All calibration frame image types must have a corresponding type for master frame,
+                raise IOError("Master calibration image file extension is not '.pkl': {fpath}".format(fpath=mfpath))
+    # All calibration image image types must have a corresponding type for master image,
     # even if the file path is not defined.
     for imtype in calib_fpath:
         if imtype not in master_fpath:
-            raise IOError(("Calibration frame image type is not in master calibration frame image types.\n" +
-                           "calibration frame image type: {imtype}\n" +
-                           "master frame image types: {imtypes}").format(imtype=imtype,
+            raise IOError(("Calibration image type is not in master calibration image types.\n" +
+                           "calibration image type: {imtype}\n" +
+                           "master image types: {imtypes}").format(imtype=imtype,
                                                                          imtypes=master_fpath.keys()))
-    # Raw object frame file path must exist and must be .spe.
+    # Raw object image file path must exist and must be .spe.
     rawfpath = dobj['object']['raw']
     if (rawfpath is None) or (not os.path.isfile(rawfpath)):
-        raise IOError("Raw object frame file does not exist: {fpath}".format(fpath=rawfpath))
+        raise IOError("Raw object image file does not exist: {fpath}".format(fpath=rawfpath))
     (fbase, ext) = os.path.splitext(os.path.basename(rawfpath))
     if ext != '.spe':
-        raise IOError("Raw object frame file extension is not '.spe': {fpath}".format(fpath=rawfpath))
-    # Reduced object frame file path need not be defined, but if it is then it must be .pkl.
+        raise IOError("Raw object image file extension is not '.spe': {fpath}".format(fpath=rawfpath))
+    # Reduced object image file path need not be defined, but if it is then it must be .pkl.
     redfpath = dobj['object']['reduced']
     if redfpath is not None:
         (fbase, ext) = os.path.splitext(os.path.basename(redfpath))
         if ext != '.pkl':
-            raise IOError("Reduced object frame file extension is not '.pkl': {fpath}".format(fpath=redfpath))
+            raise IOError("Reduced object image file extension is not '.pkl': {fpath}".format(fpath=redfpath))
     return None
 
 
@@ -251,7 +251,7 @@ def spe_to_dict(fpath):
     Returns
     -------
     object_ccddata : dict
-        ``dict`` with `ccdproc.CCDData`. Per-frame metadata is stored as `ccdproc.CCDData.meta`.
+        ``dict`` with `ccdproc.CCDData`. Per-image metadata is stored as `ccdproc.CCDData.meta`.
         SPE file footer is stored under `object_ccddata['footer_xml']`.
 
     See Also
@@ -285,8 +285,8 @@ def spe_to_dict(fpath):
 
 
 def create_master_calib(dobj):
-    """Create a master calibration frame from a ``dict`` of `ccdproc.CCDData`.
-    Median-combine individual calibration frames and retain all metadata.
+    """Create a master calibration image from a ``dict`` of `ccdproc.CCDData`.
+    Median-combine individual calibration images and retain all metadata.
 
     Parameters
     ----------
@@ -296,7 +296,7 @@ def create_master_calib(dobj):
     Returns
     -------
     ccddata : ccdproc.CCDData
-        A single master calibration frame.
+        A single master calibration image.
         For `dobj` keys with non-`ccdproc.CCDData` values, the values
         are returned in `ccddata.meta` under the same keys.
         For `dobj` keys with `ccdproc.CCDData` values, the `dobj[key].meta` values
@@ -307,7 +307,7 @@ def create_master_calib(dobj):
     spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the output
         in the input to `create_master_calib`.
     reduce_ccddata : Next step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration frames as input to `reduce_ccddata`.
+        bias, dark, flat calibration images as input to `reduce_ccddata`.
 
     Notes
     -----
@@ -368,14 +368,14 @@ def sigma_to_fwhm(sigma):
 
 # noinspection PyPep8Naming
 def gain_readnoise_from_master(bias, flat):
-    """Calculate the gain and readnoise from a master bias frame and a master flat frame.
+    """Calculate the gain and readnoise from a master bias image and a master flat image.
 
     Parameters
     ----------
     bias : array_like
-        2D array of a master bias frame.
+        2D array of a master bias image.
     flat : array_like
-        2D array of a master flat frame.
+        2D array of a master flat image.
 
     Returns
     -------
@@ -387,8 +387,8 @@ def gain_readnoise_from_master(bias, flat):
     See Also
     --------
     create_master_calib : Previous step in pipeline. Run `create_master_calib` then use the master bias, flat
-        calibration frames as input to `gain_readnoise_from_master`.
-    gain_readnoise_from_random : Independent method of computing gain and readnoise from random bias and flat frames.
+        calibration images as input to `gain_readnoise_from_master`.
+    gain_readnoise_from_random : Independent method of computing gain and readnoise from random bias and flat images.
 
     Notes
     -----
@@ -426,14 +426,14 @@ def gain_readnoise_from_master(bias, flat):
 
 # noinspection PyPep8Naming
 def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
-    """Calculate gain and readnoise from a pair of random bias frames and a pair of random flat frames.
+    """Calculate gain and readnoise from a pair of random bias images and a pair of random flat images.
 
     Parameters
     ----------
     bias1, bias2 : array_like
-        2D arrays of bias frames.
+        2D arrays of bias images.
     flat1, flat2 : array_like
-        2D arrays of flat frames.
+        2D arrays of flat images.
 
     Returns
     -------
@@ -444,9 +444,9 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
     See Also
     --------
-    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the bias and flat calibration frames as input
+    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the bias and flat calibration images as input
         to `gain_readnoise_from_random`.
-    gain_readnoise_from_master : Independent method of computing gain and readnoise from master bias and flat frames.
+    gain_readnoise_from_master : Independent method of computing gain and readnoise from master bias and flat images.
 
     Notes
     -----
@@ -496,9 +496,9 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
 max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
 """
-"""Calculate gain and readnoise using both master frames
-    and random frames.
-      Compare with frame difference/sum method also from
+"""Calculate gain and readnoise using both master images
+    and random images.
+      Compare with image difference/sum method also from
       sec 4.3. Calculation of read noise and gain, Howell
       Needed by cosmic ray cleaner.
 """
@@ -512,7 +512,7 @@ max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
               (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
         return sc
-    # randomly select 2 bias frames and 2 flat frames
+    # randomly select 2 bias images and 2 flat images
     # Accuracy and precision are set to same.
     # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
     # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
@@ -581,7 +581,7 @@ def get_exptime_prog(spe_footer_xml):
 
     See Also
     --------
-    reduce_ccddata : Requires exposure times for frames.
+    reduce_ccddata : Requires exposure times for images.
 
     Notes
     -----
@@ -608,45 +608,45 @@ def reduce_ccddata(dobj, dobj_exptime=None,
                    bias=None,
                    dark=None, dark_exptime=None,
                    flat=None, flat_exptime=None):
-    """Reduce a dict of object dataframes using the master calibration frames
+    """Reduce a dict of object dataframes using the master calibration images
     for bias, dark, and flat.
 
-    All frames must be type `ccdproc.CCDData`. Method will do all reductions possible
-    with given master calibration frames. Method operates on a ``dict``
+    All images must be type `ccdproc.CCDData`. Method will do all reductions possible
+    with given master calibration images. Method operates on a ``dict``
     in order to minimize the number of pre-reduction operations:
     `dark` - `bias`, `flat` - `bias`, `flat` - `dark`.
     Requires exposure time (seconds) for object dataframes.
-    If master dark frame is provided, requires exposure time for master dark frame.
-    If master flat frame is provided, requires exposure time for master flat frame.
+    If master dark image is provided, requires exposure time for master dark image.
+    If master flat image is provided, requires exposure time for master flat image.
 
     Parameters
     ----------
     dobj : dict with ccdproc.CCDData
          ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
     dobj_exptime : {None}, float or int, optional
-         Exposure time of frames within `dobj`. All frames must have the same exposure time.
+         Exposure time of images within `dobj`. All images must have the same exposure time.
          Required if `dark` is provided.
     bias : {None}, ccdproc.CCDData, optional
-        Master bias frame.
+        Master bias image.
     dark : {None}, ccdproc.CCDData, optional
-        Master dark frame. Will be scaled to match exposure time for `dobj` frames and `flat` frame.
+        Master dark image. Will be scaled to match exposure time for `dobj` images and `flat` image.
     dark_exptime : {None}, float or int, optional
         Exposure time of `dark`. Required if `dark` is provided.
     flat : {None}, ccdproc.CCDData, optional
-        Master flat frame.
+        Master flat image.
     flat_exptime : {None}, float or int, optional
         Exposure time of `flat`. Required if `flat` is provided.
 
     Returns
     -------
     dobj_reduced : dict with ccdproc.CCDData
-        `dobj` with `ccdproc.CCDData` frames reduced. ``dict`` keys with non-`ccdproc.CCDData` values
+        `dobj` with `ccdproc.CCDData` images reduced. ``dict`` keys with non-`ccdproc.CCDData` values
         are also returned in `dobj_reduced`.
 
     See Also
     --------
     create_master_calib : Previous step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration frames and input to `reduce_ccddata`.
+        bias, dark, flat calibration images and input to `reduce_ccddata`.
     remove_cosmic_rays : Next step in pipeline. Run `reduce_ccddata` then use the output
         in the input to `remove_cosmic_rays`.
     get_exptime_prog : Get programmed exposure time from an SPE footer XML string.
@@ -654,7 +654,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 2.0
-    As of 2014-08-20, correlated errors in image frames are not supported by astropy.
+    As of 2014-08-20, correlated errors in image images are not supported by astropy.
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
     - subtract master bias from master flat
@@ -691,7 +691,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
             raise IOError("If `flat` is provided, `flat_exptime` must also be provided.")
     # Silence warnings about correlated errors.
     astropy.nddata.conf.warn_unsupported_correlated = False
-    # Note: Modify frames in-place to reduce memory overhead.
+    # Note: Modify images in-place to reduce memory overhead.
     # Operations:
     # - subtract master bias from master dark
     # - subtract master bias from master flat
@@ -729,23 +729,23 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         key_idx = int(math.ceil((key_len - 1) * progress))
         key = key_sortedlist[key_idx]
         key_progress[key] = progress
-    logger.info("Reducing object frames.")
-    logger.info("Subtracting master bias from object frames: {tf}".format(tf=has_bias))
-    logger.info("Subtracting master dark from object frames: {tf}".format(tf=has_dark))
-    logger.info("Correcting with master flat for object frames: {tf}".format(tf=has_flat))
+    logger.info("Reducing object images.")
+    logger.info("Subtracting master bias from object images: {tf}".format(tf=has_bias))
+    logger.info("Subtracting master dark from object images: {tf}".format(tf=has_dark))
+    logger.info("Correcting with master flat for object images: {tf}".format(tf=has_flat))
     for key in sorted(dobj):
         if isinstance(dobj[key], ccdproc.CCDData):
             if has_bias:
-                logger.debug("Subtracting master bias from object frame: {key}".format(key=key))
+                logger.debug("Subtracting master bias from object image: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_bias(ccd=dobj[key], master=bias)
             if has_dark:
-                logger.debug("Subtracting master dark from object frame: {key}".format(key=key))
+                logger.debug("Subtracting master dark from object image: {key}".format(key=key))
                 dobj[key] = ccdproc.subtract_dark(ccd=dobj[key], master=dark,
                                                   dark_exposure=dark_exptime,
                                                   data_exposure=dobj_exptime,
                                                   scale=True)
             if has_flat:
-                logger.debug("Correcting with master flat for object frame: {key}".format(key=key))
+                logger.debug("Correcting with master flat for object image: {key}".format(key=key))
                 dobj[key] = ccdproc.flat_correct(ccd=dobj[key], flat=flat)
             if key in key_progress:
                 logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
@@ -917,8 +917,8 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     Can generalize to extended sources but for increased execution time.
         Execution times for 256x256 image:
         Example for extended sources:
-        - For default above: 0.02 sec/frame
-        - For extended sources example below: 0.33 sec/frame
+        - For default above: 0.02 sec/image
+        - For extended sources example below: 0.33 sec/image
         extended_sources = find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)
     Use `find_stars` after removing cosmic rays to prevent spurious sources.
     
@@ -1007,7 +1007,7 @@ def is_odd(num):
     See Also
     --------
     `center_stars` : `center_stars` calls `is_odd` to check that the
-        square subframes extracted around each star have an odd number
+        square subimages extracted around each star have an odd number
         pixels on each side.
     
     Notes
@@ -1028,40 +1028,40 @@ def is_odd(num):
     return tf_odd
 
 
-def get_square_subframe(image, position, width=11):
-    """Extract a square subframe centered on a coordinate position.
+def get_square_subimage(image, position, width=11):
+    """Extract a square subimage centered on a coordinate position.
 
-    If the coordinate position is too close to a frame edge, a rectangular subframe is returned.
+    If the coordinate position is too close to a image edge, a rectangular subimage is returned.
 
     Parameters
     ----------
     image : array_like
         2D array of image.
     position : tuple
-        (x, y) pixel coordinate position of center of square subframe. Accepts ``float`` or ``int``.
+        (x, y) pixel coordinate position of center of square subimage. Accepts ``float`` or ``int``.
     width : {11}, optional
-        `width` x `width` are the dimensions for a square subframe in pixels. Accepts ``float`` or ``int``.
-        `width` will be be corrected to be odd and >= 3 so that the subframe is centered on a pixel.
+        `width` x `width` are the dimensions for a square subimage in pixels. Accepts ``float`` or ``int``.
+        `width` will be be corrected to be odd and >= 3 so that the subimage is centered on a pixel.
 
     Returns
     -------
-    subframe : numpy.ndarray
-        Square subframe with odd number of pixels per side. If the coordinate position is too close to a frame edge,
-        a rectangular subframe is returned.
+    subimage : numpy.ndarray
+        Square subimage with odd number of pixels per side. If the coordinate position is too close to a image edge,
+        a rectangular subimage is returned.
 
     See Also
     --------
     find_stars : Previous step in pipeline. Run `find_stars` then use the output star coordinate positions as the
-        input to `get_square_subframe`.
-    subtract_subframe_background : Next step in pipeline. Run `get_square_subframe` to extract a subframe around a star
-        then use the output subframe as the input to `subtract_subframe_background`.
-    center_stars : `center_stars` calls `get_square_subframe` to extract subframes around stars for centroid fitting
+        input to `get_square_subimage`.
+    subtract_subimage_background : Next step in pipeline. Run `get_square_subimage` to extract a subimage around a star
+        then use the output subimage as the input to `subtract_subimage_background`.
+    center_stars : `center_stars` calls `get_square_subimage` to extract subimages around stars for centroid fitting
         algorithms.
 
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 4.2.1
-    Uses imageutils.extract_array_2d to extract the subframe [1]_.
+    Uses imageutils.extract_array_2d to extract the subimage [1]_.
 
     References
     ----------
@@ -1069,10 +1069,10 @@ def get_square_subframe(image, position, width=11):
 
     """
     # Note:
-    # - Dimensions of subframe must be odd so that star is centered.
+    # - Dimensions of subimage must be odd so that star is centered.
     # - Shape order (width, height) is reverse of position order (x, y).
     # - numpy.ndarrays are ordered by row_idx (y) then col_idx (x). (0,0) is in upper left.
-    # - Subframe may not be square due to star's proximity to frame edge.
+    # - subimage may not be square due to star's proximity to image edge.
     # noinspection PyUnresolvedReferences
     width = np.rint(width)
     if width < 3:
@@ -1080,56 +1080,56 @@ def get_square_subframe(image, position, width=11):
     if not is_odd(width):
         width += 1
     height = width
-    subframe = imageutils.extract_array_2d(array_large=image,
+    subimage = imageutils.extract_array_2d(array_large=image,
                                            shape=(height, width),
                                            position=position)
-    (height_actl, width_actl) = subframe.shape
+    (height_actl, width_actl) = subimage.shape
     if (width_actl != width) or (height_actl != height):
         # noinspection PyShadowingBuiltins
         tmp_vars = collections.OrderedDict(width=width, position=position)
-        logger.warning(("Star is too close to the edge of the frame. Square subframe could not be extracted. " +
+        logger.warning(("Star is too close to the edge of the image. Square subimage could not be extracted. " +
                         "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
-    return subframe
+    return subimage
 
 
 # noinspection PyPep8Naming
-def subtract_subframe_background(subframe, threshold_sigma=3):
-    """Subtract the background intensity from a subframe centered on a source.
+def subtract_subimage_background(subimage, threshold_sigma=3):
+    """Subtract the background intensity from a subimage centered on a source.
 
     The function estimates the background as the median intensity of pixels
-    bordering the subframe (i.e. square aperture photometry). Background sigma
+    bordering the subimage (i.e. square aperture photometry). Background sigma
     is also computed from the border pixels. The median + number of selected sigma
-    is subtracted from the subframe. Pixels whose original intensity was less
+    is subtracted from the subimage. Pixels whose original intensity was less
     than the median + sigma are set to 0.
 
     Parameters
     ----------
-    subframe : array_like
-        2D array of subframe.
+    subimage : array_like
+        2D array of subimage.
     threshold_sigma : {3}, float or int, optional
         `threshold_sigma` is the number of standard
-        deviations above the subframe median for counts per pixel. Pixels with
+        deviations above the subimage median for counts per pixel. Pixels with
         fewer counts are set to 0. Uses `sigmaG` [2]_.
 
     Returns
     -------
-    subframe_sub : numpy.ndarray
-        Background-subtracted `subframe` as ``numpy.ndarray``.
+    subimage_sub : numpy.ndarray
+        Background-subtracted `subimage` as ``numpy.ndarray``.
 
     See Also
     --------
-    get_square_subframe : Previous step in pipeline. Run `get_square_subframe` then use the output subframe as
-        the input `subtract_subframe_background`.
-    center_stars : Next step in pipeline. `center_stars` calls `subtract_subframe_background` to
-        preprocess subframes around stars for centroid fitting algorithms.
+    get_square_subimage : Previous step in pipeline. Run `get_square_subimage` then use the output subimage as
+        the input `subtract_subimage_background`.
+    center_stars : Next step in pipeline. `center_stars` calls `subtract_subimage_background` to
+        preprocess subimages around stars for centroid fitting algorithms.
 
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 4.2.2
-    The source must be centered to within ~ +/- 1/4 of the subframe width.
+    The source must be centered to within ~ +/- 1/4 of the subimage width.
     At least 3 times as many border pixels used in estimating the background
         as compared to the source [1]_.
-    `sigmaG` = 0.7413(q75(`subframe`) - q50(`subframe`))
+    `sigmaG` = 0.7413(q75(`subimage`) - q50(`subimage`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
 
     References
@@ -1139,22 +1139,22 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
            sec 3.2, "Descriptive Statistics"
         
     """
-    subframe_np = np.array(subframe)
-    (height, width) = subframe_np.shape
+    subimage_np = np.array(subimage)
+    (height, width) = subimage_np.shape
     if width != height:
-        raise IOError(("Subframe must be square.\n" +
+        raise IOError(("Subimage must be square.\n" +
                        "  width = {wid}\n" +
                        "  height = {ht}").format(wid=width,
                                                  ht=height))
     # Choose border width such ratio of number of background pixels to source pixels is >= 3.
     border = int(math.ceil(width / 4.0))
-    arr_longtop_longbottom = np.append(subframe_np[:border],
-                                       subframe_np[-border:])
-    arr_shortleft_shortright = np.append(subframe_np[border:-border, :border],
-                                         subframe_np[border:-border, -border:])
+    arr_longtop_longbottom = np.append(subimage_np[:border],
+                                       subimage_np[-border:])
+    arr_shortleft_shortright = np.append(subimage_np[border:-border, :border],
+                                         subimage_np[border:-border, -border:])
     arr_background = np.append(arr_longtop_longbottom,
                                arr_shortleft_shortright)
-    arr_source = subframe_np[border:-border, border:-border]
+    arr_source = subimage_np[border:-border, border:-border]
     if (arr_background.size / arr_source.size) < 3:
         # Howell, 2006, "Handbook of CCD Astronomy", sec 5.1.2, "Estimation of Background"
         raise AssertionError(("Program error. There must be at least 3 times as many sky pixels\n" +
@@ -1164,16 +1164,16 @@ def subtract_subframe_background(subframe, threshold_sigma=3):
                                                                  ns=arr_source.size))
     median = np.median(arr_background)
     sigmaG = astroML_stats.sigmaG(arr_background)
-    subframe_sub = subframe_np - (median + threshold_sigma * sigmaG)
-    subframe_sub[subframe_sub < 0.0] = 0.0
-    return subframe_sub
+    subimage_sub = subimage_np - (median + threshold_sigma * sigmaG)
+    subimage_sub[subimage_sub < 0.0] = 0.0
+    return subimage_sub
 
 
 # noinspection PyUnresolvedReferences
 def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
-    Extract a square subframe around each star. Side-length of the subframe box is `box_pix`.
+    Extract a square subimage around each star. Side-length of the subimage box is `box_pix`.
     With the given method, return a dataframe with sub-pixel coordinates of the centroid and sigma standard deviation.
 
     Parameters
@@ -1189,11 +1189,11 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
     box_pix : {11}, optional
-        `box_pix` x `box_pix` are the dimensions for a square subframe around the source.
-        `box_pix` will be corrected to be odd and >= 3 so that the center pixel of the subframe is
+        `box_pix` x `box_pix` are the dimensions for a square subimage around the source.
+        `box_pix` will be corrected to be odd and >= 3 so that the center pixel of the subimage is
         the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement by `box_pix` = 11.
     threshold_sigma : {3}, optional
-        `threshold_sigma` is the number of standard deviations above the subframe median for counts per pixel.
+        `threshold_sigma` is the number of standard deviations above the subimage median for counts per pixel.
         Accepts ``float`` or ``int``. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
     method : {fit_2dgaussian, fit_bivariate_normal}, optional
         The method by which to compute the centroids and sigma.
@@ -1201,7 +1201,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             standard devaition sigma from fitting a 2D Gaussian to the intensity distribution. `fit_2dgaussian`
             executes quickly, agrees with `fit_bivariate_normal`, and converges within agreement
             by `box_pix` = 11. See example below.
-        `fit_bivariate_normal` : Model the photon counts within each pixel of the subframe as from a uniform
+        `fit_bivariate_normal` : Model the photon counts within each pixel of the subimage as from a uniform
             distribution [3]_. Return the centroid coordinates and standard deviation sigma from fitting
             a bivariate normal (Gaussian) distribution to the modeled the photon count distribution [4]_.
             `fit_bivariate_sigma` is statistically robust and converges by `box_pix`= 11, but it executes slowly.
@@ -1229,17 +1229,17 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with peak
         18000 ADU above background, FHWM ~3.8 pix, initial `sigma_pix` = 1, `box_pix` = 3 to 33. 2014-08-11, STH.
         For `fit_2dgaussian`:
-        - For varying subframes, position converges to within 0.01 pix of final solution at 11x11 subframe.
-        - For varying subframes, sigma converges to within 0.05 pix of final solution at 11x11 subframe.
+        - For varying subimages, position converges to within 0.01 pix of final solution at 11x11 subimage.
+        - For varying subimages, sigma converges to within 0.05 pix of final solution at 11x11 subimage.
         - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_pix.
+        - For 11x11 subimage, method takes ~25 ms. Method scales \propto box_pix.
         For `fit_bivariate_normal`:
-        - For varying subframes, position converges to within 0.02 pix of final solution at 11x11 subframe.
-        - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
+        - For varying subimages, position converges to within 0.02 pix of final solution at 11x11 subimage.
+        - For varying subimages, sigma converges to within 0.1 pix of final solution at 11x11 subimage.
         - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
         - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-        - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_pix**2.
+        - For 11x11 subimage, method takes ~450 ms. Method scales \propto box_pix**2.
             
     References
     ----------
@@ -1255,39 +1255,39 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n" +
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
-    # Make square subframes and compute centroids and sigma by chosen method.
+    # Make square subimages and compute centroids and sigma by chosen method.
     # Each star or extended source may have a different sigma. Store results in a dataframe.
     stars_init = stars.copy()
     stars_finl = stars.copy()
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
     width = int(math.ceil(box_pix))
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        subframe = get_square_subframe(image=image, position=(x_init, y_init), width=width)
-        # If the star was too close to the frame edge to extract the square subframe, skip the star.
-        # Otherwise, compute the initial position for the star relative to the subframe.
-        # The initial position relative to the subframe is an integer pixel.
-        (height_actl, width_actl) = subframe.shape
+        subimage = get_square_subimage(image=image, position=(x_init, y_init), width=width)
+        # If the star was too close to the image edge to extract the square subimage, skip the star.
+        # Otherwise, compute the initial position for the star relative to the subimage.
+        # The initial position relative to the subimage is an integer pixel.
+        (height_actl, width_actl) = subimage.shape
         if (width_actl != width) or (height_actl != width):
             # noinspection PyShadowingBuiltins
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                                sigma_init=sigma_init, box_pix=box_pix,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
-            logger.info(("Star was too close to the edge of the frame to extract a square subframe. Skipping star. " +
+            logger.info(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
                          "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         x_init_sub = (width_actl - 1) / 2
         y_init_sub = (height_actl - 1) / 2
-        # Compute the centroid position and standard deviation sigma for the star relative to the subframe.
+        # Compute the centroid position and standard deviation sigma for the star relative to the subimage.
         # using the selected method. Subtract background to fit counts only belonging to the source.
-        subframe = subtract_subframe_background(subframe, threshold_sigma)
+        subimage = subtract_subimage_background(subimage, threshold_sigma)
         if method == 'fit_2dgaussian':
             # Test results: 2014-08-11, STH
             # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
-            # - For varying subframes, position converges to within 0.01 pix of final solution at 11x11 subframe.
-            # - For varying subframes, sigma converges to within 0.05 pix of final solution at 11x11 subframe.
+            # - For varying subimages, position converges to within 0.01 pix of final solution at 11x11 subimage.
+            # - For varying subimages, sigma converges to within 0.05 pix of final solution at 11x11 subimage.
             # - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
             # - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
-            # - For 11x11 subframe, method takes ~25 ms. Method scales \propto box_pix.
+            # - For 11x11 subimage, method takes ~25 ms. Method scales \propto box_pix.
             # Method description:
             # - See photutils [1]_ and astropy [2]_.
             # - To calculate the standard deviation for the 2D Gaussian:
@@ -1300,19 +1300,19 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             #              = Var(x) + Var(y)
             #                since Cov(x, y) = 0 due to orthogonality.
             #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
-            fit = morphology.fit_2dgaussian(subframe)
+            fit = morphology.fit_2dgaussian(subimage)
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
             sigma_finl_sub = math.sqrt(fit.x_stddev ** 2.0 + fit.y_stddev ** 2.0)
         elif method == 'fit_bivariate_normal':
             # Test results: 2014-08-11, STH
             # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
-            # - For varying subframes, position converges to within 0.02 pix of final solution at 11x11 subframe.
-            # - For varying subframes, sigma converges to within 0.1 pix of final solution at 11x11 subframe.
+            # - For varying subimages, position converges to within 0.02 pix of final solution at 11x11 subimage.
+            # - For varying subimages, sigma converges to within 0.1 pix of final solution at 11x11 subimage.
             # - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
             # - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-            # - For 11x11 subframe, method takes ~450 ms. Method scales \propto box_pix**2.
+            # - For 11x11 subimage, method takes ~450 ms. Method scales \propto box_pix**2.
             # Method description:
-            # - Model the photons hitting the pixels of the subframe and
+            # - Model the photons hitting the pixels of the subimage and
             # robustly fit a bivariate normal distribution.
             # - Conservatively assume that photons hit each pixel, even those of the star,
             # with a uniform distribution. See [3]_, [4]_.
@@ -1329,11 +1329,11 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             x_dist = []
             y_dist = []
-            (height_actl, width_actl) = subframe.shape
+            (height_actl, width_actl) = subimage.shape
             np.random.seed(0)
             for y_idx in xrange(height_actl):
                 for x_idx in xrange(width_actl):
-                    pixel_counts = np.rint(subframe[y_idx, x_idx])
+                    pixel_counts = np.rint(subimage[y_idx, x_idx])
                     x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
                     x_dist.extend(x_dist_pix.rvs(pixel_counts))
                     y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
@@ -1351,13 +1351,13 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
-        #     # - For varying subframes, method does not converge to final centroid solution.
-        #     # - For 7x7 to 11x11 subframes, centroid solution agrees with centroid_2dg centroid solution within
-        #     #   +/- 0.01 pix, but then diverges from solution with larger subframes.
+        #     # - For varying subimages, method does not converge to final centroid solution.
+        #     # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
+        #     #   +/- 0.01 pix, but then diverges from solution with larger subimages.
         #     #   Method is susceptible to outliers.
-        #     # - For 7x7 subframes, method takes ~3 ms per subframe. Method is invariant to box_pix and always
+        #     # - For 7x7 subimages, method takes ~3 ms per subimage. Method is invariant to box_pix and always
         #     #   takes ~3 ms.
-        #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subframe)
+        #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subimage)
         #     # elif method == 'fit_max_phot_flux':
         #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from
         #     # computing the centroid that yields the largest photometric flux. Method is fast, but,
@@ -1366,20 +1366,20 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         #     # Test results: 2014-08-09, STH
         #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         #     #   seeing = 1.4 arcsec.
-        #     # - For varying subframes, method converges to within +/- 0.0001 pix of final centroid solution at
-        #     #   7x7 subframe, however final centroid solution disagrees with other methods' centroid solutions.
-        #     # - For 7x7 subframe, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subframe
+        #     # - For varying subimages, method converges to within +/- 0.0001 pix of final centroid solution at
+        #     #   7x7 subimage, however final centroid solution disagrees with other methods' centroid solutions.
+        #     # - For 7x7 subimage, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subimage
         #     #   by ~0.1 pix. Method may be susceptible to outliers.
-        #     # - For 7x7 subframe, method takes ~130 ms. Method scales \propto box_pix.
+        #     # - For 7x7 subimage, method takes ~130 ms. Method scales \propto box_pix.
         #     # TODO: Test different minimization methods
-        #     def obj_func(subframe, position, radius):
+        #     def obj_func(subimage, position, radius):
         #         """Objective function to minimize: -1*photometric flux from star.
         #         Assumed to follow a 2D Gaussian point-spread function.
         #
         #         Parameters
         #         ----------
-        #         subframe : array_like
-        #             2D subframe of image. Used only by `obj_func`.
+        #         subimage : array_like
+        #             2D subimage of image. Used only by `obj_func`.
         #         position : list or array of a tuple
         #             Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``,
         #                 i.e. [x_pix, y_pix] [1]_, [2]_.
@@ -1402,18 +1402,18 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         #
         #         """
         #         aperture = ('circular', radius)
-        #         (flux_table, aux_dict) = photutils.aperture_photometry(subframe, position, aperture)
+        #         (flux_table, aux_dict) = photutils.aperture_photometry(subimage, position, aperture)
         #         flux_neg = -1. * flux_table['aperture_sum'].data
         #         return flux_neg
         #
-        #     def jac_func(subframe, position, radius, eps=0.005):
+        #     def jac_func(subimage, position, radius, eps=0.005):
         #         """Jacobian of the objective function for fixed radius.
         #         Assumed to follow a 2D Gaussian point-spread function.
         #
         #         Parameters
         #         ----------
-        #         subframe : array_like
-        #             2D subframe of image. Used only by `obj_func`
+        #         subimage : array_like
+        #             2D subimage of image. Used only by `obj_func`
         #         position : list or array of a tuple
         #             Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``,
         #                 i.e. [x_pix, y_pix] [1]_, [2]_.
@@ -1443,20 +1443,20 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         #             raise ValueError(("'position' must have the format [x_pix, y_pix]\n"+
         #                               "  position = {pos}").format(pos=position))
         #         jac = np.zeros(len(position))
-        #         fxp1 = obj_func(subframe, (x_pix + eps, y_pix), radius)
-        #         fxm1 = obj_func(subframe, (x_pix - eps, y_pix), radius)
-        #         fyp1 = obj_func(subframe, (x_pix, y_pix + eps), radius)
-        #         fym1 = obj_func(subframe, (x_pix, y_pix - eps), radius)
+        #         fxp1 = obj_func(subimage, (x_pix + eps, y_pix), radius)
+        #         fxm1 = obj_func(subimage, (x_pix - eps, y_pix), radius)
+        #         fyp1 = obj_func(subimage, (x_pix, y_pix + eps), radius)
+        #         fym1 = obj_func(subimage, (x_pix, y_pix - eps), radius)
         #         jac[0] = (fxp1-fxm1)/(2.*eps)
         #         jac[1] = (fyp1-fym1)/(2.*eps)
         #         return jac
         #
         #     position = [x_init_sub, y_init_sub]
         #     radius = sigma_to_fwhm(sigma_init)
-        #     res = scipy.optimize.minimize(fun=(lambda pos: obj_func(subframe, pos, radius)),
+        #     res = scipy.optimize.minimize(fun=(lambda pos: obj_func(subimage, pos, radius)),
         #                                   x0=position,
         #                                   method='L-BFGS-B',
-        #                                   jac=(lambda pos: jac_func(subframe, pos, radius)),
+        #                                   jac=(lambda pos: jac_func(subimage, pos, radius)),
         #                                   bounds=((0, width), (0, height)))
         #     (x_finl_sub, y_finl_sub) = res.x
         else:
@@ -1513,7 +1513,7 @@ def image_translation(image1, image2):
                               "the maximum phase correlation. translation:\n" +
                               "{df}").format(df=translation))
     (dx_pix, dy_pix) = np.subtract(translation.loc[0, ['x_pix', 'y_pix']], (tiled_offset_x, tiled_offset_y))
-    # Because phase correlation frame is continuous across boundaries, restrict all coordinates to be relative to
+    # Because phase correlation image is continuous across boundaries, restrict all coordinates to be relative to
     # first quandrant (containing (1,1)).
     if dy_pix > shape[0] / 2.0:
         dy_pix -= shape[0]
@@ -1633,7 +1633,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     # width = int(math.ceil(box_pix))
     # weights = gaussian_weights(width=width)
     # for (idx1, x1, y1, sigma1) in stars1[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-    #     subimage1 = get_square_subframe(image=image1, position=(x1, y1), width=width)
+    #     subimage1 = get_square_subimage(image=image1, position=(x1, y1), width=width)
     #     (height_actl, width_actl) = subimage1.shape
     #     if (width_actl != width) or (height_actl != width):
     #         tmp_vars = collections.OrderedDict(dataframe='star1', idx1=idx1,
@@ -1645,7 +1645,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     #     min_sum_sqr_diff = np.NaN
     #     min_idx2 = np.NaN
     #     for (idx2, x2, y2, sigma2) in stars2[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-    #         subimage2 = get_square_subframe(image=image2, position=(x2, y2), width=width)
+    #         subimage2 = get_square_subimage(image=image2, position=(x2, y2), width=width)
     #         (height_actl, width_actl) = subimage2.shape
     #         if (width_actl != width) or (height_actl != width):
     #             tmp_vars = collections.OrderedDict(dataframe='star2', idx2=idx2,
