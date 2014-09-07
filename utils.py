@@ -1472,7 +1472,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     return stars_finl
 
 
-def image_translation(image1, image2):
+def translate_images_1to2(image1, image2):
     """
     Determine image translation from phase correlation.
     From http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
@@ -1487,14 +1487,15 @@ def image_translation(image1, image2):
         raise IOError(("Images must be 2D:\n" +
                        "image1.ndim = {n1}\n" +
                        "image2.ndim = {n2}").format(n1=image1.ndim, n2=image2.ndim))
-    # Compute the maximum phase correlation to determine the image translation.
+    # Compute the maximum phase correlation for to determine the image translation.
+    # Translation: delta = final - initial = image2 - image1
     # The first estimate for image translation is to an integer pixel.
     # Note: numpy is row-major: (y_pix, x_pix)
     shape = image1.shape
     # TODO: may fail for image dimensions not divisible by 2. test.
     f1 = np.fft.fft2(image1)
     f2 = np.fft.fft2(image2)
-    ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
+    ir = abs(np.fft.ifft2((f1.conjugate() * f2) / (abs(f1) * abs(f2))))
     (dy_int, dx_int) = np.unravel_index(int(np.argmax(ir)), shape)
     # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
     # allows more precise star identification between images. (A 2D Gaussian fit is not correct.
@@ -1521,7 +1522,8 @@ def image_translation(image1, image2):
     if dx_pix > shape[1] / 2.0:
         dx_pix -= shape[1]
     # noinspection PyRedundantParentheses
-    logger.debug(("Image translation: image2 - image1 = {tup}").format(tup=(dx_pix, dy_pix)))
+    logger.debug(("Image translation: image1_coords - image2_coords = (dx_pix, dy_pix)" +
+                  " = {tup}").format(tup=(dx_pix, dy_pix)))
     return (dx_pix, dy_pix)
 
 
@@ -1619,7 +1621,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
-    tform = 
+    tform = skimage.transform.SimilarityTransform(translation=image_translation(image1=image1, image2=image2))
+
     # residual_threshold = np.median(stars2['sigma_pix'])
     # print(residual_threshold)
     # logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
