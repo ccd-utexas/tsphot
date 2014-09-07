@@ -1475,7 +1475,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
 def translate_images_1to2(image1, image2):
     """
     Determine image translation from phase correlation.
-    From http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
     """
     # TODO: complete docstring
     # Check input.
