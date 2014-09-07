@@ -1628,7 +1628,6 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    params=tform.params)
     logger.debug("Transform parameters: {pars}".format(pars=pars))
-    stars.loc[:, 'tform1to2'].loc[:, ['y_pix', 'x_pix']] = tform(src)
     # Use least squares to match stars. Verified stars must be within 1 sigma of the median centroid of stars2.
     # Use median to accomodate outliers.
 
