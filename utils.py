@@ -1628,16 +1628,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    params=tform.params)
     logger.debug("Transform parameters: {pars}".format(pars=pars))
-    # Use least squares to match stars. Verified stars must be within 1 sigma of the median centroid of stars2.
-    # Use median to accomodate outliers.
-
-    residual_threshold = np.median(stars2['sigma_pix'])
-
-    # TODO: http://scikit-image.org/docs/dev/api/skimage.transform.html#similaritytransform, crate model, then do
-    # stars.loc['tform1to2'] = tform(stars.loc[:, ('stars1', ['y_pix', 'x_pix'])
-
-    # Verify that transformed star positions match one and only one star from `stars2` to within 1 sigma of
-    # the median centroid of stars2. This accommodates clouds and close binaries.
+    # Use least squares to match stars. Verified stars must be within 1 sigma of the centroid of stars2 and
+    # must be matched 1-to-1.
     stars1_verified = pd.DataFrame(columns=stars1.columns)
     stars1_unverified = stars1.copy()
     stars2_verified = pd.DataFrame(columns=stars2.columns)
