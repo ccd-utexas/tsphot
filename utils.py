@@ -321,7 +321,7 @@ def create_master_calib(dobj):
     noncombiner_list = []
     fidx_meta = {}
     for key in dobj:
-        # If the key is an index for a CCDData frame...
+        # If the key is an index for a CCDData image...
         if isinstance(dobj[key], ccdproc.CCDData):
             combiner_list.append(dobj[key])
             fidx_meta[key] = dobj[key].meta
@@ -608,14 +608,14 @@ def reduce_ccddata(dobj, dobj_exptime=None,
                    bias=None,
                    dark=None, dark_exptime=None,
                    flat=None, flat_exptime=None):
-    """Reduce a dict of object data frames using the master calibration frames
+    """Reduce a dict of object dataframes using the master calibration frames
     for bias, dark, and flat.
 
     All frames must be type `ccdproc.CCDData`. Method will do all reductions possible
     with given master calibration frames. Method operates on a ``dict``
     in order to minimize the number of pre-reduction operations:
     `dark` - `bias`, `flat` - `bias`, `flat` - `dark`.
-    Requires exposure time (seconds) for object data frames.
+    Requires exposure time (seconds) for object dataframes.
     If master dark frame is provided, requires exposure time for master dark frame.
     If master flat frame is provided, requires exposure time for master flat frame.
 
@@ -1527,6 +1527,7 @@ def gaussian_weights(width=11, sigma=3):
     """
     Weight pixels depending on distance to center pixel.
     Sigma is standard deviation of Gaussian weighting function
+    Useful for localized image matching.
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     http://en.wikipedia.org/wiki/Gaussian_blur
     """
@@ -1548,7 +1549,7 @@ def _plot_matches(image1, image2, stars1, stars2):
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
     if (stars1['verif1to2'] != stars2['verif2to1']).any():
-        raise IOError(("Data frame indices are not verified as matching by 'verif1to2', 'verif2to1' columns:\n" +
+        raise IOError(("Dataframe indices are not verified as matching by 'verif1to2', 'verif2to1' columns:\n" +
                        "stars1: {stars1}\n" +
                        "stars2: {stars2}\n").format(stars1=stars1, stars2=stars2))
     (fig, axes) = plt.subplots(nrows=2, ncols=1)
