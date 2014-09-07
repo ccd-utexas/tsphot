@@ -1628,21 +1628,39 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    params=tform.params)
     logger.debug("Transform parameters: {pars}".format(pars=pars))
-    # Use least squares to match stars. Verified stars must be within 1 sigma of the centroid of stars2 and
+    # Use least sum of squares to match stars. Verified stars must be within 1 sigma of the centroid of stars2 and
     # must be matched 1-to-1.
     stars1_verified = pd.DataFrame(columns=stars1.columns)
     stars1_unverified = stars1.copy()
     stars2_verified = pd.DataFrame(columns=stars2.columns)
     stars2_unverified = stars2.copy()
+    # TODO: May fail if used on close binaries defined by hand instead of by `find_stars`. Accommodate with psf model.
+    for (idx1, x1to2, y1to2) in stars[('tform1to2', ['x_pix', 'y_pix'])].itertuples():
+        is_first_iter = True
+        (sum_sqr_diff, min_sum_sqr_diff) = tuple([None]) * 2
+        (min_idx2, min_x2, min_y2, min_sigma2) = tuple([None]) * 4
+        for (idx2, x2, y2, sigma2) in stars2[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
+            sum_sqr_diff = np.sum(np.power(np.subtract((x2, y2), (x1to2, y1to2)), 2.0))
+            if is_first_iter:
+                min_sum_sqr_diff = sum_sqr_diff
+                (min_idx2, min_x2, min_y2, min_sigma2) = (idx2, x2, y2, sigma2)
+                is_first_iter = False
+            else:
+                if sum_sqr_diff < min_sum_sqr_diff:
+                    min_sum_sqr_diff = sum_sqr_diff
+                    (min_idx2, min_x2, min_y2, min_sigma2) = (idx2, x2, y2, sigma2)
+        # Check that values were found.
+        assert (sum_sqr_diff, min_sum_sqr_diff) != tuple([None]) * 2
+        assert (min_idx2, min_x2, min_y2, min_sigma2) != tuple([None]) * 4
+        stars.loc[idx1, ('stars2', ['x_pix', 'y_pix', 'sigma_pix'])] = (min_idx2, min_x2, min_y2, min_sigma2)
+        atol = min_sigma2
+        # TODO: resume here with simga
+        if np.isclose(x1to2, min_x2, rtol=0.0, atol=atol) and np.isclose(y1to2, min_y2, rtol=0.0, atol=atol):
+        # TODO: at end of idx2 loop, check verified
+        # TODO: if verified, remove from unverified and add to verified
 
-    # TODO: RESUME here with outlining code
-    # DELETE
-    # Verify and correct 1-to-1 matched stars.
-    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    #     1-to-1 mapping. This loop verifies and corrects matches.
-    # Populate `stars2` with unverified, matched stars from RANSAC.
-    # stars.loc[:, 'stars2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']] = \
-    #     stars.loc[:, 'match1to2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']][inliers]
+
+
     for (idx_m1, row_m) in stars['match1to2'].iterrows():
         is_verified = False
         row_s1 = stars.loc[idx_m1, 'stars1']
