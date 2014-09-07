@@ -1296,10 +1296,9 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             # Notation: x = |xvec|, y = |yvec|, z = |zvec|
             # ==> Var(z) = Var(x + y)
-            # = Var(x) + Var(y) + 2*Cov(x, y)
-            #              = Var(x) + Var(y)
-            #                since Cov(x, y) = 0 due to orthogonality.
-            #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
+            #            = Var(x) + Var(y) + 2*Cov(x, y)
+            #            = Var(x) + Var(y) since Cov(x, y) = 0 due to orthogonality.
+            # ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             fit = morphology.fit_2dgaussian(subimage)
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
             sigma_finl_sub = math.sqrt(fit.x_stddev ** 2.0 + fit.y_stddev ** 2.0)
@@ -1617,6 +1616,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     df_stars2[:] = np.NaN
     df_stars2['idx2'] = np.NaN
     df_stars2['verif2to1'] = np.NaN
+    df_stars2['minssd'] = np.NaN
     df_dict = {'stars1': df_stars1,
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
@@ -1628,12 +1628,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    params=tform.params)
     logger.debug("Transform parameters: {pars}".format(pars=pars))
-    # Use least sum of squares to match stars. Verified stars must be within 1 sigma of the centroid of stars2 and
-    # must be matched 1-to-1.
-    stars1_verified = pd.DataFrame(columns=stars1.columns)
-    stars1_unverified = stars1.copy()
-    stars2_verified = pd.DataFrame(columns=stars2.columns)
-    stars2_unverified = stars2.copy()
+    # Use least sum of squares to match stars.
     # TODO: May fail if used on close binaries defined by hand instead of by `find_stars`. Accommodate with psf model.
     for (idx1, x1to2, y1to2) in stars[('tform1to2', ['x_pix', 'y_pix'])].itertuples():
         is_first_iter = True
@@ -1649,106 +1644,48 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
                 if sum_sqr_diff < min_sum_sqr_diff:
                     min_sum_sqr_diff = sum_sqr_diff
                     (min_idx2, min_x2, min_y2, min_sigma2) = (idx2, x2, y2, sigma2)
-        # Check that values were found.
+        # Check that values were found and save results.
         assert (sum_sqr_diff, min_sum_sqr_diff) != tuple([None]) * 2
         assert (min_idx2, min_x2, min_y2, min_sigma2) != tuple([None]) * 4
-        stars.loc[idx1, ('stars2', ['x_pix', 'y_pix', 'sigma_pix'])] = (min_idx2, min_x2, min_y2, min_sigma2)
-        atol = min_sigma2
-        # TODO: resume here with simga
-        if np.isclose(x1to2, min_x2, rtol=0.0, atol=atol) and np.isclose(y1to2, min_y2, rtol=0.0, atol=atol):
-        # TODO: at end of idx2 loop, check verified
-        # TODO: if verified, remove from unverified and add to verified
-
-
-
-    for (idx_m1, row_m) in stars['match1to2'].iterrows():
-        is_verified = False
-        row_s1 = stars.loc[idx_m1, 'stars1']
-        row_s2 = stars.loc[idx_m1, 'stars2']
-        # If the matched coordinate is a RANSAC inlier, check that the matched and transformed coordinates agree
-        # and that the ...
-        if row_s2.loc[['x_pix', 'y_pix', 'sigma_pix']].notnull().all():
-            row_t = stars.loc[idx_m1, 'tform1to2']
-            (x_t, y_t) = row_t[['x_pix', 'y_pix']]
-            for (idx_u2, row_u2) in stars2_unverified.iterrows():
-                (x_u2, y_u2, sigma_u2) = row_u2[['x_pix', 'y_pix', 'sigma_pix']]
-                if np.isclose(x_t, x_u2, rtol=0.0, atol=sigma_u2) and np.isclose(y_t, y_u2, rtol=0.0, atol=sigma_u2):
-                    stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix']] = (
-                        idx_u2, x_u2, y_u2, sigma_u2)
-                    if idx_m1 not in stars1_verified.index:
-                        stars1_verified.loc[idx_m1] = row_s1
-                    else:
-                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s1))
-                    stars1_unverified.drop(idx_m1, inplace=True)
-                    stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
-                    if idx_u2 not in stars2_verified.index:
-                        stars2_verified.loc[idx_u2] = row_u2
-                    else:
-                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_u2))
-                    stars2_unverified.drop(idx_u2, inplace=True)
-                    stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
-                    is_verified = True
-
-            if idx_m1 not in stars1_verified.index:
-                stars1_verified.loc[idx_m1] = row_s1
+        stars.loc[idx1, ('stars2', ['idx2', 'x_pix', 'y_pix', 'sigma_pix', 'minssd'])] = \
+            (min_idx2, min_x2, min_y2, min_sigma2, min_sum_sqr_diff)
+    # After all stars have been matched, verify that matched stars are within 1 sigma of the centroid of stars2 and
+    # are matched 1-to-1.
+    # TODO: Avoid assertions below for duplicate stars and extremely close binaries.
+    # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
+    stars1_verified = pd.DataFrame(columns=stars1.columns)
+    stars1_unverified = stars1.copy()
+    stars2_verified = pd.DataFrame(columns=stars2.columns)
+    stars2_unverified = stars2.copy()
+    for (idx1, row2) in stars['stars2'].iterrows():
+        if row2['minssd'] < row2['sigma_pix']:
+            row1 = stars1.loc[idx1]
+            if idx1 not in stars1_verified.index:
+                stars1_verified.loc[idx1] = row1
             else:
-                raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s1))
-            stars1_unverified.drop(idx_m1, inplace=True)
-            # TODO: Can't set element to True. Report bug?
-            stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
-            idx_s2 = row_s2['idx2']
-            if idx_s2 not in stars2_verified.index:
-                stars2_verified.loc[idx_s2] = row_s2
+                raise AssertionError("Program error. Star already verified:\n{star}".format(star=row1))
+            stars1_unverified.drop(idx1, inplace=True)
+            stars.loc[idx1, ('stars1', 'verif1to2')] = 1
+            if idx2 not in stars2_verified.index:
+                stars2_verified.loc[idx2] = row2
             else:
-                raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s2))
-            stars2_unverified.drop(idx_s2, inplace=True)
-            stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
-            is_verified = True
-
-
-
-        # ...otherwise check that the matched. Step is necessary if RANSAC was not used.
+                raise AssertionError("Program error. Star already verified:\n{star}".format(star=row2))
+            stars2_unverified.drop(idx2, inplace=True)
+            stars.loc[idx1, ('stars2', 'verif2to1')] = 1
         else:
-            row_t = stars.loc[idx_m1, 'tform1to2']
-            (x_t, y_t) = row_t[['x_pix', 'y_pix']]
-            for (idx_u2, row_u2) in stars2_unverified.iterrows():
-                (x_u2, y_u2, sigma_u2) = row_u2[['x_pix', 'y_pix', 'sigma_pix']]
-                if np.isclose(x_t, x_u2, rtol=0.0, atol=sigma_u2) and np.isclose(y_t, y_u2, rtol=0.0, atol=sigma_u2):
-                    stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix']] = (
-                        idx_u2, x_u2, y_u2, sigma_u2)
-                    if idx_m1 not in stars1_verified.index:
-                        stars1_verified.loc[idx_m1] = row_s1
-                    else:
-                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_s1))
-                    stars1_unverified.drop(idx_m1, inplace=True)
-                    stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 1
-                    if idx_u2 not in stars2_verified.index:
-                        stars2_verified.loc[idx_u2] = row_u2
-                    else:
-                        raise AssertionError("Program error. Star already verified:\n{star}".format(star=row_u2))
-                    stars2_unverified.drop(idx_u2, inplace=True)
-                    stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
-                    is_verified = True
-
-        if not is_verified:
-            logger.debug("No match in star2 was verified for star1 index {idx}: {row}".format(idx=idx_m1, row=row_m))
-            # noinspection PyUnboundLocalVariable
-            (x_t, y_t) = row_t[['x_pix', 'y_pix']]
-            stars.loc[idx_m1, 'stars1'].loc['verif1to2'] = 0
-            stars.loc[idx_m1, 'stars2'].loc[['idx2', 'x_pix', 'y_pix', 'sigma_pix', 'verif2to1']] = (
-                np.NaN, x_t, y_t, np.NaN, 0)
+            logger.debug("Star not verified: {tup}".format(tup=(idx1, idx2, x2, y2, sigma2, minssd2)))
+            stars.loc[idx1, ('stars1', 'verif1to2')] = 0
+            stars.loc[idx1, ('stars2', 'verif2to1')] = 0
     # Verify that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
     if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
-        logger.debug("Not all stars in stars1 were matched to stars in stars2. stars1_unverified: {s1u}".format(
-            s1u=stars1_unverified))
-    # TODO: test reindexing with new stars
+        logger.debug(("Not all stars in stars1 were verified as matching stars in stars2." +
+                      " stars1_unverified: {s1u}").format(s1u=stars1_unverified))
     if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
-        logger.debug("Not all stars in stars2 were matched to stars in stars1. stars2_unverified: {s2u}".format(
-            s2u=stars2_unverified))
+        logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
+                      " stars2_unverified: {s2u}").format(s2u=stars2_unverified))
         df_dict = {'stars1': stars['stars1'].copy(),
-                   'match1to2': stars['match1to2'].copy(),
                    'tform1to2': stars['tform1to2'].copy(),
-                   'stars2': pd.concat([stars['stars2'].copy(), stars2_unverified])}
+                   'stars2': pd.concat([stars['stars2'].copy(), stars2_unverified], axis=0)}
         stars = pd.concat(df_dict, axis=1)
         stars['stars2'].sort(columns=['y_pix', 'x_pix'], inplace=True)
         stars = stars.reindex(index=range(len(stars)))
@@ -1756,7 +1693,7 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
     # Report results.
     df_dict = {'stars1': stars['stars1'],
-               'stars2': stars['stars2'].drop('idx2', axis=1)}
+               'stars2': stars['stars2'].drop(['idx2', 'minssd'], axis=1)}
     matched_stars = pd.concat(df_dict, axis=1)
     print('test:')
     print(stars)
