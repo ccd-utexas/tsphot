@@ -1497,7 +1497,8 @@ def image_translation(image1, image2):
     ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
     (dy_int, dx_int) = np.unravel_index(int(np.argmax(ir)), shape)
     # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
-    # allows more precise star identification between images. (A gaussian fit may not be best, but good enough.)
+    # allows more precise star identification between images. (A 2D Gaussian fit is not correct.
+    # Do not use 'sigma_pix' as uncertainty.)
     # Tile the phase correlation image when estimating subpixel translation since the coordinate for maximum phase
     # correlation is usually near the domain edge. (Tile the image, don't mirror, since the phase correlation is
     # continuous across image boundaries.)
@@ -1520,6 +1521,7 @@ def image_translation(image1, image2):
     if dx_pix > shape[1] / 2.0:
         dx_pix -= shape[1]
     # noinspection PyRedundantParentheses
+    logger.debug(("Image translation: image2 - image1 = {tup}").format(tup=(dx_pix, dy_pix)))
     return (dx_pix, dy_pix)
 
 
@@ -1588,14 +1590,12 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     # Check input.
     num_stars1 = len(stars1.dropna())
     num_stars2 = len(stars2.dropna())
-    # TODO: accommodate cloudy conditions and nans.
     if num_stars1 != len(stars1[['x_pix', 'y_pix']]):
-        raise IOError(("stars1 has null (NaN) values. NaNs are not allowed.\n" +
-                       "stars1 = {stars1}").format(stars1=stars1))
+        raise IOError(("NaN values for 'x_pix', 'y_pix' are not allowed. stars1:\n" +
+                       "{stars1}").format(stars1=stars1))
     if num_stars2 != len(stars2[['x_pix', 'y_pix']]):
-        raise IOError(("stars2 has null (NaN) values. NaNs are not allowed.\n" +
-                       "stars2 = {stars2}").format(stars2=stars2))
-    # TODO: Accommodate total clouds.
+        raise IOError(("NaN values for 'x_pix', 'y_pix' are not allowed. stars2:\n" +
+                       "{stars2}").format(stars2=stars2))
     if num_stars1 < 1:
         raise IOError(("stars1 must have at least one star.\n" +
                        "stars1 = {stars1}").format(stars1=stars1))
@@ -1609,10 +1609,6 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     # `stars` dataframe has the same number of stars as `stars1`: num_stars = num_stars1
     df_stars1 = stars1.copy()
     df_stars1['verif1to2'] = np.NaN
-    # DELETE
-    # df_match1to2 = stars1.copy()
-    # df_match1to2[:] = np.NaN
-    # df_match1to2['idx2'] = np.NaN
     df_tform1to2 = stars1.copy().loc[:, ['x_pix', 'y_pix']]
     df_tform1to2[:] = np.NaN
     df_stars2 = stars1.copy()
@@ -1620,8 +1616,6 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     df_stars2['idx2'] = np.NaN
     df_stars2['verif2to1'] = np.NaN
     df_dict = {'stars1': df_stars1,
-               # DELETE
-               # 'match1to2': df_match1to2,
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
