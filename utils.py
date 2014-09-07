@@ -1620,46 +1620,6 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
 
-    # # DELETE
-    # # Weight pixels of the subimages by distance to center pixel. Use star with minimum sum of squared difference
-    # # as the match.
-    # # Note: Bad focus on dim stars can cause stars to be lost. Include sigma_pix as metadata for star positions.
-    # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    # #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
-    # width = int(math.ceil(box_pix))
-    # weights = gaussian_weights(width=width)
-    # for (idx1, x1, y1, sigma1) in stars1[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-    #     subimage1 = get_square_subimage(image=image1, position=(x1, y1), width=width)
-    #     (height_actl, width_actl) = subimage1.shape
-    #     if (width_actl != width) or (height_actl != width):
-    #         tmp_vars = collections.OrderedDict(dataframe='star1', idx1=idx1,
-    #                                            x1=x1, y1=y1, sigma1=sigma1)
-    #         raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
-    #                        "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
-    #     # Create/reset loop tracking variables.
-    #     is_first_iter = True
-    #     min_sum_sqr_diff = np.NaN
-    #     min_idx2 = np.NaN
-    #     for (idx2, x2, y2, sigma2) in stars2[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-    #         subimage2 = get_square_subimage(image=image2, position=(x2, y2), width=width)
-    #         (height_actl, width_actl) = subimage2.shape
-    #         if (width_actl != width) or (height_actl != width):
-    #             tmp_vars = collections.OrderedDict(dataframe='star2', idx2=idx2,
-    #                                                x2=x2, y2=y2, sigma2=sigma2)
-    #             raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
-    #                            "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
-    #         sum_sqr_diff = np.sum(weights * (subimage2 - subimage1) ** 2.0)
-    #         if is_first_iter:
-    #             min_sum_sqr_diff = sum_sqr_diff
-    #             min_idx2 = idx2
-    #             is_first_iter = False
-    #         else:
-    #             if sum_sqr_diff < min_sum_sqr_diff:
-    #                 min_sum_sqr_diff = sum_sqr_diff
-    #                 min_idx2 = idx2
-    #     stars.loc[idx1, 'match1to2'].loc['idx2'] = min_idx2
-    #     stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = \
-    #         stars2.loc[min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
 
     # # DELETE
     # # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with
