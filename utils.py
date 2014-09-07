@@ -1621,20 +1621,18 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
-    tform = skimage.transform.SimilarityTransform(translation=image_translation(image1=image1, image2=image2))
+    # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
+    # TODO: allow user to give custom translation
+    tform = skimage.transform.SimilarityTransform(translation=translate_images_1to2(image1=image1, image2=image2))
+    stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])])
+    pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
+                                   params=tform.params)
+    logger.debug("Transform parameters: {pars}".format(pars=pars))
+    stars.loc[:, 'tform1to2'].loc[:, ['y_pix', 'x_pix']] = tform(src)
+    # Use least squares to match stars. Verified stars must be within 1 sigma of the median centroid of stars2.
+    # Use median to accomodate outliers.
 
-    # residual_threshold = np.median(stars2['sigma_pix'])
-    # print(residual_threshold)
-    # logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
-    # # noinspection PyPep8
-    # outliers = (inliers == False)
-    # logger.debug(
-    #     "Number of inliers: {ni}, outliers: {no}".format(ni=np.count_nonzero(inliers), no=np.count_nonzero(outliers)))
-    # pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
-    #                                shear=tform.shear, params=tform.params)
-    # # TODO: allow user to give custom translation
-    # logger.debug("Transform parameters: {pars}".format(pars=pars))
-    # stars.loc[:, 'tform1to2'].loc[:, ['y_pix', 'x_pix']] = tform(src)
+    residual_threshold = np.median(stars2['sigma_pix'])
 
     # TODO: http://scikit-image.org/docs/dev/api/skimage.transform.html#similaritytransform, crate model, then do
     # stars.loc['tform1to2'] = tform(stars.loc[:, ('stars1', ['y_pix', 'x_pix'])
