@@ -1260,8 +1260,8 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     stars_init = stars.copy()
     stars_finl = stars.copy()
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
+    width = int(math.ceil(box_pix))
     for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        width = int(math.ceil(box_pix))
         subframe = get_square_subframe(image=image, position=(x_init, y_init), width=width)
         # If the star was too close to the frame edge to extract the square subframe, skip the star.
         # Otherwise, compute the initial position for the star relative to the subframe.
@@ -1471,6 +1471,56 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
     return stars_finl
 
+def image_translation(image1, image2):
+    """
+    Determine image translation from phase correlation.
+    From http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    """
+    # TODO: complete docstring
+    # Check input.
+    if image1.shape != image2.shape:
+        raise IOError(("Images must have the same shape:\n" +
+                       "image1.shape = {s1}\n" +
+                       "image2.shape = {s2}").format(s1=image1.shape, s2=image2.shape))
+    if image1.ndim != 2:
+        raise IOError(("Images must be 2D:\n" +
+                       "image1.ndim = {n1}\n" +
+                       "image2.ndim = {n2}").format(n1=image1.ndim, n2=image2.ndim))
+    # Compute the maximum phase correlation to determine the image translation.
+    # The first estimate for image translation is to an integer pixel.
+    # Note: numpy is row-major: (y_pix, x_pix)
+    shape = image1.shape
+    # TODO: may fail for image dimensions not divisible by 2. test.
+    f1 = np.fft.fft2(image1)
+    f2 = np.fft.fft2(image2)
+    ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
+    (dy_int, dx_int) = np.unravel_index(np.argmax(ir), shape)
+    # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
+    # allows more precise star identification between images.
+    # Tile the phase correlation image when estimating subpixel translation since the coordinate for maximum phase
+    # correlation is usually near the domain edge. (Tile the image, don't mirror, since the phase correlation is
+    # continuous across image boundaries.)
+    tiled = np.tile(ir, (3, 3))
+    (tiled_offset_y, tiled_offset_x) = shape
+    # Returned order should be (x, y) for to match rest of utils convention.
+    (tiled_dx_int, tiled_dy_int) = np.add((tiled_offset_x, tiled_offset_y), (dx_int, dy_int))
+    plt.imshow(tiled[tiled_dy_int-10:tiled_dy_int+10, tiled_dx_int-10:tiled_dx_int+10])
+    translation = center_stars(image=tiled,
+                               stars=pd.DataFrame([[tiled_dx_int, tiled_dy_int, 1.0]],
+                                                  columns=['x_pix', 'y_pix', 'sigma_pix']))
+    if len(translation) != 1:
+        raise AssertionError(("Program error. `translation` dataframe should have only one element,\n" +
+                              "the maximum phase correlation. translation:\n" +
+                              "{df}").format(df=translation))
+    (dx_pix, dy_pix) = np.subtract(translation.loc[0, ['x_pix', 'y_pix']], (tiled_offset_x, tiled_offset_y))
+    # Because phase correlation frame is continuous across boundaries, restrict all coordinates to be relative to
+    # first quandrant (containing (1,1)).
+    if dy_pix > shape[0] / 2.0:
+        dy_pix -= shape[0]
+    if dx_pix > shape[1] / 2.0:
+        dx_pix -= shape[1]
+    return (dx_pix, dy_pix)
+
 
 # noinspection PyUnresolvedReferences
 def gaussian_weights(width=11, sigma=3):
@@ -1490,35 +1540,6 @@ def gaussian_weights(width=11, sigma=3):
         -0.5 * ((x_pix ** 2.0 / sigma ** 2.0) + (y_pix ** 2.0 / sigma ** 2.0)))
     return weights
 
-
-def translate_image(image1, image2):
-    """
-    Determine image translation from phase correlation.
-    From http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
-    """
-    # Note: numpy is row-major: (y_pix, x_pix)
-    if image1.shape != image2.shape:
-        raise IOError(("Images must have the same shape:\n" +
-                       "image1.shape = {s1}\n" +
-                       "image2.shape = {s2}").format(s1=image1.shape, s2=image2.shape))
-    if len(image1.shape) != 2:
-        raise IOError(("Images must be 2D:\n" +
-                       "image1.shape = {s1}\n" +
-                       "image2.shape = {s2}").format(s1=image1.shape, s2=image2.shape))
-    shape = image1.shape
-    f1 = np.fft.fft2(image1)
-    f2 = np.fft.fft2(image2)
-    ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
-    dy, dx = np.unravel_index(np.argmax(ir), shape)
-    # TODO: 1) extract subimage, if can't b/c near center, offset by int(half-frame) in y, x
-    # TODO: 2) get centroid using center_star
-
-    if dy > shape[0] / 2.0:
-        dy -= shape[0]
-    if dx > shape[1] / 2.0:
-        dx -= shape[1]
-    plt.imshow(ir[:5, :5])
-    return [dy, dx]
 
 # noinspection PyUnresolvedReferences
 def _plot_matches(image1, image2, stars1, stars2):
@@ -1585,9 +1606,10 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     # `stars` dataframe has the same number of stars as `stars1`: num_stars = num_stars1
     df_stars1 = stars1.copy()
     df_stars1['verif1to2'] = np.NaN
-    df_match1to2 = stars1.copy()
-    df_match1to2[:] = np.NaN
-    df_match1to2['idx2'] = np.NaN
+    # DELETE
+    # df_match1to2 = stars1.copy()
+    # df_match1to2[:] = np.NaN
+    # df_match1to2['idx2'] = np.NaN
     df_tform1to2 = stars1.copy().loc[:, ['x_pix', 'y_pix']]
     df_tform1to2[:] = np.NaN
     df_stars2 = stars1.copy()
@@ -1595,105 +1617,115 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     df_stars2['idx2'] = np.NaN
     df_stars2['verif2to1'] = np.NaN
     df_dict = {'stars1': df_stars1,
-               'match1to2': df_match1to2,
+               # DELETE
+               # 'match1to2': df_match1to2,
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
-    # Weight pixels of the subimages by distance to center pixel. Use star with minimum sum of squared difference
-    # as the match.
-    # Note: Bad focus on dim stars can cause stars to be lost. Include sigma_pix as metadata for star positions.
-    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
-    width = int(math.ceil(box_pix))
-    weights = gaussian_weights(width=width)
-    for (idx1, x1, y1, sigma1) in stars1[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        subimage1 = get_square_subframe(image=image1, position=(x1, y1), width=width)
-        (height_actl, width_actl) = subimage1.shape
-        if (width_actl != width) or (height_actl != width):
-            tmp_vars = collections.OrderedDict(dataframe='star1', idx1=idx1,
-                                               x1=x1, y1=y1, sigma1=sigma1)
-            raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
-                           "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
-        # Create/reset loop tracking variables.
-        is_first_iter = True
-        min_sum_sqr_diff = np.NaN
-        min_idx2 = np.NaN
-        for (idx2, x2, y2, sigma2) in stars2[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-            subimage2 = get_square_subframe(image=image2, position=(x2, y2), width=width)
-            (height_actl, width_actl) = subimage2.shape
-            if (width_actl != width) or (height_actl != width):
-                tmp_vars = collections.OrderedDict(dataframe='star2', idx2=idx2,
-                                                   x2=x2, y2=y2, sigma2=sigma2)
-                raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
-                               "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
-            sum_sqr_diff = np.sum(weights * (subimage2 - subimage1) ** 2.0)
-            if is_first_iter:
-                min_sum_sqr_diff = sum_sqr_diff
-                min_idx2 = idx2
-                is_first_iter = False
-            else:
-                if sum_sqr_diff < min_sum_sqr_diff:
-                    min_sum_sqr_diff = sum_sqr_diff
-                    min_idx2 = idx2
-        stars.loc[idx1, 'match1to2'].loc['idx2'] = min_idx2
-        stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = \
-            stars2.loc[min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
-    # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with
-    # the RANSAC algorithm. If fewer than 3 stars, RANSAC will still yield a transformation.
-    # Matched stars must be within 1 sigma of the median centroid of stars2 to be classified as inliers.
-    # This accommodates clouds and close binaries.
-    # TODO: use model with limits, or post bug to github
-    #     model = skimage.transform.AffineTransform(scale=(0.0, 0.0), rotation=0.0, shear=0.0)
-    #     Only translation should be permitted, no scale, rotation, or shear. Poor fits for the transformation model
-    #     are attributed to noise from atmospheric turbulence.
-    # Note: skimage uses (row_coordinate, col_coordinate), which is (y_pix, x_pix)
-    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
-    src = stars.loc[('stars1', ['y_pix', 'x_pix'])].values
-    print('test:')
-    print('src =', src)
-    dst = stars.loc[('match1to2', ['y_pix', 'x_pix'])].values
-    print('dst =', dst)
-    if len(src) != num_stars1:
-        raise AssertionError(
-            ("Program error. Number of source stars does not equal number from stars1. Mapping must be 'onto'.\n" +
-             "Source stars:\n{src}\n" +
-             "stars1:\n{stars1}").format(src=src, stars1=stars1))
-    if len(dst) != num_stars1:
-        raise AssertionError(
-            ("Program error. Number of destination stars does not equal number from stars1. Mapping must be 'onto'.\n" +
-             "Source stars:\n{dst}\n" +
-             "stars1:\n{stars1}").format(dst=dst, stars1=stars1))
-    # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
-    #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
-    residual_threshold = np.median(stars2['sigma_pix'])
-    print(residual_threshold)
-    logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
-    (tform, inliers) = skimage.measure.ransac(data=(src, dst), model_class=skimage.transform.AffineTransform,
-                                              min_samples=3, residual_threshold=residual_threshold, max_trials=100)
-    # noinspection PyPep8
-    outliers = (inliers == False)
-    logger.debug(
-        "Number of inliers: {ni}, outliers: {no}".format(ni=np.count_nonzero(inliers), no=np.count_nonzero(outliers)))
-    pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
-                                   shear=tform.shear, params=tform.params)
-    # TODO: allow user to give custom translation
-    logger.debug("Transform parameters: {pars}".format(pars=pars))
-    stars.loc[:, 'tform1to2'].loc[:, ['y_pix', 'x_pix']] = tform(src)
+
+    # # DELETE
+    # # Weight pixels of the subimages by distance to center pixel. Use star with minimum sum of squared difference
+    # # as the match.
+    # # Note: Bad focus on dim stars can cause stars to be lost. Include sigma_pix as metadata for star positions.
+    # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    # #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
+    # width = int(math.ceil(box_pix))
+    # weights = gaussian_weights(width=width)
+    # for (idx1, x1, y1, sigma1) in stars1[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
+    #     subimage1 = get_square_subframe(image=image1, position=(x1, y1), width=width)
+    #     (height_actl, width_actl) = subimage1.shape
+    #     if (width_actl != width) or (height_actl != width):
+    #         tmp_vars = collections.OrderedDict(dataframe='star1', idx1=idx1,
+    #                                            x1=x1, y1=y1, sigma1=sigma1)
+    #         raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
+    #                        "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+    #     # Create/reset loop tracking variables.
+    #     is_first_iter = True
+    #     min_sum_sqr_diff = np.NaN
+    #     min_idx2 = np.NaN
+    #     for (idx2, x2, y2, sigma2) in stars2[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
+    #         subimage2 = get_square_subframe(image=image2, position=(x2, y2), width=width)
+    #         (height_actl, width_actl) = subimage2.shape
+    #         if (width_actl != width) or (height_actl != width):
+    #             tmp_vars = collections.OrderedDict(dataframe='star2', idx2=idx2,
+    #                                                x2=x2, y2=y2, sigma2=sigma2)
+    #             raise IOError(("Star was too close to the edge of the image to extract a square subimage.\n" +
+    #                            "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+    #         sum_sqr_diff = np.sum(weights * (subimage2 - subimage1) ** 2.0)
+    #         if is_first_iter:
+    #             min_sum_sqr_diff = sum_sqr_diff
+    #             min_idx2 = idx2
+    #             is_first_iter = False
+    #         else:
+    #             if sum_sqr_diff < min_sum_sqr_diff:
+    #                 min_sum_sqr_diff = sum_sqr_diff
+    #                 min_idx2 = idx2
+    #     stars.loc[idx1, 'match1to2'].loc['idx2'] = min_idx2
+    #     stars.loc[idx1, 'match1to2'].loc[['x_pix', 'y_pix', 'sigma_pix']] = \
+    #         stars2.loc[min_idx2, ['x_pix', 'y_pix', 'sigma_pix']]
+
+    # # DELETE
+    # # Estimate image translation using all coordinates then transform coordinates. Robustly estimate the with
+    # # the RANSAC algorithm. If fewer than 3 stars, RANSAC will still yield a transformation.
+    # # Matched stars must be within 1 sigma of the median centroid of stars2 to be classified as inliers.
+    # # This accommodates clouds and close binaries.
+    # # TODO: use model with limits, or post bug to github
+    # #     model = skimage.transform.AffineTransform(scale=(0.0, 0.0), rotation=0.0, shear=0.0)
+    # #     Only translation should be permitted, no scale, rotation, or shear. Poor fits for the transformation model
+    # #     are attributed to noise from atmospheric turbulence.
+    # # Note: skimage uses (row_coordinate, col_coordinate), which is (y_pix, x_pix)
+    # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    # #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
+    # src = stars.loc[('stars1', ['y_pix', 'x_pix'])].values
+    # print('test:')
+    # print('src =', src)
+    # dst = stars.loc[('match1to2', ['y_pix', 'x_pix'])].values
+    # print('dst =', dst)
+    # if len(src) != num_stars1:
+    #     raise AssertionError(
+    #         ("Program error. Number of source stars does not equal number from stars1. Mapping must be 'onto'.\n" +
+    #          "Source stars:\n{src}\n" +
+    #          "stars1:\n{stars1}").format(src=src, stars1=stars1))
+    # if len(dst) != num_stars1:
+    #     raise AssertionError(
+    #         ("Program error. Number of destination stars does not equal number from stars1. Mapping must be 'onto'.\n" +
+    #          "Source stars:\n{dst}\n" +
+    #          "stars1:\n{stars1}").format(dst=dst, stars1=stars1))
+    # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
+    # #     1-to-1 mapping. A loop after RANSAC will verify and correct 1-to-1 matched stars.
+    # residual_threshold = np.median(stars2['sigma_pix'])
+    # print(residual_threshold)
+    # logger.debug("Aligning with RANSAC. Number of stars: {num}".format(num=len(src)))
+    # (tform, inliers) = skimage.measure.ransac(data=(src, dst), model_class=skimage.transform.AffineTransform,
+    #                                           min_samples=3, residual_threshold=residual_threshold, max_trials=100)
+    # # noinspection PyPep8
+    # outliers = (inliers == False)
+    # logger.debug(
+    #     "Number of inliers: {ni}, outliers: {no}".format(ni=np.count_nonzero(inliers), no=np.count_nonzero(outliers)))
+    # pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
+    #                                shear=tform.shear, params=tform.params)
+    # # TODO: allow user to give custom translation
+    # logger.debug("Transform parameters: {pars}".format(pars=pars))
+    # stars.loc[:, 'tform1to2'].loc[:, ['y_pix', 'x_pix']] = tform(src)
+
+    # TODO: http://scikit-image.org/docs/dev/api/skimage.transform.html#similaritytransform, crate model, then do
+    # stars.loc['tform1to2'] = tform(stars.loc[:, ('stars1', ['y_pix', 'x_pix'])
+
     # Verify that transformed star positions match one and only one star from `stars2` to within 1 sigma of
     # the median centroid of stars2. This accommodates clouds and close binaries.
     stars1_verified = pd.DataFrame(columns=stars1.columns)
     stars1_unverified = stars1.copy()
     stars2_verified = pd.DataFrame(columns=stars2.columns)
     stars2_unverified = stars2.copy()
+
+    # TODO: RESUME here with outlining code
+    # DELETE
     # Verify and correct 1-to-1 matched stars.
     # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
     #     1-to-1 mapping. This loop verifies and corrects matches.
     # Populate `stars2` with unverified, matched stars from RANSAC.
-
     # stars.loc[:, 'stars2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']] = \
     #     stars.loc[:, 'match1to2'].loc[:, ['x_pix', 'y_pix', 'sigma_pix', 'idx2']][inliers]
-
     for (idx_m1, row_m) in stars['match1to2'].iterrows():
         is_verified = False
         row_s1 = stars.loc[idx_m1, 'stars1']
