@@ -184,7 +184,7 @@ def check_reduce_config(dobj):
             raise IOError(("Calibration image type is not in master calibration image types.\n" +
                            "calibration image type: {imtype}\n" +
                            "master image types: {imtypes}").format(imtype=imtype,
-                                                                         imtypes=master_fpath.keys()))
+                                                                   imtypes=master_fpath.keys()))
     # Raw object image file path must exist and must be .spe.
     rawfpath = dobj['object']['raw']
     if (rawfpath is None) or (not os.path.isfile(rawfpath)):
@@ -933,7 +933,7 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
     stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
-                                                  num_sigma=num_sigma, threshold=threshold, **kwargs),
+                                          num_sigma=num_sigma, threshold=threshold, **kwargs),
                          columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
@@ -1294,9 +1294,9 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             # zvec = xvec + yvec
             # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
-            #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
-            #   ==> Var(z) = Var(x + y)
-            #              = Var(x) + Var(y) + 2*Cov(x, y)
+            # Notation: x = |xvec|, y = |yvec|, z = |zvec|
+            # ==> Var(z) = Var(x + y)
+            # = Var(x) + Var(y) + 2*Cov(x, y)
             #              = Var(x) + Var(y)
             #                since Cov(x, y) = 0 due to orthogonality.
             #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
@@ -1319,9 +1319,9 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             # - Seed the random number generator only once per call to this method for reproducibility.
             # - To calculate the standard deviation for the 2D Gaussian:
             # zvec = xvec + yvec
-            #   xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
-            #   ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
-            #       Notation: x = |xvec|, y = |yvec|, z = |zvec|
+            # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+            # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+            # Notation: x = |xvec|, y = |yvec|, z = |zvec|
             #   ==> Var(z) = Var(x + y)
             #              = Var(x) + Var(y) + 2*Cov(x, y)
             #              = Var(x) + Var(y)
@@ -1348,9 +1348,9 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
         # # Method is very fast but only accurate between 7 <= `box_pix` <= 11 given `sigma`=1 due to
         # # sensitivity to outliers.
-        #     # Test results: 2014-08-09, STH
-        #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
-        #     #   seeing = 1.4 arcsec.
+        # # Test results: 2014-08-09, STH
+        # # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
+        # #   seeing = 1.4 arcsec.
         #     # - For varying subimages, method does not converge to final centroid solution.
         #     # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
         #     #   +/- 0.01 pix, but then diverges from solution with larger subimages.
@@ -1471,6 +1471,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
         stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
     return stars_finl
 
+
 def image_translation(image1, image2):
     """
     Determine image translation from phase correlation.
@@ -1494,9 +1495,9 @@ def image_translation(image1, image2):
     f1 = np.fft.fft2(image1)
     f2 = np.fft.fft2(image2)
     ir = abs(np.fft.ifft2((f1 * f2.conjugate()) / (abs(f1) * abs(f2))))
-    (dy_int, dx_int) = np.unravel_index(np.argmax(ir), shape)
+    (dy_int, dx_int) = np.unravel_index(int(np.argmax(ir)), shape)
     # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
-    # allows more precise star identification between images.
+    # allows more precise star identification between images. (A gaussian fit may not be best, but good enough.)
     # Tile the phase correlation image when estimating subpixel translation since the coordinate for maximum phase
     # correlation is usually near the domain edge. (Tile the image, don't mirror, since the phase correlation is
     # continuous across image boundaries.)
@@ -1504,7 +1505,6 @@ def image_translation(image1, image2):
     (tiled_offset_y, tiled_offset_x) = shape
     # Returned order should be (x, y) for to match rest of utils convention.
     (tiled_dx_int, tiled_dy_int) = np.add((tiled_offset_x, tiled_offset_y), (dx_int, dy_int))
-    plt.imshow(tiled[tiled_dy_int-10:tiled_dy_int+10, tiled_dx_int-10:tiled_dx_int+10])
     translation = center_stars(image=tiled,
                                stars=pd.DataFrame([[tiled_dx_int, tiled_dy_int, 1.0]],
                                                   columns=['x_pix', 'y_pix', 'sigma_pix']))
@@ -1519,6 +1519,7 @@ def image_translation(image1, image2):
         dy_pix -= shape[0]
     if dx_pix > shape[1] / 2.0:
         dx_pix -= shape[1]
+    # noinspection PyRedundantParentheses
     return (dx_pix, dy_pix)
 
 
@@ -1555,17 +1556,18 @@ def _plot_matches(image1, image2, stars1, stars2):
     (fig, axes) = plt.subplots(nrows=2, ncols=1)
     keypoints1 = stars1[['y_pix', 'x_pix']].values
     keypoints2 = stars2[['y_pix', 'x_pix']].values
+    # noinspection PyPep8
     matches = stars1[stars1['verif1to2'] == True].index.tolist()
     feature.plot_matches(ax=axes[0], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
-                                 matches=np.column_stack((matches, matches)), keypoints_color='yellow',
-                                 matches_color='green')
+                         matches=np.column_stack((matches, matches)), keypoints_color='yellow',
+                         matches_color='green')
     axes[0].axis('off')
     axes[0].set_title('Verified matches (left: image1, right: image2)')
     # noinspection PyPep8
     not_matches = stars1[stars1['verif1to2'] == False].index.tolist()
     feature.plot_matches(ax=axes[1], image1=image1, image2=image2, keypoints1=keypoints1, keypoints2=keypoints2,
-                                 matches=np.column_stack((not_matches, not_matches)), keypoints_color='yellow',
-                                 matches_color='red')
+                         matches=np.column_stack((not_matches, not_matches)), keypoints_color='yellow',
+                         matches_color='red')
     axes[1].axis('off')
     axes[1].set_title('Unverified matches (left: image1, right: image2)')
     plt.show()
@@ -1579,9 +1581,9 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
     # TODO: Fix warning: SettingWithCopyWarning
-    #     SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame
-    #     KeyError: 'MultiIndex Slicing requires the index to be fully lexsorted tuple len (2), lexsort depth (1)'
-    #     http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-view-versus-copy
+    # SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame
+    # KeyError: 'MultiIndex Slicing requires the index to be fully lexsorted tuple len (2), lexsort depth (1)'
+    # http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-view-versus-copy
     #     http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-mi-slicers
     # Check input.
     num_stars1 = len(stars1.dropna())
@@ -1689,7 +1691,8 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
     #          "stars1:\n{stars1}").format(src=src, stars1=stars1))
     # if len(dst) != num_stars1:
     #     raise AssertionError(
-    #         ("Program error. Number of destination stars does not equal number from stars1. Mapping must be 'onto'.\n" +
+    #         ("Program error. Number of destination stars does not equal number from stars1.\n" +
+    #          "Mapping must be 'onto'.\n" +
     #          "Source stars:\n{dst}\n" +
     #          "stars1:\n{stars1}").format(dst=dst, stars1=stars1))
     # # Note: In sparse fields, there are too few features within the box_pix window for RANSAC to give a guaranteed
@@ -1795,8 +1798,6 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
                     stars2_unverified.drop(idx_u2, inplace=True)
                     stars.loc[idx_m1, 'stars2'].loc['verif2to1'] = 1
                     is_verified = True
-
-
 
         if not is_verified:
             logger.debug("No match in star2 was verified for star1 index {idx}: {row}".format(idx=idx_m1, row=row_m))
