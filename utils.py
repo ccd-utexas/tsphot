@@ -1637,17 +1637,16 @@ def match_stars(image1, image2, stars1, stars2, box_pix=11, test=False):
             (xt, yt) = row.loc['tform1to2', ['x_pix', 'y_pix']]
             sum_sqr_diff = np.sum(np.power(np.subtract((x2, y2), (xt, yt)), 2.0))
             if is_first_iter:
-                row[] = sum_sqr_diff
-                row['stars2'] = row2
+                row.loc['stars2', 'minssd'] = sum_sqr_diff
+                row.loc['stars2'] = row.loc['stars2'].combine_first(row2)
                 is_first_iter = False
             else:
                 if sum_sqr_diff < min_sum_sqr_diff:
-                    min_sum_sqr_diff = sum_sqr_diff
-                    row['stars2'] = row2
-        # Check that values were found and save results. Assign `minssd` after assigning `row`, otherwise get np.NaN.
-        assert (sum_sqr_diff, min_sum_sqr_diff) != tuple([None]) * 2
-        stars.loc[idx, 'stars2'] = row2
-        stars.loc[idx, ('stars2', 'minssd')] = min_sum_sqr_diff
+                    row.loc['stars2', 'minssd'] = sum_sqr_diff
+                    row.loc['stars2'] = row.loc['stars2'].combine_first(row2)
+        # Check that values were found and save results.
+        assert sum_sqr_diff is not None
+        stars.loc[idx, 'stars2'] = row
     # After all stars have been matched, verify that matched stars are within 1 sigma of the centroid of stars2 and
     # are matched 1-to-1.
     # TODO: Avoid assertions below for duplicate stars and extremely close binaries.
