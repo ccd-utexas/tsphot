@@ -201,7 +201,7 @@ def main(fconfig, rereduce=False, verbose=False):
                                               dark=master_ccddata['dark'], dark_exptime=dark_exptime,
                                               flat=master_ccddata['flat'], flat_exptime=flat_exptime)
         # TODO: calculate gain and readnoise. correct for gain.
-        # TODO: Make a class to track progress.
+        # TODO: Make a closure/class to track progress.
         # TODO: for online analysis, skip cleaning cosmic rays
         logger.info("Cleaning cosmic rays.")
         key_list = []
@@ -231,7 +231,8 @@ def main(fconfig, rereduce=False, verbose=False):
                 pickle.dump(object_ccddata, fp)
     if do_reduction is None:
         raise AssertionError("Program error. Not all cases for do_reduction are accounted for.")
-    # TODO: RESUME PIPELINE HERE
+    ################################################################################
+    # Find stars and align images.
     # TODO: check programmed/actual exposure times since pulses could have been missed
     # TODO: check default experiments with footer metadata to confirm correct experiment settings for calib. frames
 

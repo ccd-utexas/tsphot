@@ -869,17 +869,18 @@ def normalize(array):
 def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
-    Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_
-    to find star-like blobs. Method can also find extended sources by modifying `blobargs`,
-    however this pipeline is taylored for stars.
+    Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
+    Method can also find extended sources by modifying `blobargs`, however this pipeline is taylored for stars.
+    If focus is poor or if PSF is oversampled (FWHM is many pixels), method may find multiple small stars within a
+    single star. Use `center_stars` then `condense_stars` to resolve degeneracy in coordinates.
     
     Parameters
     ----------
     image : array_like
         2D array of image.
-    min_sigma : {1}, float, optional
+    min_sigma : {2}, float, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
-    max_sigma : {1}, float, optional
+    max_sigma : {2}, float, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
     num_sigma : {1}, float, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
@@ -1175,6 +1176,8 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
 
     Extract a square subimage around each star. Side-length of the subimage box is `box_pix`.
     With the given method, return a dataframe with sub-pixel coordinates of the centroid and sigma standard deviation.
+    Uses a constant `box_pix`, so assumes all stars in the image have the same PSF. This assumption is invalid
+    for galaxies.
 
     Parameters
     ----------
@@ -1191,7 +1194,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     box_pix : {11}, optional
         `box_pix` x `box_pix` are the dimensions for a square subimage around the source.
         `box_pix` will be corrected to be odd and >= 3 so that the center pixel of the subimage is
-        the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement by `box_pix` = 11.
+        the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement by `box_pix`=11.
     threshold_sigma : {3}, optional
         `threshold_sigma` is the number of standard deviations above the subimage median for counts per pixel.
         Accepts ``float`` or ``int``. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
@@ -1471,6 +1474,37 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     return stars_finl
 
 
+def condense_stars(stars):
+    """
+    Stars within 1 sigma of each other are assumed to be the same star.
+    :type stars: object
+    :param image:
+    :param stars:
+    :return stars:
+    """
+    # Sort `stars` by `sigma_pix` so that sources with larger sigma contain degenerate sources with smaller sigma.
+    # `stars` is updated at the end of each iteration.
+    for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
+        sum_sqr_diffs = \
+            np.sum(
+                np.power(
+                    np.subtract(
+                        stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
+                        row.loc[['x_pix', 'y_pix']]),
+                    2.0),
+                axis=1)
+        minssd = sum_sqr_diffs.min()
+        idx_minssd = sum_sqr_diffs.idxmin()
+        if ((minssd < row.loc['sigma_pix']) and
+            (minssd < stars.loc[idx_minssd, 'sigma_pix'])):
+            if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
+                raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
+                                      "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
+            logger.debug("Dropping duplicate star: {row}".format(row=row))
+            stars.drop(idx, inplace=True)
+    return stars
+
+
 def translate_images_1to2(image1, image2):
     """
     Determine image translation from phase correlation.
@@ -1636,28 +1670,42 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     stars2_verified = pd.DataFrame(columns=stars2.columns)
     stars2_unverified = stars2.copy()
     for (idx, row) in stars.iterrows():
-        sum_sqr_diff = None
         do_verify = False
-        for (idx2, row2) in stars2.iterrows():
-            (x2, y2) = row2.loc[['x_pix', 'y_pix']]
-            (xt, yt) = row.loc['tform1to2', ['x_pix', 'y_pix']]
-            sum_sqr_diff = np.sum(np.power(np.subtract((x2, y2), (xt, yt)), 2.0))
-            do_update = False
-            if pd.isnull(row.loc['stars2', 'minssd']):
-                if sum_sqr_diff < row2.loc['sigma_pix']:
-                    do_update = True
-            else:
-                if sum_sqr_diff < row.loc['stars2', 'minssd']:
-                    do_update = True
-            if do_update:
-                row.loc['stars2'].update(row2)
-                row.loc['stars2', 'idx2'] = idx2
-                row.loc['stars2', 'minssd'] = sum_sqr_diff
-                do_verify = True
+        sum_sqr_diffs = \
+            np.sum(
+                np.power(
+                    np.subtract(
+                        stars2[['x_pix', 'y_pix']],
+                        row.loc['tform1to2', ['x_pix', 'y_pix']]),
+                    2.0),
+                axis=1)
+        minssd = sum_sqr_diffs.min()
+        idx2_minssd = sum_sqr_diffs.idxmin()
+        if minssd < stars2.loc[idx2_minssd, 'sigma_pix']:
+            row.loc['stars2'].update(stars2.loc[idx2_minssd])
+            row.loc['stars2', 'idx2'] = idx2_minssd
+            row.loc['stars2', 'minssd'] = minssd
+            do_verify = True
+        # # TODO: DELETE
+        # for (idx2, row2) in stars2.iterrows():
+        #     (x2, y2) = row2.loc[['x_pix', 'y_pix']]
+        #     (xt, yt) = row.loc['tform1to2', ['x_pix', 'y_pix']]
+        #     sum_sqr_diff = np.sum(np.power(np.subtract((x2, y2), (xt, yt)), 2.0))
+        #     do_update = False
+        #     if pd.isnull(row.loc['stars2', 'minssd']):
+        #         if sum_sqr_diff < row2.loc['sigma_pix']:
+        #             do_update = True
+        #     else:
+        #         if sum_sqr_diff < row.loc['stars2', 'minssd']:
+        #             do_update = True
+        #     if do_update:
+        #         row.loc['stars2'].update(row2)
+        #         row.loc['stars2', 'idx2'] = idx2
+        #         row.loc['stars2', 'minssd'] = sum_sqr_diff
+        #         do_verify = True
         # Save results and verify found matches.
         # TODO: Avoid assertions below for duplicate stars and extremely close binaries.
         # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
-        assert sum_sqr_diff is not None
         stars.loc[idx] = row
         if do_verify:
             idx1 = idx
