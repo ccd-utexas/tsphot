@@ -1686,23 +1686,6 @@ def match_stars(image1, image2, stars1, stars2, test=False):
             row.loc['stars2', 'idx2'] = idx2_minssd
             row.loc['stars2', 'minssd'] = minssd
             do_verify = True
-        # # TODO: DELETE
-        # for (idx2, row2) in stars2.iterrows():
-        #     (x2, y2) = row2.loc[['x_pix', 'y_pix']]
-        #     (xt, yt) = row.loc['tform1to2', ['x_pix', 'y_pix']]
-        #     sum_sqr_diff = np.sum(np.power(np.subtract((x2, y2), (xt, yt)), 2.0))
-        #     do_update = False
-        #     if pd.isnull(row.loc['stars2', 'minssd']):
-        #         if sum_sqr_diff < row2.loc['sigma_pix']:
-        #             do_update = True
-        #     else:
-        #         if sum_sqr_diff < row.loc['stars2', 'minssd']:
-        #             do_update = True
-        #     if do_update:
-        #         row.loc['stars2'].update(row2)
-        #         row.loc['stars2', 'idx2'] = idx2
-        #         row.loc['stars2', 'minssd'] = sum_sqr_diff
-        #         do_verify = True
         # Save results and verify found matches.
         # TODO: Avoid assertions below for duplicate stars and extremely close binaries.
         # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
