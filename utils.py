@@ -715,11 +715,8 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     # - scale and subtract master dark from object image
     # - divide object image by corrected master flat
     # TODO: Make a class to track progress.
-    key_list = []
-    for key in dobj:
-        if isinstance(dobj[key], ccdproc.CCDData):
-            key_list.append(key)
-    key_sortedlist = sorted(key_list)
+
+    key_sortedlist = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
     key_len = len(key_sortedlist)
     prog_interval = 0.05
     prog_divs = int(math.ceil(1.0 / prog_interval))
@@ -729,6 +726,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
         key_idx = int(math.ceil((key_len - 1) * progress))
         key = key_sortedlist[key_idx]
         key_progress[key] = progress
+
     logger.info("Reducing object images.")
     logger.info("Subtracting master bias from object images: {tf}".format(tf=has_bias))
     logger.info("Subtracting master dark from object images: {tf}".format(tf=has_dark))
@@ -809,9 +807,8 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     """
     # TODO: Silence `photutils.detection.lacosmic`. Hack: http://stackoverflow.com/questions/14058453 and 19425736
     # TODO: Silence `photutils.detection.lacosmic`. directing stdout, stderr causes lacosmic to hang at end.
-    tmp_kwargs = collections.OrderedDict(contrast=contrast, cr_threshold=cr_threshold,
-                                         neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
-                                         **kwargs)
+    tmp_kwargs = dict(contrast=contrast, cr_threshold=cr_threshold, neighbor_threshold=neighbor_threshold,
+                      gain=gain, readnoise=readnoise, **kwargs)
     logger.debug("LA-Cosmic keyword arguments: {tmp_kwargs}".format(tmp_kwargs=tmp_kwargs))
     (image_cleaned, ray_mask) = lacosmic.lacosmic(image, contrast=contrast, cr_threshold=cr_threshold,
                                                   neighbor_threshold=neighbor_threshold, gain=gain, readnoise=readnoise,
@@ -1086,10 +1083,8 @@ def get_square_subimage(image, position, width=11):
                                            position=position)
     (height_actl, width_actl) = subimage.shape
     if (width_actl != width) or (height_actl != height):
-        # noinspection PyShadowingBuiltins
-        tmp_vars = collections.OrderedDict(width=width, position=position)
-        logger.warning(("Star is too close to the edge of the image. Square subimage could not be extracted. " +
-                        "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+        logger.debug(("Star was too close to the edge of the image to extract a square subimage. " +
+                     "width={wid}, position={pos}").format(wid=width, pos=position))
     return subimage
 
 
@@ -1171,7 +1166,7 @@ def subtract_subimage_background(subimage, threshold_sigma=3):
 
 
 # noinspection PyUnresolvedReferences
-def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaussian'):
+def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaussian'):
     """Compute centroids of pre-identified stars in an image and return as a dataframe.
 
     Extract a square subimage around each star. Side-length of the subimage box is `box_pix`.
@@ -1194,7 +1189,8 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     box_pix : {11}, optional
         `box_pix` x `box_pix` are the dimensions for a square subimage around the source.
         `box_pix` will be corrected to be odd and >= 3 so that the center pixel of the subimage is
-        the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement by `box_pix`=11.
+        the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement for `box_pix`>=11.
+        Typical observed stars fit in `box_pix` = 21.
     threshold_sigma : {3}, optional
         `threshold_sigma` is the number of standard deviations above the subimage median for counts per pixel.
         Accepts ``float`` or ``int``. Pixels with fewer counts are set to 0. Uses `sigmaG` [3]_.
@@ -1275,7 +1271,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
             tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
                                                sigma_init=sigma_init, box_pix=box_pix,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
-            logger.info(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
+            logger.debug(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
                          "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         x_init_sub = (width_actl - 1) / 2
@@ -1474,7 +1470,7 @@ def center_stars(image, stars, box_pix=11, threshold_sigma=3, method='fit_2dgaus
     return stars_finl
 
 
-def condense_stars(stars):
+def drop_duplicate_stars(stars):
     """
     Stars within 1 sigma of each other are assumed to be the same star.
     :type stars: object
@@ -1482,8 +1478,9 @@ def condense_stars(stars):
     :param stars:
     :return stars:
     """
-    # Sort `stars` by `sigma_pix` so that sources with larger sigma contain degenerate sources with smaller sigma.
+    # Remove all NaN values and sort `stars` by `sigma_pix` so that sources with larger sigma contain degenerate sources with smaller sigma.
     # `stars` is updated at the end of each iteration.
+    stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
         sum_sqr_diffs = \
             np.sum(
@@ -1621,8 +1618,8 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
     # Check input.
-    num_stars1 = len(stars1.dropna())
-    num_stars2 = len(stars2.dropna())
+    num_stars1 = len(stars1.dropna(subset=['x_pix', 'y_pix']))
+    num_stars2 = len(stars2.dropna(subset=['x_pix', 'y_pix']))
     if num_stars1 != len(stars1[['x_pix', 'y_pix']]):
         raise IOError(("NaN values for 'x_pix', 'y_pix' are not allowed. stars1:\n" +
                        "{stars1}").format(stars1=stars1))
@@ -1636,8 +1633,8 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         raise IOError(("stars2 must have at least one star.\n" +
                        "stars2 = {stars2}").format(stars2=stars2))
     if num_stars1 != num_stars2:
-        logger.info(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
-                     "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
+        logger.debug(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
+                      "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
     # Create heirarchical dataframe for tracking star matches. Match from star1 positions to star2 positions.
     # `stars` dataframe has the same number of stars as `stars1`: num_stars = num_stars1
     # Sort columns to permit heirarchical slicing.
@@ -1657,20 +1654,21 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     stars.sort_index(axis=1, inplace=True)
     # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
     # TODO: allow user to give custom translation
-    tform = skimage.transform.SimilarityTransform(translation=translate_images_1to2(image1=image1, image2=image2))
+    translation = translate_images_1to2(image1=image1, image2=image2)
+    tform = skimage.transform.SimilarityTransform(translation=translation)
     stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
     pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                    params=tform.params)
     logger.debug("Transform parameters: {pars}".format(pars=pars))
     # Use least sum of squares to match stars. Verify that matched stars are within 1 sigma
     # of the centroid of stars2 and are matched 1-to-1.
-    # TODO: May fail if used on close binaries defined by hand instead of by `find_stars`. Accommodate with psf model.
+    # TODO: Allow users to define stars by hand instead of by `find_stars`
+    # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
     stars1_verified = pd.DataFrame(columns=stars1.columns)
     stars1_unverified = stars1.copy()
     stars2_verified = pd.DataFrame(columns=stars2.columns)
     stars2_unverified = stars2.copy()
     for (idx, row) in stars.iterrows():
-        do_verify = False
         sum_sqr_diffs = \
             np.sum(
                 np.power(
@@ -1685,12 +1683,6 @@ def match_stars(image1, image2, stars1, stars2, test=False):
             row.loc['stars2'].update(stars2.loc[idx2_minssd])
             row.loc['stars2', 'idx2'] = idx2_minssd
             row.loc['stars2', 'minssd'] = minssd
-            do_verify = True
-        # Save results and verify found matches.
-        # TODO: Avoid assertions below for duplicate stars and extremely close binaries.
-        # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
-        stars.loc[idx] = row
-        if do_verify:
             idx1 = idx
             row1 = stars1.loc[idx1]
             if idx1 not in stars1_verified.index:
@@ -1699,7 +1691,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 raise AssertionError(("Program error. Star from stars1 already verified:\n" +
                                       "{row}").format(row=row))
             stars1_unverified.drop(idx1, inplace=True)
-            stars.loc[idx, ('stars1', 'verif1to2')] = 1
+            row.loc['stars1', 'verif1to2'] = 1
             idx2 = row.loc['stars2', 'idx2'].astype(int)
             row2 = stars2.loc[idx2]
             if idx2 not in stars2_verified.index:
@@ -1708,11 +1700,14 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 raise AssertionError(("Program error. Star from stars2 already verified:\n" +
                                       "{row}").format(row=row))
             stars2_unverified.drop(idx2, inplace=True)
-            stars.loc[idx, ('stars2', 'verif2to1')] = 1
+            row.loc['stars2', 'verif2to1'] = 1
         else:
+            row.loc['stars2'].update(row.loc['tform1to2'])
+            row.loc['stars1', 'verif1to2'] = 0
+            row.loc['stars2', 'verif2to1'] = 0
             logger.debug("Star not verified: {row}".format(row=row))
-            stars.loc[idx, ('stars1', 'verif1to2')] = 0
-            stars.loc[idx, ('stars2', 'verif2to1')] = 0
+        # Save results and verify found matches.
+        stars.loc[idx].update(row)
     # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
     # Sort columns to permit heirarchical slicing.
     if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
@@ -1721,8 +1716,8 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
         logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
                       " stars2_unverified: {s2u}").format(s2u=stars2_unverified))
-        df_dict = {'stars1': stars['stars1'].copy(),
-                   'tform1to2': stars['tform1to2'].copy(),
+        df_dict = {'stars1': stars['stars1'],
+                   'tform1to2': stars['tform1to2'],
                    'stars2': (stars['stars2'].copy()).append(stars2_unverified, ignore_index=True)}
         stars = pd.concat(df_dict, axis=1)
     stars.sort_index(axis=1, inplace=True)
