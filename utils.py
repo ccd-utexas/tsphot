@@ -1478,27 +1478,30 @@ def drop_duplicate_stars(stars):
     :param stars:
     :return stars:
     """
-    # Remove all NaN values and sort `stars` by `sigma_pix` so that sources with larger sigma contain degenerate sources with smaller sigma.
-    # `stars` is updated at the end of each iteration.
+    # Remove all NaN values and sort `stars` by `sigma_pix` so that sources with larger sigma contain the
+    # duplicate sources with smaller sigma. `stars` is updated at the end of each iteration.
     stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
-    for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
-        sum_sqr_diffs = \
-            np.sum(
-                np.power(
-                    np.subtract(
-                        stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
-                        row.loc[['x_pix', 'y_pix']]),
-                    2.0),
-                axis=1)
-        minssd = sum_sqr_diffs.min()
-        idx_minssd = sum_sqr_diffs.idxmin()
-        if ((minssd < row.loc['sigma_pix']) and
-            (minssd < stars.loc[idx_minssd, 'sigma_pix'])):
-            if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
-                raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
-                                      "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
-            logger.debug("Dropping duplicate star: {row}".format(row=row))
-            stars.drop(idx, inplace=True)
+    if len(stars) > 1:
+        for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
+            sum_sqr_diffs = \
+                np.sum(
+                    np.power(
+                        np.subtract(
+                            stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
+                            row.loc[['x_pix', 'y_pix']]),
+                        2.0),
+                    axis=1)
+            minssd = sum_sqr_diffs.min()
+            idx_minssd = sum_sqr_diffs.idxmin()
+            if ((minssd < row.loc['sigma_pix']) and
+                (minssd < stars.loc[idx_minssd, 'sigma_pix'])):
+                if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
+                    raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
+                                          "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
+                logger.debug("Dropping duplicate star: {row}".format(row=row))
+                stars.drop(idx, inplace=True)
+    else:
+        logger.debug("No duplicate stars to drop. num_stars = {num}".format(num=len(stars)))
     return stars
 
 
@@ -1618,20 +1621,13 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
     # Check input.
-    num_stars1 = len(stars1.dropna(subset=['x_pix', 'y_pix']))
-    num_stars2 = len(stars2.dropna(subset=['x_pix', 'y_pix']))
-    if num_stars1 != len(stars1[['x_pix', 'y_pix']]):
-        raise IOError(("NaN values for 'x_pix', 'y_pix' are not allowed. stars1:\n" +
-                       "{stars1}").format(stars1=stars1))
-    if num_stars2 != len(stars2[['x_pix', 'y_pix']]):
-        raise IOError(("NaN values for 'x_pix', 'y_pix' are not allowed. stars2:\n" +
-                       "{stars2}").format(stars2=stars2))
+    stars1.dropna(subset=['x_pix', 'y_pix'], inplace=True)
+    stars2.dropna(subset=['x_pix', 'y_pix'], inplace=True)
+    num_stars1 = len(stars1)
+    num_stars2 = len(stars2)
     if num_stars1 < 1:
         raise IOError(("stars1 must have at least one star.\n" +
                        "stars1 = {stars1}").format(stars1=stars1))
-    if num_stars2 < 1:
-        raise IOError(("stars2 must have at least one star.\n" +
-                       "stars2 = {stars2}").format(stars2=stars2))
     if num_stars1 != num_stars2:
         logger.debug(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
                       "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
@@ -1652,74 +1648,83 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                'stars2': df_stars2}
     stars = pd.concat(df_dict, axis=1)
     stars.sort_index(axis=1, inplace=True)
-    # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
-    # TODO: allow user to give custom translation
-    translation = translate_images_1to2(image1=image1, image2=image2)
-    tform = skimage.transform.SimilarityTransform(translation=translation)
-    stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
-    pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
-                                   params=tform.params)
-    logger.debug("Transform parameters: {pars}".format(pars=pars))
-    # Use least sum of squares to match stars. Verify that matched stars are within 1 sigma
-    # of the centroid of stars2 and are matched 1-to-1.
-    # TODO: Allow users to define stars by hand instead of by `find_stars`
-    # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
-    stars1_verified = pd.DataFrame(columns=stars1.columns)
-    stars1_unverified = stars1.copy()
-    stars2_verified = pd.DataFrame(columns=stars2.columns)
-    stars2_unverified = stars2.copy()
-    for (idx, row) in stars.iterrows():
-        sum_sqr_diffs = \
-            np.sum(
-                np.power(
-                    np.subtract(
-                        stars2[['x_pix', 'y_pix']],
-                        row.loc['tform1to2', ['x_pix', 'y_pix']]),
-                    2.0),
-                axis=1)
-        minssd = sum_sqr_diffs.min()
-        idx2_minssd = sum_sqr_diffs.idxmin()
-        if minssd < stars2.loc[idx2_minssd, 'sigma_pix']:
-            row.loc['stars2'].update(stars2.loc[idx2_minssd])
-            row.loc['stars2', 'idx2'] = idx2_minssd
-            row.loc['stars2', 'minssd'] = minssd
-            idx1 = idx
-            row1 = stars1.loc[idx1]
-            if idx1 not in stars1_verified.index:
-                stars1_verified.loc[idx1] = row1
+    # If any stars exist in stars2, match them...:
+    if num_stars2 > 0:
+        # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
+        # TODO: allow user to give custom translation
+        translation = translate_images_1to2(image1=image1, image2=image2)
+        tform = skimage.transform.SimilarityTransform(translation=translation)
+        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
+        pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
+                                       params=tform.params)
+        logger.debug("Transform parameters: {pars}".format(pars=pars))
+        # Use least sum of squares to match stars. Verify that matched stars are within 1 sigma
+        # of the centroid of stars2 and are matched 1-to-1.
+        # TODO: Allow users to define stars by hand instead of by `find_stars`
+        # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
+        stars1_verified = pd.DataFrame(columns=stars1.columns)
+        stars1_unverified = stars1.copy()
+        stars2_verified = pd.DataFrame(columns=stars2.columns)
+        stars2_unverified = stars2.copy()
+        for (idx, row) in stars.iterrows():
+            sum_sqr_diffs = \
+                np.sum(
+                    np.power(
+                        np.subtract(
+                            stars2[['x_pix', 'y_pix']],
+                            row.loc['tform1to2', ['x_pix', 'y_pix']]),
+                        2.0),
+                    axis=1)
+            minssd = sum_sqr_diffs.min()
+            idx2_minssd = sum_sqr_diffs.idxmin()
+            # Faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma than
+            # the actual sigma of the PSF. Thus, accept found stars up to 3 sigma away from the predicted coordinates
+            # as being the matching star.
+            if minssd < 3.0 * stars2.loc[idx2_minssd, 'sigma_pix']:
+                row.loc['stars2'].update(stars2.loc[idx2_minssd])
+                row.loc['stars2', 'idx2'] = idx2_minssd
+                row.loc['stars2', 'minssd'] = minssd
+                idx1 = idx
+                row1 = stars1.loc[idx1]
+                if idx1 not in stars1_verified.index:
+                    stars1_verified.loc[idx1] = row1
+                else:
+                    raise AssertionError(("Program error. Star from stars1 already verified:\n" +
+                                          "{row}").format(row=row))
+                stars1_unverified.drop(idx1, inplace=True)
+                row.loc['stars1', 'verif1to2'] = 1
+                idx2 = row.loc['stars2', 'idx2'].astype(int)
+                row2 = stars2.loc[idx2]
+                if idx2 not in stars2_verified.index:
+                    stars2_verified.loc[idx2] = row2
+                else:
+                    raise AssertionError(("Program error. Star from stars2 already verified:\n" +
+                                          "{row}").format(row=row))
+                stars2_unverified.drop(idx2, inplace=True)
+                row.loc['stars2', 'verif2to1'] = 1
             else:
-                raise AssertionError(("Program error. Star from stars1 already verified:\n" +
-                                      "{row}").format(row=row))
-            stars1_unverified.drop(idx1, inplace=True)
-            row.loc['stars1', 'verif1to2'] = 1
-            idx2 = row.loc['stars2', 'idx2'].astype(int)
-            row2 = stars2.loc[idx2]
-            if idx2 not in stars2_verified.index:
-                stars2_verified.loc[idx2] = row2
-            else:
-                raise AssertionError(("Program error. Star from stars2 already verified:\n" +
-                                      "{row}").format(row=row))
-            stars2_unverified.drop(idx2, inplace=True)
-            row.loc['stars2', 'verif2to1'] = 1
-        else:
-            row.loc['stars2'].update(row.loc['tform1to2'])
-            row.loc['stars1', 'verif1to2'] = 0
-            row.loc['stars2', 'verif2to1'] = 0
-            logger.debug("Star not verified: {row}".format(row=row))
-        # Save results and verify found matches.
-        stars.loc[idx].update(row)
-    # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
-    # Sort columns to permit heirarchical slicing.
-    if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
-        logger.debug(("Not all stars in stars1 were verified as matching stars in stars2." +
-                      " stars1_unverified: {s1u}").format(s1u=stars1_unverified))
-    if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
-        logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
-                      " stars2_unverified: {s2u}").format(s2u=stars2_unverified))
-        df_dict = {'stars1': stars['stars1'],
-                   'tform1to2': stars['tform1to2'],
-                   'stars2': (stars['stars2'].copy()).append(stars2_unverified, ignore_index=True)}
-        stars = pd.concat(df_dict, axis=1)
+                row.loc['stars2'].update(row.loc['tform1to2'])
+                row.loc['stars1', 'verif1to2'] = 0
+                row.loc['stars2', 'verif2to1'] = 0
+                logger.debug("Star not verified: {row}".format(row=row))
+            # Save results and verify found matches.
+            stars.loc[idx].update(row)
+        # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
+        # Sort columns to permit heirarchical slicing.
+        if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
+            logger.debug(("Not all stars in stars1 were verified as matching stars in stars2." +
+                          " stars1_unverified: {s1u}").format(s1u=stars1_unverified))
+        if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
+            logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
+                          " stars2_unverified: {s2u}").format(s2u=stars2_unverified))
+            df_dict = {'stars1': stars['stars1'],
+                       'tform1to2': stars['tform1to2'],
+                       'stars2': (stars['stars2']).append(stars2_unverified, ignore_index=True)}
+            stars = pd.concat(df_dict, axis=1)
+    # ...otherwise there are no stars in stars2.
+    else:
+        logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
+        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
     stars.sort_index(axis=1, inplace=True)
     stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
     stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
