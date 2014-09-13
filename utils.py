@@ -1724,7 +1724,10 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     # ...otherwise there are no stars in stars2.
     else:
         logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
-        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
+        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values
+        stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values
+        stars.loc[:, ('stars1', 'verif1to2')] = 0
+        stars.loc[:, ('stars2', 'verif2to1')] = 0
     stars.sort_index(axis=1, inplace=True)
     stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
     stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
