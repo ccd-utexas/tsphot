@@ -1474,13 +1474,14 @@ def drop_duplicate_stars(stars):
     """
     Stars within 1 sigma of each other are assumed to be the same star.
     :type stars: object
-    :param image:
     :param stars:
     :return stars:
     """
     # Remove all NaN values and sort `stars` by `sigma_pix` so that sources with larger sigma contain the
     # duplicate sources with smaller sigma. `stars` is updated at the end of each iteration.
+    # noinspection PyUnresolvedReferences
     stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
+    # noinspection PyTypeChecker
     if len(stars) > 1:
         for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
             sum_sqr_diffs = \
@@ -1493,14 +1494,14 @@ def drop_duplicate_stars(stars):
                     axis=1)
             minssd = sum_sqr_diffs.min()
             idx_minssd = sum_sqr_diffs.idxmin()
-            if ((minssd < row.loc['sigma_pix']) and
-                (minssd < stars.loc[idx_minssd, 'sigma_pix'])):
+            if (minssd < row.loc['sigma_pix']) and (minssd < stars.loc[idx_minssd, 'sigma_pix']):
                 if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
                     raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                           "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
                 logger.debug("Dropping duplicate star: {row}".format(row=row))
                 stars.drop(idx, inplace=True)
     else:
+        # noinspection PyTypeChecker
         logger.debug("No duplicate stars to drop. num_stars = {num}".format(num=len(stars)))
     return stars
 
@@ -1554,9 +1555,9 @@ def translate_images_1to2(image1, image2):
         dy_pix -= shape[0]
     if dx_pix > shape[1] / 2.0:
         dx_pix -= shape[1]
-    # noinspection PyRedundantParentheses
     logger.debug(("Image translation: image1_coords - image2_coords = (dx_pix, dy_pix)" +
                   " = {tup}").format(tup=(dx_pix, dy_pix)))
+    # noinspection PyRedundantParentheses
     return (dx_pix, dy_pix)
 
 
