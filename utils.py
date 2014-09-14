@@ -209,36 +209,6 @@ def check_reduce_config(dobj):
 logger = logging.getLogger(__name__)
 
 
-# noinspection PyPep8Naming
-def dict_to_class(dobj):
-    """Convert keys of a ``dict`` into attributes of a ``Class``.
-
-    Useful for passing arbitrary arguments to functions.
-
-    Parameters
-    ----------
-    dobj : dict
-        ``dict`` with keys and values.
-
-    Returns
-    -------
-    dclass : Class
-        ``Class`` where dclass.key = value.
-
-    See Also
-    --------
-    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to create a JSON configuration file.
-        Edit the file and use as the input to `dict_to_class`.
-
-    Notes
-    -----
-    PIPELINE_SEQUENCE_NUMBER : -0.8.9
-
-    """
-    Dclass = collections.namedtuple('Dclass', dobj.keys())
-    return Dclass(**dobj)
-
-
 # noinspection PyDictCreation
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
@@ -274,6 +244,7 @@ def spe_to_dict(fpath):
 
     """
     # TODO : Return SPE header as well.
+    # TODO: use hdf5
     spe = read_spe.File(fpath)
     object_ccddata = {}
     object_ccddata['footer_xml'] = spe.footer_metadata
