@@ -45,11 +45,13 @@ import math
 import json
 import logging
 import collections
+import datetime as dt
 
 # External package imports. Grouped procedurally then categorically.
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
+import dateutil
 import scipy
 import skimage
 from skimage import feature
@@ -57,6 +59,7 @@ import matplotlib.pyplot as plt
 import astropy
 import ccdproc
 import imageutils
+import photutils
 from photutils.detection import morphology, lacosmic
 # noinspection PyPep8Naming
 from astroML import stats as astroML_stats
@@ -223,10 +226,14 @@ def define_progress(dobj, interval=0.05):
         key_idx = int(math.ceil((num_keys - 1) * progress))
         key = image_keys[key_idx]
         key_progress[key] = progress
+
+    # noinspection PyShadowingNames
     def print_progress(key, key_progress=key_progress):
         if key in key_progress:
             logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
-    logger.debug("Progress: total number images = {num}, percent interval = {intvl}".format(num=num_keys, intvl=interval))
+
+    logger.debug("Progress: total number images = {num}, percent interval = {intvl}".format(num=num_keys,
+                                                                                            intvl=interval))
     return print_progress
 
 
@@ -1062,7 +1069,7 @@ def get_square_subimage(image, position, width=11):
     (height_actl, width_actl) = subimage.shape
     if (width_actl != width) or (height_actl != height):
         logger.debug(("Star was too close to the edge of the image to extract a square subimage. " +
-                     "width={wid}, position={pos}").format(wid=width, pos=position))
+                      "width={wid}, position={pos}").format(wid=width, pos=position))
     return subimage
 
 
@@ -1250,7 +1257,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
                                                sigma_init=sigma_init, box_pix=box_pix,
                                                width=width, width_actl=width_actl, height_actl=height_actl)
             logger.debug(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
-                         "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+                          "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
             continue
         x_init_sub = (width_actl - 1) / 2
         y_init_sub = (height_actl - 1) / 2
@@ -1273,7 +1280,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             # Notation: x = |xvec|, y = |yvec|, z = |zvec|
             # ==> Var(z) = Var(x + y)
-            #            = Var(x) + Var(y) + 2*Cov(x, y)
+            # = Var(x) + Var(y) + 2*Cov(x, y)
             #            = Var(x) + Var(y) since Cov(x, y) = 0 due to orthogonality.
             # ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             fit = morphology.fit_2dgaussian(subimage)
@@ -1298,7 +1305,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
             # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             # Notation: x = |xvec|, y = |yvec|, z = |zvec|
-            #   ==> Var(z) = Var(x + y)
+            # ==> Var(z) = Var(x + y)
             #              = Var(x) + Var(y) + 2*Cov(x, y)
             #              = Var(x) + Var(y)
             #                since Cov(x, y) = 0 due to orthogonality.
@@ -1327,7 +1334,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
         # # Test results: 2014-08-09, STH
         # # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         # #   seeing = 1.4 arcsec.
-        #     # - For varying subimages, method does not converge to final centroid solution.
+        # # - For varying subimages, method does not converge to final centroid solution.
         #     # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
         #     #   +/- 0.01 pix, but then diverges from solution with larger subimages.
         #     #   Method is susceptible to outliers.
@@ -1719,13 +1726,13 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     return matched_stars
 
 
-def timestamps_timeseries(dobj, min_radius=0.5, max_radius=10.0, step_radius=0.5):
+def timestamps_timeseries(dobj, radii):
     """
     Calculate timeseries lightcurves from data and return tuple: timestamps, timeseries
     Stars dataframe description:
     columns:
     `star_index`: Unique index label for stars, >= 0. Example: 0
-    `quantity_unit`: Quanities calculated with units, separated by an underscore. Example: sigma_pix
+    `quantity_unit`: Quantities calculated with units, separated by an underscore. Example: sigma_pix
     rows:
     `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
     TODO: let users define own stars
@@ -1734,17 +1741,16 @@ def timestamps_timeseries(dobj, min_radius=0.5, max_radius=10.0, step_radius=0.5
     sorted_image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
     timestamps_dict = {}
     timeseries_dict = {}
-    radii = np.arange(min_radius, max_radius, step_radius)
     logger.debug("Aperture radii: {radii}".format(radii=radii))
     for key in sorted_image_keys:
         image_new = dobj[key].data
         ftnum_new = dobj[key].meta['frame_tracking_number']
         logger.debug("Frame tracking number: {ftnum}".format(ftnum=ftnum_new))
-        stars_new = utils.find_stars(image=image_new)
+        stars_new = find_stars(image=image_new)
         logger.debug("Found stars: {stars}".format(stars=stars_new))
-        stars_new = utils.center_stars(image=image_new, stars=stars_new)
+        stars_new = center_stars(image=image_new, stars=stars_new)
         logger.debug("Centered stars: {stars}".format(stars=stars_new))
-        stars_new = utils.drop_duplicate_stars(stars=stars_new)
+        stars_new = drop_duplicate_stars(stars=stars_new)
         logger.debug("Dropped duplicate stars: {stars}".format(stars=stars_new))
         stars_new.index.names = ['star_index']
         stars_new.columns.names = ['quantity_unit']
@@ -1752,10 +1758,9 @@ def timestamps_timeseries(dobj, min_radius=0.5, max_radius=10.0, step_radius=0.5
             timeseries_dict[ftnum_new] = stars_new
             timeseries_dict[ftnum_new]['matchedprev_bool'] = np.NaN
         else:
-            matched_stars = utils.match_stars(image1=image_old,
-                                              image2=image_new,
-                                              stars1=stars_old,
-                                              stars2=stars_new)
+            # noinspection PyUnboundLocalVariable
+            matched_stars = match_stars(image1=image_old, image2=image_new,
+                                        stars1=stars_old, stars2=stars_new)
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
         logger.debug("Matched stars: {stars}".format(stars=timeseries_dict[ftnum_new]))
@@ -1769,6 +1774,7 @@ def timestamps_timeseries(dobj, min_radius=0.5, max_radius=10.0, step_radius=0.5
         positions = timeseries_dict[ftnum_new][['x_pix', 'y_pix']].values
         for radius in radii:
             apertures = photutils.CircularAperture(positions=positions, r=radius)
+            # noinspection PyArgumentList
             phot_table = photutils.aperture_photometry(data=image_new, apertures=apertures)
             timeseries_dict[ftnum_new][('flux_ADU', radius)] = phot_table['aperture_sum']
         logger.debug("Calculated aperture photometry: {stars}".format(stars=timeseries_dict[ftnum_new]))
@@ -1808,27 +1814,31 @@ def _plot_positions(timeseries):
     return None
 
 
-def make_lightcurve(timestamps, timeseries, target_index):
+def make_lightcurve(timestamps, timeseries, target_index, radii):
     """
     Make lightcurve from timestamps and timeseries
     """
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
-    target = timeseries[targ_idx].drop(drop_cols, axis=1).copy()
-    comparisons = timeseries.drop(targ_idx, level='star_index', axis=1).drop(drop_cols, level='quantity_unit', axis=1).copy()
-    comp_indices = np.delete(timeseries.columns.levels[0].values, targ_idx)[:-1]
+    target = timeseries[target_index].drop(drop_cols, axis=1).copy()
+    comparisons = timeseries.drop(target_index, level='star_index', axis=1).drop(drop_cols,
+                                                                                 level='quantity_unit',
+                                                                                 axis=1).copy()
+    comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)[:-1]
     for comp_idx in comp_indices:
         if comp_idx == comp_indices[0]:
             comp_sum = comparisons[comp_idx]
         else:
+            # noinspection PyUnboundLocalVariable
             comp_sum += comparisons[comp_idx]
     # From Howell, 2009, sec 5.4, optimal aperture radius is ~1*FHWM. Data is undersampled if FHWM < 1.5 pix.
     # TODO: verify best aperture with scatter measure. Use SNR from photutils instead?
-    fwhm_med = utils.sigma_to_fwhm(np.median(timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix']))
+    fwhm_med = sigma_to_fwhm(np.median(timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix']))
     radius = radii[np.abs(radii - fwhm_med).argmin()]
     logger.info("Photometry aperture radius: {rad}".format(rad=radius))
-    targ_norm = target/target.median()
-    comp_norm = comp_sum/comp_sum.median()
-    lightcurves = targ_norm/comp_norm
+    targ_norm = target / target.median()
+    # noinspection PyUnboundLocalVariable
+    comp_norm = comp_sum / comp_sum.median()
+    lightcurves = targ_norm / comp_norm
     lightcurve = pd.concat([timestamps[['exp_mid']], lightcurves[[('flux_ADU', radius)]]], axis=1)
     lightcurve.set_index(keys=['exp_mid'], inplace=True)
     return lightcurve
@@ -1845,12 +1855,13 @@ def plot_lightcurve(lightcurve, fpath=None):
         pdf = PdfPages(fpath)
     plt.figure()
     pd.DataFrame.plot(lightcurve, legend=False,
-                      title="{fpath}\n{ts}".format(fpath=os.path.basename(object_fpath),
+                      title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
                                                    ts=lightcurve.index[0].isoformat()),
-                  marker='o', markersize=2, linestyle='')
+                      marker='o', markersize=2, linestyle='')
     plt.ylabel("(Fi_targ / median(F_targ)) /\n(Fi_sum(comps) / median(F_sum(comps)))")
     plt.xlabel("Mid-exposure timestamp (UTC)")
     if fpath:
+        # noinspection PyUnboundLocalVariable
         pdf.savefig()
         pdf.close()
     return None
