@@ -961,6 +961,18 @@ def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     Notes
     -----
     PIPELINE_SEQUENCE_NUMBER : 4.1
+
+    Examples
+    --------
+    In []:
+    ```
+    key = 510
+    ftnum = object_ccddata[key].meta['frame_tracking_number']
+    image = object_ccddata[key].data
+    stars = timeseries.loc[ftnum].unstack('quantity_unit')
+    print("ftnum = {num}".format(num=ftnum))
+    utils._plot_stars(image=image, stars=stars)
+    ```
     
     References
     ----------
@@ -1840,7 +1852,7 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
             comp_sum = comparisons[comp_idx]
         else:
             # noinspection PyUnboundLocalVariable
-            comp_sum += comparisons[comp_idx]
+            comp_sum = comp_sum.add(comparisons[comp_idx], fill_value=0.0)
     # From Howell, 2009, sec 5.4, optimal aperture radius is ~1*FHWM. Data is undersampled if FHWM < 1.5 pix.
     # TODO: verify best aperture with scatter measure. Use SNR from photutils instead?
     fwhm_med = \
