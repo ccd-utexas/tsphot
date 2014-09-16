@@ -1794,7 +1794,7 @@ def timestamps_timeseries(dobj, radii):
     ticks_per_second = int(footer_metadata.find(name='TimeStamp', event='ExposureStarted').attrs['resolution'])
     timestamps = pd.DataFrame.from_dict(timestamps_dict, orient='index')
     timestamps.index.names = ['frame_tracking_number']
-    timestamps.columns.names = ['timestamps']
+    timestamps.columns.names = ['timestamps_UTC']
     timestamps['exp_mid'] = timestamps.mean(axis=1)
     timestamps = timestamps.applymap(lambda x: x / ticks_per_second)
     timestamps = timestamps.applymap(lambda x: dt_begin + dt.timedelta(seconds=x))
@@ -1840,7 +1840,9 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
     comp_norm = comp_sum / comp_sum.median()
     lightcurves = targ_norm / comp_norm
     lightcurve = pd.concat([timestamps[['exp_mid']], lightcurves[[('flux_ADU', radius)]]], axis=1)
-    lightcurve.set_index(keys=['exp_mid'], inplace=True)
+    lightcurve.rename(columns={'exp_mid': 'midexposure_timestamp_UTC',
+                               ('flux_ADU', radius): 'normalized_relative_flux'}, inplace=True)
+    lightcurve.set_index(keys=['midexposure_timestamp_UTC'], inplace=True)
     return lightcurve
 
 
