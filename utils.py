@@ -1716,3 +1716,94 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                'stars2': stars['stars2'].drop(['idx2', 'minssd'], axis=1)}
     matched_stars = pd.concat(df_dict, axis=1)
     return matched_stars
+
+
+def timestamps_timeseries(dobj, min_radius=0.5, max_radius=10.0, step_radius=0.5):
+    """
+    Calculate timeseries lightcurves from data and return tuple: timestamps, timeseries
+    Stars dataframe description:
+    columns:
+    `star_index`: Unique index label for stars, >= 0. Example: 0
+    `quantity_unit`: Quanities calculated with units, separated by an underscore. Example: sigma_pix
+    rows:
+    `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
+    TODO: let users define own stars
+    """
+    logger.info("Getting timestamps and calculating timeseries.")
+    print_progress = define_progress(dobj=dobj)
+    sorted_image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
+    timestamps_dict = {}
+    timeseries_dict = {}
+    radii = np.arange(min_radius, max_radius, step_radius)
+    logger.debug("Aperture radii: {radii}".format(radii=radii))
+    for key in sorted_image_keys:
+        image_new = dobj[key].data
+        ftnum_new = dobj[key].meta['frame_tracking_number']
+        logger.debug("Frame tracking number: {ftnum}".format(ftnum=ftnum_new))
+        stars_new = utils.find_stars(image=image_new)
+        logger.debug("Found stars: {stars}".format(stars=stars_new))
+        stars_new = utils.center_stars(image=image_new, stars=stars_new)
+        logger.debug("Centered stars: {stars}".format(stars=stars_new))
+        stars_new = utils.drop_duplicate_stars(stars=stars_new)
+        logger.debug("Dropped duplicate stars: {stars}".format(stars=stars_new))
+        stars_new.index.names = ['star_index']
+        stars_new.columns.names = ['quantity_unit']
+        if key == sorted_image_keys[0]:
+            timeseries_dict[ftnum_new] = stars_new
+            timeseries_dict[ftnum_new]['matchedprev_bool'] = np.NaN
+        else:
+            matched_stars = utils.match_stars(image1=image_old,
+                                              image2=image_new,
+                                              stars1=stars_old,
+                                              stars2=stars_new)
+            timeseries_dict[ftnum_new] = matched_stars['stars2']
+            timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
+        logger.debug("Matched stars: {stars}".format(stars=timeseries_dict[ftnum_new]))
+        # Reset variables for next iteration.
+        image_old = image_new
+        ftnum_old = ftnum_new
+        stars_old = timeseries_dict[ftnum_new][['x_pix', 'y_pix', 'sigma_pix']]
+        # Do aperture photometry.
+        # TODO: do median subtraction above and remove unnecessary subframing
+        image_new -= np.median(image_new)
+        positions = timeseries_dict[ftnum_new][['x_pix', 'y_pix']].values
+        for radius in radii:
+            apertures = photutils.CircularAperture(positions=positions, r=radius)
+            phot_table = photutils.aperture_photometry(data=image_new, apertures=apertures)
+            timeseries_dict[ftnum_new][('flux_ADU', radius)] = phot_table['aperture_sum']
+        logger.debug("Calculated aperture photometry: {stars}".format(stars=timeseries_dict[ftnum_new]))
+        # Record timestamp
+        timestamps_dict[ftnum_new] = {'exp_start': dobj[key].meta['time_stamp_exposure_started'],
+                                      'exp_end': dobj[key].meta['time_stamp_exposure_ended']}
+        print_progress(key=key)
+    # Format timeseries.
+    timeseries = pd.concat(timeseries_dict, axis=0).stack()
+    timeseries.index.names = ['frame_tracking_number', 'star_index', 'quantity_unit']
+    timeseries = timeseries.unstack(['star_index', 'quantity_unit'])
+    timeseries.sort_index(axis=1, inplace=True)
+    # Format timestamps.
+    footer_metadata = BeautifulSoup(dobj['footer_xml'], "xml")
+    ts_begin = footer_metadata.find(name='TimeStamp', event='ExposureStarted').attrs['absoluteTime']
+    dt_begin = dateutil.parser.parse(ts_begin)
+    ticks_per_second = int(footer_metadata.find(name='TimeStamp', event='ExposureStarted').attrs['resolution'])
+    timestamps = pd.DataFrame.from_dict(timestamps_dict, orient='index')
+    timestamps.index.names = ['frame_tracking_number']
+    timestamps.columns.names = ['timestamps']
+    timestamps['exp_mid'] = timestamps.mean(axis=1)
+    timestamps = timestamps.applymap(lambda x: x / ticks_per_second)
+    timestamps = timestamps.applymap(lambda x: dt_begin + dt.timedelta(seconds=x))
+    return timestamps, timeseries
+
+
+def _plot_positions(timeseries):
+    """
+    Make plots of star positions for all star indices.
+    """
+    star_indices = timeseries.columns.levels[0].values
+    for star_idx in star_indices:
+        pd.DataFrame.plot(timeseries[star_idx], x='x_pix', y='y_pix', kind='scatter',
+                          title="(x_pix, y_pix), star_idx: {idx}".format(idx=star_idx))
+        pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
+                          secondary_y='sigma_pix', title="quantity_unit, star_idx: {idx}".format(idx=star_idx))
+    return None
+

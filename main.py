@@ -220,9 +220,12 @@ def main(fconfig, rereduce=False, verbose=False):
     if do_reduction is None:
         raise AssertionError("Program error. Not all cases for do_reduction are accounted for.")
     ################################################################################
-    # Find stars and align images.
+    # Create timeseries.
     # TODO: check programmed/actual exposure times since pulses could have been missed
     # TODO: check default experiments with footer metadata to confirm correct experiment settings for calib. frames
+    logger.info("STAGE: CALCULATE_TIMESERIES")
+    timestamps, timeseries = utils.timestamps_timeseries()
+
 
     # Clean up.
     if flog is not None:
