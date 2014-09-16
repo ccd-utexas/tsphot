@@ -1467,28 +1467,35 @@ def drop_duplicate_stars(stars):
     :return stars:
     """
     # Remove all NaN values and sort `stars` by `sigma_pix` so that sources with larger sigma contain the
-    # duplicate sources with smaller sigma. `stars` is updated at the end of each iteration.
+    # duplicate sources with smaller sigma.
+    # Note: `stars` is dynamically updated at the end of each iteration.
     # noinspection PyUnresolvedReferences
     stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     # noinspection PyTypeChecker
     if len(stars) > 1:
+        logger.debug("More than 1 star in: {stars}".format(stars=stars))
         for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
-            sum_sqr_diffs = \
-                np.sum(
-                    np.power(
-                        np.subtract(
-                            stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
-                            row.loc[['x_pix', 'y_pix']]),
-                        2.0),
-                    axis=1)
-            minssd = sum_sqr_diffs.min()
-            idx_minssd = sum_sqr_diffs.idxmin()
-            if (minssd < row.loc['sigma_pix']) and (minssd < stars.loc[idx_minssd, 'sigma_pix']):
-                if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
-                    raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
-                                          "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
-                logger.debug("Dropping duplicate star: {row}".format(row=row))
-                stars.drop(idx, inplace=True)
+            # Check length again since `stars` is dynamically updated at the end of each iteration.
+            if len(stars) > 1:
+                logger.debug("idx={idx}, row={row}")
+                sum_sqr_diffs = \
+                    np.sum(
+                        np.power(
+                            np.subtract(
+                                stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
+                                row.loc[['x_pix', 'y_pix']]),
+                            2.0),
+                        axis=1)
+                minssd = sum_sqr_diffs.min()
+                idx_minssd = sum_sqr_diffs.idxmin()
+                if (minssd < row.loc['sigma_pix']) and (minssd < stars.loc[idx_minssd, 'sigma_pix']):
+                    if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
+                        raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
+                                              "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
+                    logger.debug("Dropping duplicate star: {row}".format(row=row))
+                    stars.drop(idx, inplace=True)
+            else:
+                logger.debug("No more duplicate stars to drop. num_stars = {num}".format(num=len(stars)))
     else:
         # noinspection PyTypeChecker
         logger.debug("No duplicate stars to drop. num_stars = {num}".format(num=len(stars)))
