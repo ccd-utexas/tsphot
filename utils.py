@@ -925,7 +925,7 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-def plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
+def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
