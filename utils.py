@@ -915,9 +915,13 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     """
     # Normalize image then find stars. Order by x,y,sigma.
     image_normd = normalize(image)
-    stars = pd.DataFrame(feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
-                                          num_sigma=num_sigma, threshold=threshold, **kwargs),
-                         columns=['y_pix', 'x_pix', 'sigma_pix'])
+    stars_arr = feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
+                                 num_sigma=num_sigma, threshold=threshold, **kwargs)
+    if len(stars_arr) > 0:
+        stars = pd.DataFrame(stars_arr, columns=['y_pix', 'x_pix', 'sigma_pix'])
+    else:
+        logger.debug("No stars found.")
+        stars = pd.DataFrame(columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
