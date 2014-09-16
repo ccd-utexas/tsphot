@@ -223,9 +223,12 @@ def main(fconfig, rereduce=False, verbose=False):
     # Create timeseries.
     # TODO: check programmed/actual exposure times since pulses could have been missed
     # TODO: check default experiments with footer metadata to confirm correct experiment settings for calib. frames
-    logger.info("STAGE: CALCULATE_TIMESERIES")
-    timestamps, timeseries = utils.timestamps_timeseries()
-
+    # TODO: finish importing code from ipython notebook
+    # logger.info("STAGE: CALCULATE_TIMESERIES")
+    # logger.info("Getting timestamps and calculating timeseries.")
+    # timestamps, timeseries = utils.timestamps_timeseries(dobj=object_ccddata)
+    # logger.info("Making lightcurve.")
+    # lightcurve = utils.make_lightcurve(timestamps=timestamps, timeseries=timeseries, target_index=target_index)
 
     # Clean up.
     if flog is not None:

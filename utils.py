@@ -60,6 +60,7 @@ import imageutils
 from photutils.detection import morphology, lacosmic
 # noinspection PyPep8Naming
 from astroML import stats as astroML_stats
+from matplotlib.backends.backend_pdf import PdfPages
 
 # Internal package imports.
 import read_spe
@@ -1729,7 +1730,6 @@ def timestamps_timeseries(dobj, min_radius=0.5, max_radius=10.0, step_radius=0.5
     `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
     TODO: let users define own stars
     """
-    logger.info("Getting timestamps and calculating timeseries.")
     print_progress = define_progress(dobj=dobj)
     sorted_image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
     timestamps_dict = {}
@@ -1807,3 +1807,50 @@ def _plot_positions(timeseries):
                           secondary_y='sigma_pix', title="quantity_unit, star_idx: {idx}".format(idx=star_idx))
     return None
 
+
+def make_lightcurve(timestamps, timeseries, target_index):
+    """
+    Make lightcurve from timestamps and timeseries
+    """
+    drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
+    target = timeseries[targ_idx].drop(drop_cols, axis=1).copy()
+    comparisons = timeseries.drop(targ_idx, level='star_index', axis=1).drop(drop_cols, level='quantity_unit', axis=1).copy()
+    comp_indices = np.delete(timeseries.columns.levels[0].values, targ_idx)[:-1]
+    for comp_idx in comp_indices:
+        if comp_idx == comp_indices[0]:
+            comp_sum = comparisons[comp_idx]
+        else:
+            comp_sum += comparisons[comp_idx]
+    # From Howell, 2009, sec 5.4, optimal aperture radius is ~1*FHWM. Data is undersampled if FHWM < 1.5 pix.
+    # TODO: verify best aperture with scatter measure. Use SNR from photutils instead?
+    fwhm_med = utils.sigma_to_fwhm(np.median(timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix']))
+    radius = radii[np.abs(radii - fwhm_med).argmin()]
+    logger.info("Photometry aperture radius: {rad}".format(rad=radius))
+    targ_norm = target/target.median()
+    comp_norm = comp_sum/comp_sum.median()
+    lightcurves = targ_norm/comp_norm
+    lightcurve = pd.concat([timestamps[['exp_mid']], lightcurves[[('flux_ADU', radius)]]], axis=1)
+    lightcurve.set_index(keys=['exp_mid'], inplace=True)
+    return lightcurve
+
+
+def plot_lightcurve(lightcurve, fpath=None):
+    """
+    Plot lightcurve.
+    """
+    # TODO: pdf infodict from config file
+    # TODO: check input
+    if fpath:
+        logger.info("Writing plot to: {fpath}".format(fpath=fpath))
+        pdf = PdfPages(fpath)
+    plt.figure()
+    pd.DataFrame.plot(lightcurve, legend=False,
+                      title="{fpath}\n{ts}".format(fpath=os.path.basename(object_fpath),
+                                                   ts=lightcurve.index[0].isoformat()),
+                  marker='o', markersize=2, linestyle='')
+    plt.ylabel("(Fi_targ / median(F_targ)) /\n(Fi_sum(comps) / median(F_sum(comps)))")
+    plt.xlabel("Mid-exposure timestamp (UTC)")
+    if fpath:
+        pdf.savefig()
+        pdf.close()
+    return None
