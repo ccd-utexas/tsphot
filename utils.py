@@ -209,6 +209,26 @@ def check_reduce_config(dobj):
 logger = logging.getLogger(__name__)
 
 
+def define_progress(dobj, interval=0.05):
+    """
+    Return a function that prints the progress through a `dict` of `ccdproc.CCDData`.
+    """
+    image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
+    num_keys = len(image_keys)
+    divisions = int(math.ceil(1.0 / interval))
+    key_progress = {}
+    for div_idx in xrange(0, divisions + 1):
+        progress = (div_idx / divisions)
+        key_idx = int(math.ceil((num_keys - 1) * progress))
+        key = image_keys[key_idx]
+        key_progress[key] = progress
+    def print_progress(key, key_progress=key_progress):
+        if key in key_progress:
+            logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
+    logger.debug("Progress: total number images = {num}, percent interval = {intvl}".format(num=num_keys, intvl=interval))
+    return print_progress
+
+
 # noinspection PyDictCreation
 def spe_to_dict(fpath):
     """Load an SPE file into a ``dict`` of `ccdproc.CCDData` with metadata.
@@ -680,44 +700,30 @@ def reduce_ccddata(dobj, dobj_exptime=None,
                                      dark_exposure=dark_exptime,
                                      data_exposure=flat_exptime,
                                      scale=True)
-    # Print progress through dict.
     # Operations:
     # - subtract master bias from object image
     # - scale and subtract master dark from object image
     # - divide object image by corrected master flat
-    # TODO: Make a class to track progress.
-
-    key_sortedlist = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
-    key_len = len(key_sortedlist)
-    prog_interval = 0.05
-    prog_divs = int(math.ceil(1.0 / prog_interval))
-    key_progress = {}
-    for idx in xrange(0, prog_divs + 1):
-        progress = (idx / prog_divs)
-        key_idx = int(math.ceil((key_len - 1) * progress))
-        key = key_sortedlist[key_idx]
-        key_progress[key] = progress
-
+    print_progress = define_progress(dobj=dobj)
     logger.info("Reducing object images.")
     logger.info("Subtracting master bias from object images: {tf}".format(tf=has_bias))
     logger.info("Subtracting master dark from object images: {tf}".format(tf=has_dark))
     logger.info("Correcting with master flat for object images: {tf}".format(tf=has_flat))
-    for key in sorted(dobj):
-        if isinstance(dobj[key], ccdproc.CCDData):
-            if has_bias:
-                logger.debug("Subtracting master bias from object image: {key}".format(key=key))
-                dobj[key] = ccdproc.subtract_bias(ccd=dobj[key], master=bias)
-            if has_dark:
-                logger.debug("Subtracting master dark from object image: {key}".format(key=key))
-                dobj[key] = ccdproc.subtract_dark(ccd=dobj[key], master=dark,
-                                                  dark_exposure=dark_exptime,
-                                                  data_exposure=dobj_exptime,
-                                                  scale=True)
-            if has_flat:
-                logger.debug("Correcting with master flat for object image: {key}".format(key=key))
-                dobj[key] = ccdproc.flat_correct(ccd=dobj[key], flat=flat)
-            if key in key_progress:
-                logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
+    sorted_image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
+    for key in sorted_image_keys:
+        if has_bias:
+            logger.debug("Subtracting master bias from object image: {key}".format(key=key))
+            dobj[key] = ccdproc.subtract_bias(ccd=dobj[key], master=bias)
+        if has_dark:
+            logger.debug("Subtracting master dark from object image: {key}".format(key=key))
+            dobj[key] = ccdproc.subtract_dark(ccd=dobj[key], master=dark,
+                                              dark_exposure=dark_exptime,
+                                              data_exposure=dobj_exptime,
+                                              scale=True)
+        if has_flat:
+            logger.debug("Correcting with master flat for object image: {key}".format(key=key))
+            dobj[key] = ccdproc.flat_correct(ccd=dobj[key], flat=flat)
+        print_progress(key=key)
     return dobj
 
 
