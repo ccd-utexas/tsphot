@@ -1864,6 +1864,7 @@ def plot_lightcurve(lightcurve, fpath=None):
                       title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
                                                    ts=lightcurve.index[0].isoformat()),
                       marker='o', markersize=2, linestyle='')
+    # TODO: name x, y labels from dataframe
     plt.ylabel("(Fi_targ / median(F_targ)) /\n(Fi_sum(comps) / median(F_sum(comps)))")
     plt.xlabel("Mid-exposure timestamp (UTC)")
     if fpath:
