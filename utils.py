@@ -1843,12 +1843,17 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
             comp_sum += comparisons[comp_idx]
     # From Howell, 2009, sec 5.4, optimal aperture radius is ~1*FHWM. Data is undersampled if FHWM < 1.5 pix.
     # TODO: verify best aperture with scatter measure. Use SNR from photutils instead?
-    fwhm_med = sigma_to_fwhm(np.median(timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix']))
+    fwhm_med = \
+        sigma_to_fwhm(
+            np.median(
+                [sigma for sigma in \
+                 (timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values).flatten() \
+                 if sigma is not np.NaN]))
     radius = radii[np.abs(radii - fwhm_med).argmin()]
     logger.info("Photometry aperture radius: {rad}".format(rad=radius))
-    targ_norm = target / target.median()
+    targ_norm = target / target.median(axis=0, skipna=True)
     # noinspection PyUnboundLocalVariable
-    comp_norm = comp_sum / comp_sum.median()
+    comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
     lightcurves = targ_norm / comp_norm
     lightcurve = pd.concat([timestamps[['exp_mid']], lightcurves[[('flux_ADU', radius)]]], axis=1)
     lightcurve.rename(columns={'exp_mid': 'midexposure_timestamp_UTC',
