@@ -1863,7 +1863,7 @@ def plot_lightcurve(lightcurve, fpath=None):
     """
     # TODO: pdf infodict from config file
     # TODO: check input
-    if fpath:
+    if fpath is not None:
         logger.info("Writing plot to: {fpath}".format(fpath=fpath))
         pdf = PdfPages(fpath)
     plt.figure()
@@ -1874,7 +1874,7 @@ def plot_lightcurve(lightcurve, fpath=None):
     # TODO: name x, y labels from dataframe
     plt.ylabel("(Fi_targ / median(F_targ)) /\n(Fi_sum(comps) / median(F_sum(comps)))")
     plt.xlabel("Mid-exposure timestamp (UTC)")
-    if fpath:
+    if fpath is not None:
         # noinspection PyUnboundLocalVariable
         pdf.savefig()
         pdf.close()
