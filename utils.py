@@ -848,7 +848,7 @@ def normalize(array):
 
 
 # noinspection PyUnresolvedReferences
-def find_stars(image, min_sigma=1, max_sigma=11, num_sigma=3, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=5, num_sigma=2, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
@@ -1297,7 +1297,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             # Notation: x = |xvec|, y = |yvec|, z = |zvec|
             # ==> Var(z) = Var(x + y)
             # = Var(x) + Var(y) + 2*Cov(x, y)
-            #            = Var(x) + Var(y) since Cov(x, y) = 0 due to orthogonality.
+            # = Var(x) + Var(y) since Cov(x, y) = 0 due to orthogonality.
             # ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             fit = morphology.fit_2dgaussian(subimage)
             (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
@@ -1322,7 +1322,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
             # Notation: x = |xvec|, y = |yvec|, z = |zvec|
             # ==> Var(z) = Var(x + y)
-            #              = Var(x) + Var(y) + 2*Cov(x, y)
+            # = Var(x) + Var(y) + 2*Cov(x, y)
             #              = Var(x) + Var(y)
             #                since Cov(x, y) = 0 due to orthogonality.
             #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
@@ -1351,7 +1351,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
         # # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
         # #   seeing = 1.4 arcsec.
         # # - For varying subimages, method does not converge to final centroid solution.
-        #     # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
+        # # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
         #     #   +/- 0.01 pix, but then diverges from solution with larger subimages.
         #     #   Method is susceptible to outliers.
         #     # - For 7x7 subimages, method takes ~3 ms per subimage. Method is invariant to box_pix and always
@@ -1489,7 +1489,7 @@ def drop_duplicate_stars(stars):
         for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
             # Check length again since `stars` is dynamically updated at the end of each iteration.
             if len(stars) > 1:
-                sum_sqr_diffs = \
+                sum_abs_diffs = \
                     np.sum(
                         np.power(
                             np.subtract(
@@ -1497,10 +1497,10 @@ def drop_duplicate_stars(stars):
                                 row.loc[['x_pix', 'y_pix']]),
                             2.0),
                         axis=1)
-                minssd = sum_sqr_diffs.min()
-                idx_minssd = sum_sqr_diffs.idxmin()
-                if (minssd < row.loc['sigma_pix']) and (minssd < stars.loc[idx_minssd, 'sigma_pix']):
-                    if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
+                minsad = sum_abs_diffs.min()
+                idx_minsad = sum_abs_diffs.idxmin()
+                if (minsad < row.loc['sigma_pix']) and (minsad < stars.loc[idx_minsad, 'sigma_pix']):
+                    if row.loc['sigma_pix'] >= stars.loc[idx_minsad, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
                     logger.debug("Dropping duplicate star:\n{row}".format(row=row))
@@ -1650,7 +1650,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     df_stars2[:] = np.NaN
     df_stars2['idx2'] = np.NaN
     df_stars2['verif2to1'] = np.NaN
-    df_stars2['minssd'] = np.NaN
+    df_stars2['minsad'] = np.NaN
     df_dict = {'stars1': df_stars1,
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
@@ -1675,23 +1675,25 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars2_verified = pd.DataFrame(columns=stars2.columns)
         stars2_unverified = stars2.copy()
         for (idx, row) in stars.iterrows():
-            sum_sqr_diffs = \
+            # noinspection PyPep8
+            sum_abs_diffs = \
                 np.sum(
-                    np.power(
+                    np.abs(
                         np.subtract(
                             stars2[['x_pix', 'y_pix']],
-                            row.loc['tform1to2', ['x_pix', 'y_pix']]),
-                        2.0),
-                    axis=1)
-            minssd = sum_sqr_diffs.min()
-            idx2_minssd = sum_sqr_diffs.idxmin()
+                            row.loc['tform1to2', ['x_pix', 'y_pix']]
+                        )
+                    ),
+                axis=1)
+            minsad = sum_abs_diffs.min()
+            idx2_minsad = sum_abs_diffs.idxmin()
             # Faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma than
             # the actual sigma of the PSF. Thus, accept found stars up to 3 sigma away from the predicted coordinates
             # as being the matching star.
-            if minssd < 3.0 * stars2.loc[idx2_minssd, 'sigma_pix']:
-                row.loc['stars2'].update(stars2.loc[idx2_minssd])
-                row.loc['stars2', 'idx2'] = idx2_minssd
-                row.loc['stars2', 'minssd'] = minssd
+            if minsad < 3.0 * stars2.loc[idx2_minsad, 'sigma_pix']:
+                row.loc['stars2'].update(stars2.loc[idx2_minsad])
+                row.loc['stars2', 'idx2'] = idx2_minsad
+                row.loc['stars2', 'minsad'] = minsad
                 idx1 = idx
                 row1 = stars1.loc[idx1]
                 if idx1 not in stars1_verified.index:
@@ -1743,7 +1745,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         _plot_matches(image1=image1, image2=image2, stars1=stars['stars1'], stars2=stars['stars2'])
     # Report results.
     df_dict = {'stars1': stars['stars1'],
-               'stars2': stars['stars2'].drop(['idx2', 'minssd'], axis=1)}
+               'stars2': stars['stars2'].drop(['idx2', 'minsad'], axis=1)}
     matched_stars = pd.concat(df_dict, axis=1)
     return matched_stars
 
@@ -1858,7 +1860,7 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
         sigma_to_fwhm(
             np.median(
                 [sigma for sigma in \
-                 (timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values).flatten() \
+                 timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values.flatten() \
                  if sigma is not np.NaN]))
     radius = radii[np.abs(radii - fwhm_med).argmin()]
     logger.info("Photometry aperture radius: {rad}".format(rad=radius))
