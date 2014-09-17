@@ -973,7 +973,7 @@ def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     print("ftnum = {num}".format(num=ftnum))
     utils._plot_stars(image=image, stars=stars)
     ```
-    
+
     References
     ----------
     .. [1] http://scikit-image.org/docs/dev/auto_examples/plot_blob.html
