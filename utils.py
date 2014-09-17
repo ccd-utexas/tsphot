@@ -848,7 +848,7 @@ def normalize(array):
 
 
 # noinspection PyUnresolvedReferences
-def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=11, num_sigma=3, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
@@ -860,14 +860,14 @@ def find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3, **kwar
     ----------
     image : array_like
         2D array of image.
-    min_sigma : {2}, float, optional
+    min_sigma : {1}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
-    max_sigma : {2}, float, optional
+    max_sigma : {11}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
-    num_sigma : {1}, float, optional
+    num_sigma : {3}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
         to use for Gaussian kernel.
-    threshold : {3}, float, optional
+    threshold : {3}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Because image is normalized, `threshold` is the number
         of standard deviations above the image median for counts per source pixel.
     **kwargs:
