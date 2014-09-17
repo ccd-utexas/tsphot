@@ -1665,7 +1665,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
         pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
                                        params=tform.params)
-        logger.debug("Transform parameters: {pars}".format(pars=pars))
+        logger.debug("Transform parameters:\n{pars}".format(pars=pars))
         # Use least sum of squares to match stars. Verify that matched stars are within 1 sigma
         # of the centroid of stars2 and are matched 1-to-1.
         # TODO: Allow users to define stars by hand instead of by `find_stars`
@@ -1773,7 +1773,7 @@ def timestamps_timeseries(dobj, radii):
         stars_new = center_stars(image=image_new, stars=stars_new)
         logger.debug("Centered stars:\n{stars}".format(stars=stars_new))
         stars_new = drop_duplicate_stars(stars=stars_new)
-        logger.debug("Dropped duplicate stars:\n{stars}".format(stars=stars_new))
+        logger.debug("Dropped duplicate stars. Result:\n{stars}".format(stars=stars_new))
         stars_new.index.names = ['star_index']
         stars_new.columns.names = ['quantity_unit']
         if key == sorted_image_keys[0]:
