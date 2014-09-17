@@ -1492,15 +1492,19 @@ def drop_duplicate_stars(stars):
             if len(stars) > 1:
                 sum_abs_diffs = \
                     np.sum(
-                        np.power(
+                        np.abs(
                             np.subtract(
                                 stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
-                                row.loc[['x_pix', 'y_pix']]),
-                            2.0),
+                                row.loc[['x_pix', 'y_pix']])
+                            ),
                         axis=1)
                 minsad = sum_abs_diffs.min()
                 idx_minsad = sum_abs_diffs.idxmin()
-                if (minsad < row.loc['sigma_pix']) and (minsad < stars.loc[idx_minsad, 'sigma_pix']):
+                # Accepting stars up to 3 pixels away is more fault tolerant than relying on the stars' sigma since
+                # faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma
+                # than the actual sigma of the PSF.
+                # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
+                if minsad < 3.0:
                     if row.loc['sigma_pix'] >= stars.loc[idx_minsad, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
@@ -1677,22 +1681,21 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars2_verified = pd.DataFrame(columns=stars2.columns)
         stars2_unverified = stars2.copy()
         for (idx, row) in stars.iterrows():
-            # noinspection PyPep8
             sum_abs_diffs = \
                 np.sum(
                     np.abs(
                         np.subtract(
                             stars2[['x_pix', 'y_pix']],
-                            row.loc['tform1to2', ['x_pix', 'y_pix']]
-                        )
-                    ),
+                            row.loc['tform1to2', ['x_pix', 'y_pix']])
+                        ),
                     axis=1)
             minsad = sum_abs_diffs.min()
             idx2_minsad = sum_abs_diffs.idxmin()
-            # Faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma than
-            # the actual sigma of the PSF. Thus, accept found stars up to 3 sigma away from the predicted coordinates
-            # as being the matching star.
-            if minsad < 3.0 * stars2.loc[idx2_minsad, 'sigma_pix']:
+            # Accepting stars up to 3 pixels away is more fault tolerant than relying on the stars' sigma since
+            # faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma
+            # than the actual sigma of the PSF.
+            # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
+            if minsad < 3.0:
                 row.loc['stars2'].update(stars2.loc[idx2_minsad])
                 row.loc['stars2', 'idx2'] = idx2_minsad
                 row.loc['stars2', 'minsad'] = minsad
