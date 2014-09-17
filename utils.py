@@ -1485,11 +1485,10 @@ def drop_duplicate_stars(stars):
     stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     # noinspection PyTypeChecker
     if len(stars) > 1:
-        logger.debug("More than 1 star in: {stars}".format(stars=stars))
+        logger.debug("More than 1 star in:\n{stars}".format(stars=stars))
         for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
             # Check length again since `stars` is dynamically updated at the end of each iteration.
             if len(stars) > 1:
-                logger.debug("idx={idx}, row={row}")
                 sum_sqr_diffs = \
                     np.sum(
                         np.power(
@@ -1504,7 +1503,7 @@ def drop_duplicate_stars(stars):
                     if row.loc['sigma_pix'] >= stars.loc[idx_minssd, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
-                    logger.debug("Dropping duplicate star: {row}".format(row=row))
+                    logger.debug("Dropping duplicate star:\n{row}".format(row=row))
                     stars.drop(idx, inplace=True)
             else:
                 logger.debug("No more duplicate stars to drop. num_stars = {num}".format(num=len(stars)))
@@ -1715,17 +1714,17 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 row.loc['stars2'].update(row.loc['tform1to2'])
                 row.loc['stars1', 'verif1to2'] = 0
                 row.loc['stars2', 'verif2to1'] = 0
-                logger.debug("Star not verified: {row}".format(row=row))
+                logger.debug("Star not verified:\n{row}".format(row=row))
             # Save results and verify found matches.
             stars.loc[idx].update(row)
         # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
         # Sort columns to permit heirarchical slicing.
         if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
             logger.debug(("Not all stars in stars1 were verified as matching stars in stars2." +
-                          " stars1_unverified: {s1u}").format(s1u=stars1_unverified))
+                          " stars1_unverified:\n{s1u}").format(s1u=stars1_unverified))
         if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
             logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
-                          " stars2_unverified: {s2u}").format(s2u=stars2_unverified))
+                          " stars2_unverified:\n{s2u}").format(s2u=stars2_unverified))
             df_dict = {'stars1': stars['stars1'],
                        'tform1to2': stars['tform1to2'],
                        'stars2': (stars['stars2']).append(stars2_unverified, ignore_index=True)}
@@ -1770,11 +1769,11 @@ def timestamps_timeseries(dobj, radii):
         ftnum_new = dobj[key].meta['frame_tracking_number']
         logger.debug("Frame tracking number: {ftnum}".format(ftnum=ftnum_new))
         stars_new = find_stars(image=image_new)
-        logger.debug("Found stars: {stars}".format(stars=stars_new))
+        logger.debug("Found stars:\n{stars}".format(stars=stars_new))
         stars_new = center_stars(image=image_new, stars=stars_new)
-        logger.debug("Centered stars: {stars}".format(stars=stars_new))
+        logger.debug("Centered stars:\n{stars}".format(stars=stars_new))
         stars_new = drop_duplicate_stars(stars=stars_new)
-        logger.debug("Dropped duplicate stars: {stars}".format(stars=stars_new))
+        logger.debug("Dropped duplicate stars:\n{stars}".format(stars=stars_new))
         stars_new.index.names = ['star_index']
         stars_new.columns.names = ['quantity_unit']
         if key == sorted_image_keys[0]:
@@ -1786,7 +1785,7 @@ def timestamps_timeseries(dobj, radii):
                                         stars1=stars_old, stars2=stars_new)
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
-        logger.debug("Matched stars: {stars}".format(stars=timeseries_dict[ftnum_new]))
+        logger.debug("Matched stars:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
         # Reset variables for next iteration.
         image_old = image_new
         ftnum_old = ftnum_new
@@ -1800,7 +1799,7 @@ def timestamps_timeseries(dobj, radii):
             # noinspection PyArgumentList
             phot_table = photutils.aperture_photometry(data=image_new, apertures=apertures)
             timeseries_dict[ftnum_new][('flux_ADU', radius)] = phot_table['aperture_sum']
-        logger.debug("Calculated aperture photometry: {stars}".format(stars=timeseries_dict[ftnum_new]))
+        logger.debug("Calculated aperture photometry:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
         # Record timestamp
         timestamps_dict[ftnum_new] = {'exp_start': dobj[key].meta['time_stamp_exposure_started'],
                                       'exp_end': dobj[key].meta['time_stamp_exposure_ended']}
