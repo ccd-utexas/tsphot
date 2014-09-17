@@ -1323,8 +1323,8 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             # Notation: x = |xvec|, y = |yvec|, z = |zvec|
             # ==> Var(z) = Var(x + y)
             # = Var(x) + Var(y) + 2*Cov(x, y)
-            #              = Var(x) + Var(y)
-            #                since Cov(x, y) = 0 due to orthogonality.
+            # = Var(x) + Var(y)
+            # since Cov(x, y) = 0 due to orthogonality.
             #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
             x_dist = []
             y_dist = []
@@ -1352,8 +1352,8 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
         # #   seeing = 1.4 arcsec.
         # # - For varying subimages, method does not converge to final centroid solution.
         # # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
-        #     #   +/- 0.01 pix, but then diverges from solution with larger subimages.
-        #     #   Method is susceptible to outliers.
+        # #   +/- 0.01 pix, but then diverges from solution with larger subimages.
+        # #   Method is susceptible to outliers.
         #     # - For 7x7 subimages, method takes ~3 ms per subimage. Method is invariant to box_pix and always
         #     #   takes ~3 ms.
         #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subimage)
@@ -1488,6 +1488,7 @@ def drop_duplicate_stars(stars):
         logger.debug("More than 1 star in:\n{stars}".format(stars=stars))
         for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
             # Check length again since `stars` is dynamically updated at the end of each iteration.
+            # noinspection PyTypeChecker
             if len(stars) > 1:
                 sum_abs_diffs = \
                     np.sum(
@@ -1506,6 +1507,7 @@ def drop_duplicate_stars(stars):
                     logger.debug("Dropping duplicate star:\n{row}".format(row=row))
                     stars.drop(idx, inplace=True)
             else:
+                # noinspection PyTypeChecker
                 logger.debug("No more duplicate stars to drop. num_stars = {num}".format(num=len(stars)))
     else:
         # noinspection PyTypeChecker
@@ -1684,7 +1686,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                             row.loc['tform1to2', ['x_pix', 'y_pix']]
                         )
                     ),
-                axis=1)
+                    axis=1)
             minsad = sum_abs_diffs.min()
             idx2_minsad = sum_abs_diffs.idxmin()
             # Faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma than
@@ -1859,8 +1861,8 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
     fwhm_med = \
         sigma_to_fwhm(
             np.median(
-                [sigma for sigma in \
-                 timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values.flatten() \
+                [sigma for sigma in
+                 timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values.flatten()
                  if sigma is not np.NaN]))
     radius = radii[np.abs(radii - fwhm_med).argmin()]
     logger.info("Photometry aperture radius: {rad}".format(rad=radius))
