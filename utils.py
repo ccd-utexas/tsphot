@@ -212,7 +212,7 @@ def check_reduce_config(dobj):
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
 # Maximum sigma (in pixels) for Gaussian kernel used for finding, combining, and matching stars.
-max_sigma = 5.0
+max_sigma = 9.0
 
 
 def define_progress(dobj, interval=0.05):
@@ -850,7 +850,7 @@ def normalize(array):
 
 
 # noinspection PyUnresolvedReferences
-def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
@@ -1537,14 +1537,17 @@ def translate_images_1to2(image1, image2):
                        "image1.ndim = {n1}\n" +
                        "image2.ndim = {n2}").format(n1=image1.ndim, n2=image2.ndim))
     # Compute the maximum phase correlation for to determine the image translation.
+    # Smooth the phase correlation using a median filter since poor focus and clouds will make the correlation noisy.
+    # Use 3 pixels for smoothing kernel since kernel will offset location of max
+    # if max is near correlation array boundary.
     # Translation: delta = final - initial = image2 - image1
     # The first estimate for image translation is to an integer pixel.
     # Note: numpy is row-major: (y_pix, x_pix)
     shape = image1.shape
-    # TODO: may fail for image dimensions not divisible by 2. test.
     f1 = np.fft.fft2(image1)
     f2 = np.fft.fft2(image2)
     ir = abs(np.fft.ifft2((f1.conjugate() * f2) / (abs(f1) * abs(f2))))
+    ir = scipy.signal.medfilt2d(ir, kernel_size=3)
     (dy_int, dx_int) = np.unravel_index(int(np.argmax(ir)), shape)
     # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
     # allows more precise star identification between images. (A 2D Gaussian fit is not correct.
@@ -1560,7 +1563,7 @@ def translate_images_1to2(image1, image2):
                                stars=pd.DataFrame([[tiled_dx_int, tiled_dy_int, 1.0]],
                                                   columns=['x_pix', 'y_pix', 'sigma_pix']))
     if len(translation) != 1:
-        raise AssertionError(("Program error. `translation` dataframe should have only one element,\n" +
+        raise AssertionError(("Program error. `translation` dataframe should have only one row,\n" +
                               "the maximum phase correlation. translation:\n" +
                               "{df}").format(df=translation))
     (dx_pix, dy_pix) = np.subtract(translation.loc[0, ['x_pix', 'y_pix']], (tiled_offset_x, tiled_offset_y))
@@ -1572,8 +1575,7 @@ def translate_images_1to2(image1, image2):
         dx_pix -= shape[1]
     logger.debug(("Image translation: image1_coords - image2_coords = (dx_pix, dy_pix)" +
                   " = {tup}").format(tup=(dx_pix, dy_pix)))
-    # noinspection PyRedundantParentheses
-    return (dx_pix, dy_pix)
+    return dx_pix, dy_pix
 
 
 # noinspection PyUnresolvedReferences
