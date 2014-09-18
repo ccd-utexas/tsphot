@@ -206,11 +206,13 @@ def check_reduce_config(dobj):
 
 
 # ######################################################################################################################
-# CREATE LOGGER
+# CREATE LOGGER and other global variables
 # Note: Use logger only after checking configuration file.
 # Note: For non-root-level loggers, use `getLogger(__name__)`
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
+# Maximum sigma (in pixels) for Gaussian kernel used for finding, combining, and matching stars.
+max_sigma = 5.0
 
 
 def define_progress(dobj, interval=0.05):
@@ -848,7 +850,7 @@ def normalize(array):
 
 
 # noinspection PyUnresolvedReferences
-def find_stars(image, min_sigma=1, max_sigma=5, num_sigma=2, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
@@ -862,7 +864,7 @@ def find_stars(image, min_sigma=1, max_sigma=5, num_sigma=2, threshold=3, **kwar
         2D array of image.
     min_sigma : {1}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
-    max_sigma : {11}, int, optional
+    max_sigma : {5}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
     num_sigma : {3}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
@@ -1500,11 +1502,11 @@ def drop_duplicate_stars(stars):
                     )
                 minsad = sum_abs_diffs.min()
                 idx_minsad = sum_abs_diffs.idxmin()
-                # Accepting stars up to 3 pixels away is more fault tolerant than relying on the stars' sigma since
-                # faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma
-                # than the actual sigma of the PSF.
+                # Accept stars up to max_sigma away, max_sigma from find_stars.
+                # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
+                # sigma than the actual sigma of the PSF.
                 # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-                if minsad < np.nanmax([3.0, row.loc['sigma_pix'], stars.loc[idx_minsad, 'sigma_pix']]):
+                if minsad < np.nanmax([max_sigma, row.loc['sigma_pix'], stars.loc[idx_minsad, 'sigma_pix']]):
                     if row.loc['sigma_pix'] >= stars.loc[idx_minsad, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
@@ -1691,11 +1693,11 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 )
             minsad = sum_abs_diffs.min()
             idx2_minsad = sum_abs_diffs.idxmin()
-            # Accepting stars up to 3 pixels away is more fault tolerant than relying on the stars' sigma since
-            # faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma
-            # than the actual sigma of the PSF.
+            # Accept stars up to max_sigma away, max_sigma from find_stars.
+            # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
+            # sigma than the actual sigma of the PSF.
             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-            if minsad < np.nanmax([3.0, stars2.loc[idx2_minsad, 'sigma_pix']]):
+            if minsad < np.nanmax([max_sigma, stars2.loc[idx2_minsad, 'sigma_pix']]):
                 row.loc['stars2'].update(stars2.loc[idx2_minsad])
                 row.loc['stars2', 'idx2'] = idx2_minsad
                 row.loc['stars2', 'minsad'] = minsad
