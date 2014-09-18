@@ -1496,15 +1496,15 @@ def drop_duplicate_stars(stars):
                             np.subtract(
                                 stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
                                 row.loc[['x_pix', 'y_pix']])
-                            ),
-                        axis=1)
+                        ), axis=1
+                    )
                 minsad = sum_abs_diffs.min()
                 idx_minsad = sum_abs_diffs.idxmin()
                 # Accepting stars up to 3 pixels away is more fault tolerant than relying on the stars' sigma since
                 # faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma
                 # than the actual sigma of the PSF.
                 # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-                if minsad < 3.0:
+                if minsad < np.nanmax([3.0, row.loc['sigma_pix'], stars.loc[idx_minsad, 'sigma_pix']]):
                     if row.loc['sigma_pix'] >= stars.loc[idx_minsad, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
@@ -1687,15 +1687,15 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                         np.subtract(
                             stars2[['x_pix', 'y_pix']],
                             row.loc['tform1to2', ['x_pix', 'y_pix']])
-                        ),
-                    axis=1)
+                    ), axis=1
+                )
             minsad = sum_abs_diffs.min()
             idx2_minsad = sum_abs_diffs.idxmin()
             # Accepting stars up to 3 pixels away is more fault tolerant than relying on the stars' sigma since
             # faint stars undersample the PSF given a noisy background and are calculated to have smaller sigma
             # than the actual sigma of the PSF.
             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-            if minsad < 3.0:
+            if minsad < np.nanmax([3.0, stars2.loc[idx2_minsad, 'sigma_pix']]):
                 row.loc['stars2'].update(stars2.loc[idx2_minsad])
                 row.loc['stars2', 'idx2'] = idx2_minsad
                 row.loc['stars2', 'minsad'] = minsad
@@ -1772,6 +1772,7 @@ def timestamps_timeseries(dobj, radii):
     timeseries_dict = {}
     logger.debug("Aperture radii: {radii}".format(radii=radii))
     for key in sorted_image_keys:
+        logger.debug("Key: {key}".format(key=key))
         image_new = dobj[key].data
         ftnum_new = dobj[key].meta['frame_tracking_number']
         logger.debug("Frame tracking number: {ftnum}".format(ftnum=ftnum_new))
