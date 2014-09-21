@@ -212,7 +212,8 @@ def check_reduce_config(dobj):
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
 # Maximum sigma (in pixels) for Gaussian kernel used for finding, combining, and matching stars.
-max_sigma = 9.0
+# TODO: make class to manage max_sigma variable if need to change. (Bad practice to modify global vars.)
+max_sigma = 5.0
 
 
 def define_progress(dobj, interval=0.05):
@@ -850,13 +851,13 @@ def normalize(array):
 
 
 # noinspection PyUnresolvedReferences
-def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
     Method can also find extended sources by modifying `blobargs`, however this pipeline is taylored for stars.
     If focus is poor or if PSF is oversampled (FWHM is many pixels), method may find multiple small stars within a
-    single star. Use `center_stars` then `condense_stars` to resolve degeneracy in coordinates.
+    single star. Use `center_stars` then `combine_stars` to resolve degeneracy in coordinates.
     
     Parameters
     ----------
@@ -866,7 +867,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
     max_sigma : {5}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
-    num_sigma : {3}, int, optional
+    num_sigma : {2}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
         to use for Gaussian kernel.
     threshold : {3}, int, optional
@@ -900,11 +901,6 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3
     -----
     PIPELINE_SEQUENCE_NUMBER : 4.0
     Can generalize to extended sources but for increased execution time.
-        Execution times for 256x256 image:
-        Example for extended sources:
-        - For default above: 0.02 sec/image
-        - For extended sources example below: 0.33 sec/image
-        extended_sources = find_stars(image, min_sigma=1, max_sigma=1, num_sigma=1, threshold=3)
     Use `find_stars` after removing cosmic rays to prevent spurious sources.
     
     References
@@ -927,7 +923,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
+def plot_stars(image, stars, zoom=None, radius=3, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -937,12 +933,15 @@ def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     image : array_like
         2D array of image.
     stars : pandas.DataFrame
-        ``pandas.DataFrame`` with:
+        `pandas.DataFrame` with:
         Rows:
             `idx` : 1 index label for each star.
         Columns:
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
+    zoom : {None}, optional, tuple
+        x-y ranges of image for zoom. Must have format ((xmin, xmax), (ymin, ymax)).
+        Returned `numpy` image slice is image[ymin: ymax, xmin: xmax].
     radius : {3}, optional, float or int
         The radius of the circle around each star in pixels.
     interpolation : 'none', string, optional
@@ -973,7 +972,8 @@ def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     image = object_ccddata[key].data
     stars = timeseries.loc[ftnum].unstack('quantity_unit')
     print("ftnum = {num}".format(num=ftnum))
-    utils._plot_stars(image=image, stars=stars)
+    print(stars)
+    utils.plot_stars(image=image, stars=stars, zoom=((0, 100), (0, 100)))
     ```
 
     References
@@ -982,16 +982,43 @@ def _plot_stars(image, stars, radius=3, interpolation='none', **kwargs):
     .. [2] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
     
     """
-    (fig, ax) = plt.subplots(1, 1)
-    ax.imshow(image, interpolation=interpolation, **kwargs)
+    #(fig, ax) = plt.subplots(1, 1)
+    # ax.imshow...
+    # If zoom is used, check input dimensions.
+    if zoom is None:
+        plt.imshow(image, interpolation=interpolation, **kwargs)
+        (x_offset, y_offset) = (0, 0)
+    else:
+        # Check input
+        if not (len(zoom) == 2 and len(zoom[0]) == 2 and len(zoom[1]) == 2):
+            raise IOError(("Format of `zoom` must be ((xmin, xmax), (ymin, ymax)).\n" +
+                           "zoom = {zoom}").format(zoom=zoom))
+        ((xmin, xmax), (ymin, ymax)) = zoom
+        if not (xmin >= 0 and ymin >= 0):
+            raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: xmin and ymin >= 0.\n" +
+                           "zoom = {zoom}").format(zoom=zoom))
+        if not ((xmax - xmin) >= 1 and (ymax - ymin) >= 1):
+            raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: (xmax - xmin) and (ymax - ymin) >= 1.\n" +
+                           "zoom = {zoom}").format(zoom=zoom))
+        (ydim, xdim) = image.shape
+        if not (xmin <= (xdim - 1) and ymin <= (ydim - 1)):
+            raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: xmin <= xdim - 1 and ymin <= ydim - 1.\n" +
+                           "zoom = {zoom}\n" +
+                           "(xdim, ydim) = {xydims}").format(zoom=zoom, xydims=(xdim, ydim)))
+        plt.imshow(image[ymin: ymax, xmin: xmax], interpolation=interpolation, **kwargs)
+        (x_offset, y_offset) = (xmin, ymin)
+    if not (x_offset >= 0 and y_offset >= 0):
+        raise AssertionError(("Program error. Required: x_offset and y_offset >= 0\n" +
+                              "(x_offset, y_offset) = {xyoffsets}").format(xyoffsets=(x_offset, y_offset)))
     for (idx, x_pix, y_pix) in stars[['x_pix', 'y_pix']].itertuples():
-        circle = plt.Circle((x_pix, y_pix), radius=radius,
+        circle = plt.Circle((x_pix - x_offset, y_pix - y_offset), radius=radius,
                             color='yellow', linewidth=1, fill=False)
-        ax.add_patch(circle)
-        ax.annotate(str(idx), xy=(x_pix, y_pix), xycoords='data',
+        plt.gca().add_patch(circle)
+        plt.annotate(str(idx), xy=(x_pix - x_offset, y_pix - y_offset), xycoords='data',
                     xytext=(0, 0), textcoords='offset points',
                     color='yellow', fontsize=12, rotation=0)
     plt.show()
+    return None
 
 
 def is_odd(num):
@@ -1502,7 +1529,7 @@ def drop_duplicate_stars(stars):
                     )
                 minsad = sum_abs_diffs.min()
                 idx_minsad = sum_abs_diffs.idxmin()
-                # Accept stars up to max_sigma away, max_sigma from find_stars.
+                # Accept stars at least max_sigma away, max_sigma from find_stars.
                 # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
                 # sigma than the actual sigma of the PSF.
                 # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
@@ -1695,7 +1722,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 )
             minsad = sum_abs_diffs.min()
             idx2_minsad = sum_abs_diffs.idxmin()
-            # Accept stars up to max_sigma away, max_sigma from find_stars.
+            # Accept stars at least max_sigma away, max_sigma from find_stars.
             # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
             # sigma than the actual sigma of the PSF.
             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
@@ -1835,16 +1862,23 @@ def timestamps_timeseries(dobj, radii):
     return timestamps, timeseries
 
 
-def _plot_positions(timeseries):
+def plot_positions(timeseries):
     """
     Make plots of star positions for all star indices.
     """
     star_indices = timeseries.columns.levels[0].values
     for star_idx in star_indices:
-        pd.DataFrame.plot(timeseries[star_idx], x='x_pix', y='y_pix', kind='scatter',
-                          title="(x_pix, y_pix), star_idx: {idx}".format(idx=star_idx))
+        plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
+                                   c=timeseries[star_idx].index.values, cmap=plt.cm.jet)
+        plt.colorbar()
+        plt.title("star_idx: {idx}".format(idx=star_idx))
+        for (frm_idx, x_pix, y_pix) in timeseries.loc[:, (star_idx, ['x_pix', 'y_pix'])].itertuples():
+            plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0), textcoords='offset points',
+                         color='black', fontsize=12, rotation=0)
+        plt.show()
+        plt.close()
         pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
-                          secondary_y='sigma_pix', title="quantity_unit, star_idx: {idx}".format(idx=star_idx))
+                      secondary_y='sigma_pix', title="quantity_unit, star_idx: {idx}".format(idx=star_idx))
     return None
 
 
@@ -1857,7 +1891,7 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
     comparisons = timeseries.drop(target_index, level='star_index', axis=1).drop(drop_cols,
                                                                                  level='quantity_unit',
                                                                                  axis=1).copy()
-    comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)[:-1]
+    comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)
     for comp_idx in comp_indices:
         if comp_idx == comp_indices[0]:
             comp_sum = comparisons[comp_idx]
@@ -1882,6 +1916,7 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
     lightcurve.rename(columns={'exp_mid': 'midexposure_timestamp_UTC',
                                ('flux_ADU', radius): 'normalized_relative_flux'}, inplace=True)
     lightcurve.set_index(keys=['midexposure_timestamp_UTC'], inplace=True)
+    pdb.set_trace()
     return lightcurve
 
 
