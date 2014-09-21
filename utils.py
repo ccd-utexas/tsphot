@@ -1666,6 +1666,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
     """
     # Check input.
+    # TODO: prevent warning: SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame
     stars1.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     stars2.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     num_stars1 = len(stars1)
