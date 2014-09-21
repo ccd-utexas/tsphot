@@ -1913,16 +1913,20 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     return None
 
 
-def make_lightcurve(timestamps, timeseries, target_index, radii):
+def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indices=None):
     """
     Make lightcurve from timestamps and timeseries
     """
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
     target = timeseries[target_index].drop(drop_cols, axis=1).copy()
-    comparisons = timeseries.drop(target_index, level='star_index', axis=1).drop(drop_cols,
-                                                                                 level='quantity_unit',
-                                                                                 axis=1).copy()
-    comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)
+    if comparison_indices is None:
+        comparisons = timeseries.drop(target_index, level='star_index', axis=1).drop(drop_cols,
+                                                                                     level='quantity_unit',
+                                                                                     axis=1).copy()
+        comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)
+    else:
+        comparisons = timeseries.loc[:, comparison_indices].drop(drop_cols, level='quantity_unit', axis=1).copy()
+        comp_indices = comparison_indices
     for comp_idx in comp_indices:
         if comp_idx == comp_indices[0]:
             comp_sum = comparisons[comp_idx]
@@ -1946,8 +1950,6 @@ def make_lightcurve(timestamps, timeseries, target_index, radii):
     lightcurve = pd.concat([timestamps[['exp_mid']], lightcurves[[('flux_ADU', radius)]]], axis=1)
     lightcurve.rename(columns={'exp_mid': 'midexposure_timestamp_UTC',
                                ('flux_ADU', radius): 'normalized_relative_flux'}, inplace=True)
-    lightcurve.set_index(keys=['midexposure_timestamp_UTC'], inplace=True)
-    pdb.set_trace()
     return lightcurve
 
 
@@ -1962,11 +1964,25 @@ def plot_lightcurve(lightcurve, fpath=None):
         pdf = PdfPages(fpath)
     plt.figure()
     pd.DataFrame.plot(lightcurve, legend=False,
-                      title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
-                                                   ts=lightcurve.index[0].isoformat()),
+                      title="{fpath}".format(fpath=os.path.basename(fpath)),
                       marker='o', markersize=2, linestyle='')
-    # xlabel is automatic
-    plt.ylabel(lightcurve.columns.values[0])
+    # pd.DataFrame.plot(lightcurve, legend=False,
+    #                   title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
+    #                                                ts=lightcurve.index[0].isoformat()),
+    #                   marker='o', markersize=2, linestyle='')
+    # Make labels. xlabel is automatic
+    #plt.ylabel(lightcurve.columns.values[0])
+    # #plt.
+    #
+    # image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
+    # num_keys = len(image_keys)
+    # divisions = 20
+    # key_progress = {}
+    # for div_idx in xrange(0, divisions + 1):
+    #     progress = (div_idx / divisions)
+    #     key_idx = int(math.ceil((num_keys - 1) * progress))
+    #     key = image_keys[key_idx]
+    #     key_progress[key] = progress
     if fpath is not None:
         # noinspection PyUnboundLocalVariable
         pdf.savefig()
