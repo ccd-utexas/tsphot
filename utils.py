@@ -1947,9 +1947,18 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
     # noinspection PyUnboundLocalVariable
     comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
     lightcurves = targ_norm / comp_norm
-    lightcurve = pd.concat([timestamps[['exp_mid']], lightcurves[[('flux_ADU', radius)]]], axis=1)
-    lightcurve.rename(columns={'exp_mid': 'midexposure_timestamp_UTC',
-                               ('flux_ADU', radius): 'normalized_relative_flux'}, inplace=True)
+    # Rename dataframe columns prior to joining since column names are identical.
+    # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
+    # When making lightcurve, combine dataframes not series.
+    timestamps.rename(columns={'exp_mid': 'midexposure_timestamp_UTC'}, inplace=True)
+    lightcurves['normalized_relative_target_flux'] = lightcurves[('flux_ADU', radius)]
+    targ_norm['normalized_target_flux'] = targ_norm[('flux_ADU', radius)]
+    comp_norm['normalized_comparison_flux'] = comp_norm[('flux_ADU', radius)]
+    lightcurve = pd.concat([timestamps[['midexposure_timestamp_UTC']],
+                            lightcurves[['normalized_relative_target_flux']],
+                            targ_norm[['normalized_target_flux']],
+                            comp_norm[['normalized_comparison_flux']]],
+                           axis=1)
     return lightcurve
 
 
