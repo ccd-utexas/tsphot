@@ -70,6 +70,7 @@ import read_spe
 
 
 # TODO: def create_logging_config (for logging dictconfig)
+# TODO: resolve #noinspection PyUnresolvedReferences
 
 
 def create_reduce_config(fjson='reduce_config.json'):
@@ -851,6 +852,7 @@ def normalize(array):
 
 
 # noinspection PyUnresolvedReferences
+# TODO: don't shadow max_sigma
 def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
@@ -1014,9 +1016,8 @@ def plot_stars(image, stars, zoom=None, radius=3, interpolation='none', **kwargs
         circle = plt.Circle((x_pix - x_offset, y_pix - y_offset), radius=radius,
                             color='yellow', linewidth=1, fill=False)
         plt.gca().add_patch(circle)
-        plt.annotate(str(idx), xy=(x_pix - x_offset, y_pix - y_offset), xycoords='data',
-                    xytext=(0, 0), textcoords='offset points',
-                    color='yellow', fontsize=12, rotation=0)
+        plt.annotate(str(idx), xy=(x_pix - x_offset, y_pix - y_offset), xycoords='data', xytext=(0, 0),
+                     textcoords='offset points', color='yellow', fontsize=12, rotation=0)
     plt.show()
     return None
 
@@ -1887,24 +1888,26 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
         if not ((xmax - xmin) >= 1 and (ymax - ymin) >= 1):
             raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: (xmax - xmin) and (ymax - ymin) >= 1.\n" +
                            "zoom = {zoom}").format(zoom=zoom))
-    star_indices = timeseries.columns.levels[0].values
-    for star_idx in star_indices:
+    sorted_star_indices = sorted(timeseries.columns.levels[0].values)
+    for star_idx in sorted_star_indices:
         plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
                     c=timeseries[star_idx].index.values, cmap=plt.cm.jet)
     plt.colorbar()
     if zoom is not None:
+        # noinspection PyUnboundLocalVariable
         plt.xlim(xmin=xmin, xmax=xmax)
+        # noinspection PyUnboundLocalVariable
         plt.ylim(ymin=ymin, ymax=ymax)
     plt.gca().invert_yaxis()
-    last_image_idx = timeseries[star_idx].index.max()
-    for star_idx in star_indices:
+    last_image_idx = timeseries.index.max()
+    for star_idx in sorted_star_indices:
         (x_pix, y_pix) = timeseries.loc[last_image_idx, (star_idx, ['x_pix', 'y_pix'])].values
         plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0), textcoords='offset points',
                      color='black', fontsize=12, rotation=0)
     plt.title("Star positions by image index".format(idx=star_idx))
     plt.show()
     if show_line_plots:
-        for star_idx in star_indices:
+        for star_idx in sorted_star_indices:
             pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
                               secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx))
     return None
