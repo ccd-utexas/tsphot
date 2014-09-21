@@ -991,7 +991,7 @@ def plot_stars(image, stars, zoom=None, radius=3, interpolation='none', **kwargs
     else:
         # Check input
         if not (len(zoom) == 2 and len(zoom[0]) == 2 and len(zoom[1]) == 2):
-            raise IOError(("Format of `zoom` must be ((xmin, xmax), (ymin, ymax)).\n" +
+            raise IOError(("Required: Format of `zoom` must be ((xmin, xmax), (ymin, ymax)).\n" +
                            "zoom = {zoom}").format(zoom=zoom))
         ((xmin, xmax), (ymin, ymax)) = zoom
         if not (xmin >= 0 and ymin >= 0):
@@ -1626,7 +1626,7 @@ def gaussian_weights(width=11, sigma=3):
 
 
 # noinspection PyUnresolvedReferences
-def _plot_matches(image1, image2, stars1, stars2):
+def plot_matches(image1, image2, stars1, stars2):
     """
     Visualize image matching.
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
@@ -1862,23 +1862,50 @@ def timestamps_timeseries(dobj, radii):
     return timestamps, timeseries
 
 
-def plot_positions(timeseries):
+def plot_positions(timeseries, zoom=None, show_line_plots=True):
     """
     Make plots of star positions for all star indices.
+
+    Parameters
+    ----------
+    timeseries : pandas.DataFrame
+    zoom : {None}, optional, tuple
+        x-y ranges of image for zoom. Must have format ((xmin, xmax), (ymin, ymax)).
+    show_line_plots : {True}, optional, bool
+        Show plots of (x_pix, y_pix, sigma_pix) vs frame_tracking_number for every star.
     """
+    # If using zoom, check input.
+    if zoom is not None:
+        if not (len(zoom) == 2 and len(zoom[0]) == 2 and len(zoom[1]) == 2):
+            raise IOError(("Required: Format of `zoom` must be ((xmin, xmax), (ymin, ymax)).\n" +
+                           "zoom = {zoom}").format(zoom=zoom))
+        ((xmin, xmax), (ymin, ymax)) = zoom
+        if not (xmin >= 0 and ymin >= 0):
+            raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: xmin and ymin >= 0.\n" +
+                           "zoom = {zoom}").format(zoom=zoom))
+        if not ((xmax - xmin) >= 1 and (ymax - ymin) >= 1):
+            raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: (xmax - xmin) and (ymax - ymin) >= 1.\n" +
+                           "zoom = {zoom}").format(zoom=zoom))
     star_indices = timeseries.columns.levels[0].values
     for star_idx in star_indices:
         plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
-                                   c=timeseries[star_idx].index.values, cmap=plt.cm.jet)
-        plt.colorbar()
-        plt.title("star_idx: {idx}".format(idx=star_idx))
-        for (frm_idx, x_pix, y_pix) in timeseries.loc[:, (star_idx, ['x_pix', 'y_pix'])].itertuples():
-            plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0), textcoords='offset points',
-                         color='black', fontsize=12, rotation=0)
-        plt.show()
-        plt.close()
-        pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
-                      secondary_y='sigma_pix', title="quantity_unit, star_idx: {idx}".format(idx=star_idx))
+                    c=timeseries[star_idx].index.values, cmap=plt.cm.jet)
+    plt.colorbar()
+    if zoom is not None:
+        plt.xlim(xmin=xmin, xmax=xmax)
+        plt.ylim(ymin=ymin, ymax=ymax)
+    plt.gca().invert_yaxis()
+    last_image_idx = timeseries[star_idx].index.max()
+    for star_idx in star_indices:
+        (x_pix, y_pix) = timeseries.loc[last_image_idx, (star_idx, ['x_pix', 'y_pix'])].values
+        plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0), textcoords='offset points',
+                     color='black', fontsize=12, rotation=0)
+    plt.title("Star positions by image index".format(idx=star_idx))
+    plt.show()
+    if show_line_plots:
+        for star_idx in star_indices:
+            pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
+                              secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx))
     return None
 
 
