@@ -926,7 +926,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-def plot_stars(image, stars, zoom=None, radius=3, interpolation='none', **kwargs):
+def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -945,7 +945,7 @@ def plot_stars(image, stars, zoom=None, radius=3, interpolation='none', **kwargs
     zoom : {None}, optional, tuple
         x-y ranges of image for zoom. Must have format ((xmin, xmax), (ymin, ymax)).
         Returned `numpy` image slice is image[ymin: ymax, xmin: xmax].
-    radius : {3}, optional, float or int
+    radius : {5}, optional, float or int
         The radius of the circle around each star in pixels.
     interpolation : 'none', string, optional
         Keyword argument for `matplotlib.pyplot.imshow`.
@@ -1015,10 +1015,10 @@ def plot_stars(image, stars, zoom=None, radius=3, interpolation='none', **kwargs
                               "(x_offset, y_offset) = {xyoffsets}").format(xyoffsets=(x_offset, y_offset)))
     for (idx, x_pix, y_pix) in stars[['x_pix', 'y_pix']].itertuples():
         circle = plt.Circle((x_pix - x_offset, y_pix - y_offset), radius=radius,
-                            color='yellow', linewidth=1, fill=False)
+                            color='lime', linewidth=2, fill=False)
         plt.gca().add_patch(circle)
         plt.annotate(str(idx), xy=(x_pix - x_offset, y_pix - y_offset), xycoords='data', xytext=(0, 0),
-                     textcoords='offset points', color='yellow', fontsize=12, rotation=0)
+                     textcoords='offset points', color='lime', fontsize=18, rotation=0)
     plt.show()
     return None
 
@@ -1913,8 +1913,8 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     last_image_idx = timeseries.index.max()
     for star_idx in sorted_star_indices:
         (x_pix, y_pix) = timeseries.loc[last_image_idx, (star_idx, ['x_pix', 'y_pix'])].values
-        plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0), textcoords='offset points',
-                     color='black', fontsize=12, rotation=0)
+        plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0),
+                     textcoords='offset points', color='black', fontsize=18, rotation=0)
     plt.title("Star positions by frame tracking number")
     plt.show()
     if show_line_plots:
@@ -1954,21 +1954,22 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
                  if sigma is not np.NaN]))
     radius = radii[np.abs(radii - fwhm_med).argmin()]
     logger.info("Photometry aperture radius: {rad}".format(rad=radius))
+    # Ensure that all timeseries have median value of 1.
     targ_norm = target / target.median(axis=0, skipna=True)
-    # noinspection PyUnboundLocalVariable
     comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
     lightcurves = targ_norm / comp_norm
+    lightcurves = lightcurves / lightcurves.median(axis=0, skipna=True)
     # Rename dataframe columns prior to joining since column names are identical.
     # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
     # When making lightcurve, combine dataframes not series.
     timestamps.rename(columns={'exp_mid': 'midexposure_timestamp_UTC'}, inplace=True)
-    lightcurves['normalized_relative_target_flux'] = lightcurves[('flux_ADU', radius)]
-    targ_norm['normalized_target_flux'] = targ_norm[('flux_ADU', radius)]
-    comp_norm['normalized_comparison_flux'] = comp_norm[('flux_ADU', radius)]
+    lightcurves['target_normalized_relative_flux'] = lightcurves[('flux_ADU', radius)]
+    targ_norm['target_normalized_flux'] = targ_norm[('flux_ADU', radius)]
+    comp_norm['comparison_normalized_flux'] = comp_norm[('flux_ADU', radius)]
     lightcurve = pd.concat([timestamps[['midexposure_timestamp_UTC']],
-                            lightcurves[['normalized_relative_target_flux']],
-                            targ_norm[['normalized_target_flux']],
-                            comp_norm[['normalized_comparison_flux']]],
+                            lightcurves[['target_normalized_relative_flux']],
+                            targ_norm[['target_normalized_flux']],
+                            comp_norm[['comparison_normalized_flux']]],
                            axis=1)
     return lightcurve
 
@@ -1983,27 +1984,13 @@ def plot_lightcurve(lightcurve, fpath=None):
         logger.info("Writing plot to: {fpath}".format(fpath=fpath))
         pdf = PdfPages(fpath)
     plt.figure()
-    pd.DataFrame.plot(lightcurve, legend=False,
-                      title="{fpath}".format(fpath=os.path.basename(fpath)),
-                      marker='o', markersize=2, linestyle='')
-    # TODO: generalize lightcurve plot
-    # pd.DataFrame.plot(lightcurve, legend=False,
-    #                   title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
-    #                                                ts=lightcurve.index[0].isoformat()),
-    #                   marker='o', markersize=2, linestyle='')
-    # Make labels. xlabel is automatic
-    #plt.ylabel(lightcurve.columns.values[0])
-    # #plt.
-    #
-    # image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
-    # num_keys = len(image_keys)
-    # divisions = 20
-    # key_progress = {}
-    # for div_idx in xrange(0, divisions + 1):
-    #     progress = (div_idx / divisions)
-    #     key_idx = int(math.ceil((num_keys - 1) * progress))
-    #     key = image_keys[key_idx]
-    #     key_progress[key] = progress
+    lightcurve = lightcurve[['target_normalized_relative_flux',
+                             'midexposure_timestamp_UTC']].set_index(keys=['midexposure_timestamp_UTC'])
+    pd.DataFrame.plot(lightcurve,
+                    title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
+                                                 ts=lightcurve.index[0].isoformat()),
+                    legend=False, marker='o', markersize=2, linestyle='')
+    plt.ylabel('target_normalized_relative_flux')
     if fpath is not None:
         # noinspection PyUnboundLocalVariable
         pdf.savefig()
