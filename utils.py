@@ -1899,13 +1899,15 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     sorted_star_indices = sorted(timeseries.columns.levels[0].values)
     for star_idx in sorted_star_indices:
         plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
-                    c=timeseries[star_idx].index.values, cmap=plt.cm.jet)
-    plt.colorbar()
+                    c=timeseries.index.values, cmap=plt.cm.jet)
+    plt.colorbar(ticks=np.linspace(timeseries.index.min(), timeseries.index.max(), 5, dtype=int))
     if zoom is not None:
         # noinspection PyUnboundLocalVariable
         plt.xlim(xmin=xmin, xmax=xmax)
+        plt.xlabel('x_pix')
         # noinspection PyUnboundLocalVariable
         plt.ylim(ymin=ymin, ymax=ymax)
+        plt.ylabel('y_pix')
     plt.gca().invert_yaxis()
     last_image_idx = timeseries.index.max()
     for star_idx in sorted_star_indices:
@@ -1983,6 +1985,7 @@ def plot_lightcurve(lightcurve, fpath=None):
     pd.DataFrame.plot(lightcurve, legend=False,
                       title="{fpath}".format(fpath=os.path.basename(fpath)),
                       marker='o', markersize=2, linestyle='')
+    # TODO: generalize lightcurve plot
     # pd.DataFrame.plot(lightcurve, legend=False,
     #                   title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
     #                                                ts=lightcurve.index[0].isoformat()),
