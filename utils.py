@@ -213,8 +213,9 @@ def check_reduce_config(dobj):
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
 # Maximum sigma (in pixels) for Gaussian kernel used for finding, combining, and matching stars.
+# max_sigma = 9.0 for very poor conditions.
 # TODO: make class to manage max_sigma variable if need to change. (Bad practice to modify global vars.)
-max_sigma = 5.0
+max_sigma = 9.0
 
 
 def define_progress(dobj, interval=0.05):
@@ -853,7 +854,7 @@ def normalize(array):
 
 # noinspection PyUnresolvedReferences
 # TODO: don't shadow max_sigma
-def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
@@ -867,9 +868,9 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
         2D array of image.
     min_sigma : {1}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
-    max_sigma : {5}, int, optional
+    max_sigma : {9}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
-    num_sigma : {2}, int, optional
+    num_sigma : {3}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
         to use for Gaussian kernel.
     threshold : {3}, int, optional
@@ -1914,7 +1915,7 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
         (x_pix, y_pix) = timeseries.loc[last_image_idx, (star_idx, ['x_pix', 'y_pix'])].values
         plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0), textcoords='offset points',
                      color='black', fontsize=12, rotation=0)
-    plt.title("Star positions by image index".format(idx=star_idx))
+    plt.title("Star positions by frame tracking number")
     plt.show()
     if show_line_plots:
         for star_idx in sorted_star_indices:
