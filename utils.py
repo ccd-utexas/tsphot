@@ -1788,7 +1788,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     return matched_stars
 
 
-def timestamps_timeseries(dobj, radii):
+def make_timestamps_timeseries(dobj, radii):
     """
     Calculate timeseries lightcurves from data and return tuple: timestamps, timeseries
     Stars dataframe description:
@@ -1822,15 +1822,16 @@ def timestamps_timeseries(dobj, radii):
             timeseries_dict[ftnum_new]['matchedprev_bool'] = np.NaN
         else:
             # noinspection PyUnboundLocalVariable
-            matched_stars = match_stars(image1=image_old, image2=image_new,
-                                        stars1=stars_old, stars2=stars_new)
+            matched_stars = match_stars(image1=last_image_with_stars, image2=image_new,
+                                        stars1=last_stars, stars2=stars_new)
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
         logger.debug("Matched stars:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
-        # Reset variables for next iteration.
-        image_old = image_new
-        ftnum_old = ftnum_new
-        stars_old = timeseries_dict[ftnum_new][['x_pix', 'y_pix', 'sigma_pix']]
+        # Reset variables for next iteration, checking for clouds.
+        if len(stars_new) > 0:
+            last_image_with_stars = image_new
+            last_ftnum_with_stars = ftnum_new
+            last_stars = timeseries_dict[ftnum_new][['x_pix', 'y_pix', 'sigma_pix']]
         # Do aperture photometry.
         # TODO: do median subtraction above and remove unnecessary subframing
         image_new -= np.median(image_new)
@@ -1863,6 +1864,13 @@ def timestamps_timeseries(dobj, radii):
     timestamps = timestamps.applymap(lambda x: dt_begin + dt.timedelta(seconds=x))
     return timestamps, timeseries
 
+
+def drop_frames(timeseries, frame_tracking_numbers):
+    """
+    Drop images with frame_tracking_number.
+    """
+    # TODO: make clouded out method?
+    pass
 
 def plot_positions(timeseries, zoom=None, show_line_plots=True):
     """
