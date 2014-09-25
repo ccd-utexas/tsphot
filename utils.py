@@ -1957,7 +1957,7 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
     # Ensure that all timeseries have median value of 1.
     targ_norm = target / target.median(axis=0, skipna=True)
     comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
-    lightcurves = targ_norm / comp_norm
+    lightcurves = target / comp_sum
     lightcurves = lightcurves / lightcurves.median(axis=0, skipna=True)
     # Rename dataframe columns prior to joining since column names are identical.
     # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
@@ -1965,18 +1965,23 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
     timestamps.rename(columns={'exp_mid': 'midexposure_timestamp_UTC'}, inplace=True)
     lightcurves['target_normalized_relative_flux'] = lightcurves[('flux_ADU', radius)]
     targ_norm['target_normalized_flux'] = targ_norm[('flux_ADU', radius)]
-    comp_norm['comparison_normalized_flux'] = comp_norm[('flux_ADU', radius)]
+    comp_norm['comparisons_sum_normalized_flux'] = comp_norm[('flux_ADU', radius)]
     lightcurve = pd.concat([timestamps[['midexposure_timestamp_UTC']],
                             lightcurves[['target_normalized_relative_flux']],
                             targ_norm[['target_normalized_flux']],
-                            comp_norm[['comparison_normalized_flux']]],
+                            comp_norm[['comparisons_sum_normalized_flux']]],
                            axis=1)
     return lightcurve
 
 
-def plot_lightcurve(lightcurve, fpath=None):
+def plot_lightcurve(lightcurve, fpath=None, **kwargs):
     """
     Plot lightcurve.
+
+    Parameters
+    ----------
+    kwargs : keywords to pass to `matplotlib`
+
     """
     # TODO: pdf infodict from config file
     # TODO: check input
@@ -1987,9 +1992,9 @@ def plot_lightcurve(lightcurve, fpath=None):
     lightcurve = lightcurve[['target_normalized_relative_flux',
                              'midexposure_timestamp_UTC']].set_index(keys=['midexposure_timestamp_UTC'])
     pd.DataFrame.plot(lightcurve,
-                    title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
+                      title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
                                                  ts=lightcurve.index[0].isoformat()),
-                    legend=False, marker='o', markersize=2, linestyle='')
+                      legend=False, marker='o', markersize=2, linestyle='', **kwargs)
     plt.ylabel('target_normalized_relative_flux')
     if fpath is not None:
         # noinspection PyUnboundLocalVariable
