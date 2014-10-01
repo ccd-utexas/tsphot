@@ -100,9 +100,9 @@ def create_reduce_config(fjson='reduce_config.json'):
     config_settings = collections.OrderedDict()
     config_settings['comments'] = ["Insert multiline comments here. For formatting, see http://json.org/",
                                    "Use JSON `null`/`true`/`false` for empty/T/F values.",
-                                   "  Example in ['master']['dark'].",
+                                   "  See example `null` value for ['master']['dark'].",
                                    "For ['logging']['level'], choices are (from most to least verbose):",
-                                   "  ['DEBUG','INFO','WARNING','ERROR','CRITICAL']",
+                                   "  ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']",
                                    "  See https://docs.python.org/2/library/logging.html#logging-levels"]
     config_settings['logging'] = collections.OrderedDict()
     config_settings['logging']['filename'] = "tsphot.log"
@@ -968,7 +968,6 @@ def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs
 
     Examples
     --------
-    In []:
     ```
     key = 510
     ftnum = object_ccddata[key].meta['frame_tracking_number']
@@ -1521,22 +1520,28 @@ def drop_duplicate_stars(stars):
             # Check length again since `stars` is dynamically updated at the end of each iteration.
             # noinspection PyTypeChecker
             if len(stars) > 1:
-                sum_abs_diffs = \
-                    np.sum(
-                        np.abs(
-                            np.subtract(
-                                stars[['x_pix', 'y_pix']].drop(idx, inplace=False),
-                                row.loc[['x_pix', 'y_pix']])
-                        ), axis=1
-                    )
-                minsad = sum_abs_diffs.min()
-                idx_minsad = sum_abs_diffs.idxmin()
+                min_dist = None
+                min_idx2 = None
+                update_dist = None
+                # TODO: vectorize
+                for (idx2, row2) in stars.drop(idx, inplace=False).iterrows():
+                    dist = scipy.spatial.distance.euclidean(u=row.loc[['x_pix', 'y_pix']],
+                                                            v=row2.loc[['x_pix', 'y_pix']])
+                    if min_dist is None:
+                        update_dist = True
+                    elif dist < min_dist:
+                        update_dist = True
+                    else:
+                        update_dist = False
+                    if update_dist:
+                        min_dist = dist
+                        min_idx2 = idx2
                 # Accept stars at least max_sigma away, max_sigma from find_stars.
                 # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
                 # sigma than the actual sigma of the PSF.
                 # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-                if minsad < np.nanmax([max_sigma, row.loc['sigma_pix'], stars.loc[idx_minsad, 'sigma_pix']]):
-                    if row.loc['sigma_pix'] >= stars.loc[idx_minsad, 'sigma_pix']:
+                if min_dist < np.nanmax([max_sigma, row.loc['sigma_pix'], stars.loc[min_idx2, 'sigma_pix']]):
+                    if row.loc['sigma_pix'] >= stars.loc[min_idx2, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
                     logger.debug("Dropping duplicate star:\n{row}".format(row=row))
@@ -1690,7 +1695,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     df_stars2[:] = np.NaN
     df_stars2['idx2'] = np.NaN
     df_stars2['verif2to1'] = np.NaN
-    df_stars2['minsad'] = np.NaN
+    df_stars2['min_dist'] = np.NaN
     df_dict = {'stars1': df_stars1,
                'tform1to2': df_tform1to2,
                'stars2': df_stars2}
@@ -1715,24 +1720,30 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars2_verified = pd.DataFrame(columns=stars2.columns)
         stars2_unverified = stars2.copy()
         for (idx, row) in stars.iterrows():
-            sum_abs_diffs = \
-                np.sum(
-                    np.abs(
-                        np.subtract(
-                            stars2[['x_pix', 'y_pix']],
-                            row.loc['tform1to2', ['x_pix', 'y_pix']])
-                    ), axis=1
-                )
-            minsad = sum_abs_diffs.min()
-            idx2_minsad = sum_abs_diffs.idxmin()
+            min_dist = None
+            min_idx2 = None
+            update_dist = None
+            # TODO: vectorize
+            for (idx2, row2) in stars2.iterrows():
+                dist = scipy.spatial.distance.euclidean(u=row.loc['tform1to2', ['x_pix', 'y_pix']],
+                                                        v=row2.loc[['x_pix', 'y_pix']])
+                if min_dist is None:
+                    update_dist = True
+                elif dist < min_dist:
+                    update_dist = True
+                else:
+                    update_dist = False
+                if update_dist:
+                    min_dist = dist
+                    min_idx2 = idx2
             # Accept stars at least max_sigma away, max_sigma from find_stars.
             # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
             # sigma than the actual sigma of the PSF.
             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-            if minsad < np.nanmax([max_sigma, stars2.loc[idx2_minsad, 'sigma_pix']]):
-                row.loc['stars2'].update(stars2.loc[idx2_minsad])
-                row.loc['stars2', 'idx2'] = idx2_minsad
-                row.loc['stars2', 'minsad'] = minsad
+            if min_dist < np.nanmax([max_sigma, row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
+                row.loc['stars2'].update(stars2.loc[min_idx2])
+                row.loc['stars2', 'idx2'] = min_idx2
+                row.loc['stars2', 'min_dist'] = min_dist
                 idx1 = idx
                 row1 = stars1.loc[idx1]
                 if idx1 not in stars1_verified.index:
@@ -1784,7 +1795,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         _plot_matches(image1=image1, image2=image2, stars1=stars['stars1'], stars2=stars['stars2'])
     # Report results.
     df_dict = {'stars1': stars['stars1'],
-               'stars2': stars['stars2'].drop(['idx2', 'minsad'], axis=1)}
+               'stars2': stars['stars2'].drop(['idx2', 'min_dist'], axis=1)}
     matched_stars = pd.concat(df_dict, axis=1)
     return matched_stars
 
