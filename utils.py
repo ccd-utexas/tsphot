@@ -1942,7 +1942,7 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     if show_line_plots:
         for star_idx in sorted_star_indices:
             pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
-                              secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx), ylim=pixlim)
+                              secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx))
     return None
 
 
