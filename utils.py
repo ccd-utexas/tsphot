@@ -212,7 +212,7 @@ def check_reduce_config(dobj):
 # Note: For non-root-level loggers, use `getLogger(__name__)`
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
-# Maximum sigma (in pixels) for Gaussian kernel used for finding, combining, and matching stars.
+# Maximum sigma (in pixels) for Gaussian kernel used for finding stars.
 # max_sigma = 9.0 for very poor conditions.
 # TODO: make class to manage max_sigma variable if need to change. (Bad practice to modify global vars.)
 max_sigma = 9.0
@@ -914,9 +914,10 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3
     .. [3] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
     
     """
-    # Normalize image then find stars. Order by x,y,sigma.
-    image_normd = normalize(image)
-    stars_arr = feature.blob_log(image_normd, min_sigma=min_sigma, max_sigma=max_sigma,
+    # Normalize and smooth image then find stars. Order by x,y,sigma.
+    image = normalize(image)
+    image = scipy.signal.medfilt2d(image, kernel_size=3)
+    stars_arr = feature.blob_log(image=image, min_sigma=min_sigma, max_sigma=max_sigma,
                                  num_sigma=num_sigma, threshold=threshold, **kwargs)
     if len(stars_arr) > 0:
         stars = pd.DataFrame(stars_arr, columns=['y_pix', 'x_pix', 'sigma_pix'])
@@ -1503,7 +1504,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
 
 def drop_duplicate_stars(stars):
     """
-    Stars within 1 sigma of each other are assumed to be the same star.
+    Stars within 2 sigma of each other are assumed to be the same star.
     :type stars: object
     :param stars:
     :return stars:
@@ -1536,11 +1537,11 @@ def drop_duplicate_stars(stars):
                     if update_dist:
                         min_dist = dist
                         min_idx2 = idx2
-                # Accept stars at least max_sigma away, max_sigma from find_stars.
+                # Accept stars at least 2*max(sigma_pix) away.
                 # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
                 # sigma than the actual sigma of the PSF.
                 # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-                if min_dist < np.nanmax([max_sigma, row.loc['sigma_pix'], stars.loc[min_idx2, 'sigma_pix']]):
+                if min_dist < 2.0 * np.nanmax([row.loc['sigma_pix'], stars.loc[min_idx2, 'sigma_pix']]):
                     if row.loc['sigma_pix'] >= stars.loc[min_idx2, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
@@ -1736,11 +1737,11 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 if update_dist:
                     min_dist = dist
                     min_idx2 = idx2
-            # Accept stars at least max_sigma away, max_sigma from find_stars.
+            # Accept stars at least 2*max(sigma_pix) away.
             # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
             # sigma than the actual sigma of the PSF.
             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-            if min_dist < np.nanmax([max_sigma, row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
+            if min_dist < 2.0 * np.nanmax([row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
                 row.loc['stars2'].update(stars2.loc[min_idx2])
                 row.loc['stars2', 'idx2'] = min_idx2
                 row.loc['stars2', 'min_dist'] = min_dist
@@ -1832,15 +1833,25 @@ def make_timestamps_timeseries(dobj, radii):
         if key == sorted_image_keys[0]:
             timeseries_dict[ftnum_new] = stars_new
             timeseries_dict[ftnum_new]['matchedprev_bool'] = np.NaN
+            logger.info(("Initial stars found.\n" +
+                         "Frame tracking number: {ftnum}\n" +
+                         "All current stars:\n" +
+                         "{stars}").format(ftnum=ftnum_new, stars=timeseries_dict[ftnum_new]))
         else:
             # noinspection PyUnboundLocalVariable
             matched_stars = match_stars(image1=last_image_with_stars, image2=image_new,
                                         stars1=last_stars, stars2=stars_new)
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
+            # Report if new stars were found.
+            if len(timeseries_dict[ftnum_new]) != len(timeseries_dict[ftnum_new-1]):
+                logger.info(("New stars found.\n" +
+                             "Frame tracking number: {ftnum}\n" +
+                             "All current stars:\n" +
+                             "{stars}").format(ftnum=ftnum_new, stars=timeseries_dict[ftnum_new]))
         logger.debug("Matched stars:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
         # Reset variables for next iteration, checking for clouds.
-        if len(stars_new) > 0:
+        if (key == sorted_image_keys[0]) or (len(stars_new) > 0):
             last_image_with_stars = image_new
             last_ftnum_with_stars = ftnum_new
             last_stars = timeseries_dict[ftnum_new][['x_pix', 'y_pix', 'sigma_pix']]
@@ -1911,7 +1922,7 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     sorted_star_indices = sorted(timeseries.columns.levels[0].values)
     for star_idx in sorted_star_indices:
         plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
-                    c=timeseries.index.values, cmap=plt.cm.jet)
+                    c=timeseries.index.values, s=50.0, cmap=plt.cm.jet, linewidths=0)
     plt.colorbar(ticks=np.linspace(timeseries.index.min(), timeseries.index.max(), 5, dtype=int))
     if zoom is not None:
         # noinspection PyUnboundLocalVariable
@@ -1928,10 +1939,14 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
                      textcoords='offset points', color='black', fontsize=18, rotation=0)
     plt.title("Star positions by frame tracking number")
     plt.show()
+    timeseries_by_quantity = timeseries.stack().stack().unstack(['quantity_unit'])
+    pixlim = (np.nanmin(timeseries_by_quantity[['x_pix', 'y_pix']].values),
+              np.nanmax(timeseries_by_quantity[['x_pix', 'y_pix']].values))
+    print(pixlim)
     if show_line_plots:
         for star_idx in sorted_star_indices:
             pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
-                              secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx))
+                              secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx), ylim=pixlim)
     return None
 
 
