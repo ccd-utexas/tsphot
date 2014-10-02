@@ -212,7 +212,7 @@ def check_reduce_config(dobj):
 # Note: For non-root-level loggers, use `getLogger(__name__)`
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
-# Maximum sigma (in pixels) for Gaussian kernel used for finding stars.
+# Maximum sigma (in pixels) for Gaussian kernel used for finding stars, dropping duplicates, and matching stars.
 # max_sigma = 9.0 for very poor conditions.
 # TODO: make class to manage max_sigma variable if need to change. (Bad practice to modify global vars.)
 max_sigma = 9.0
@@ -1541,7 +1541,7 @@ def drop_duplicate_stars(stars):
                 # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
                 # sigma than the actual sigma of the PSF.
                 # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-                if min_dist < 2.0 * np.nanmax([row.loc['sigma_pix'], stars.loc[min_idx2, 'sigma_pix']]):
+                if min_dist < 2.0 * np.nanmax([max_sigma, row.loc['sigma_pix'], stars.loc[min_idx2, 'sigma_pix']]):
                     if row.loc['sigma_pix'] >= stars.loc[min_idx2, 'sigma_pix']:
                         raise AssertionError(("Program error. Indices of degenerate stars were not dropped.\n" +
                                               "row:\n{row}\nstars:\n{stars}").format(row=row, stars=stars))
@@ -1741,7 +1741,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
             # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
             # sigma than the actual sigma of the PSF.
             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-            if min_dist < 2.0 * np.nanmax([row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
+            if min_dist < 2.0 * np.nanmax([max_sigma, row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
                 row.loc['stars2'].update(stars2.loc[min_idx2])
                 row.loc['stars2', 'idx2'] = min_idx2
                 row.loc['stars2', 'min_dist'] = min_dist
