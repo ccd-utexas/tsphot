@@ -1939,10 +1939,6 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
                      textcoords='offset points', color='black', fontsize=18, rotation=0)
     plt.title("Star positions by frame tracking number")
     plt.show()
-    timeseries_by_quantity = timeseries.stack().stack().unstack(['quantity_unit'])
-    pixlim = (np.nanmin(timeseries_by_quantity[['x_pix', 'y_pix']].values),
-              np.nanmax(timeseries_by_quantity[['x_pix', 'y_pix']].values))
-    print(pixlim)
     if show_line_plots:
         for star_idx in sorted_star_indices:
             pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
