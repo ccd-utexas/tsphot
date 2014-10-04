@@ -1905,6 +1905,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         #     idx_r = index row (i.e. if `stars_dist` index is 'stars1_index', idx_r is index from stars1)
         #     idx_rtoc = index mapped from row to column
         for idx_r in stars_dist.index:
+            logger.debug("TEST: idx_r = {idx_r}".format(idx_r=idx_r))
             min_idx_rtoc = stars_dist.loc[idx_r].argmin()
             min_dist_rtoc = stars_dist.loc[idx_r].min()
             min_idx_ctor = stars_dist.loc[:, min_idx_rtoc].argmin()
@@ -1951,27 +1952,35 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                                               "{row2}").format(row2=row2))
                 # ...Else match was not verified so use translated coordinates as positions for stars2.
                 else:
+                    logger.debug("TEST, match was not verified")
                     stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
                     stars.loc[idx1, 'stars1', 'verif1to2'] = 0
                     stars.loc[idx1, 'stars2', 'verif2to1'] = 0
                     logger.debug(("Star not verified:\n" +
                                   "row from stars =\n" +
                                   "{row}").format(row=stars.loc[idx1]))
-            # ...Else matched star was not the closest and/or 1-to-1 so use translated coordinates
+            # ...Else matched star was not the closest and/or not 1-to-1 so use translated coordinates
             # as positions for stars2.
             else:
+                logger.debug("TEST, matched star was not the closest and/or not 1-to-1")
                 stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
                 stars.loc[idx1, 'stars1', 'verif1to2'] = 0
                 stars.loc[idx1, 'stars2', 'verif2to1'] = 0
                 logger.debug(("Star not verified:\n" +
                               "row from stars =\n" +
                               "{row}").format(row=stars.loc[idx1]))
+            logger.debug("TEST, stars =\n{stars}".format(stars=stars))
         # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
-        # Sort columns to permit heirarchical slicing.
+        # If stars in stars1 were not verified, use translated coordinates as positions in new image.
+        # If stars in stars2 were not verified, append new stars to positions in new image.
         if (len(stars1_verified) != num_stars1) or (len(stars1_unverified) != 0):
             logger.debug(("Not all stars in stars1 were verified as matching stars in stars2:\n" +
                           "stars1_unverified =\n" +
                           "{s1u}").format(s1u=stars1_unverified))
+            for idx1 in stars1_unverified.index:
+                stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
+                stars.loc[idx1, 'stars1', 'verif1to2'] = 0
+                stars.loc[idx1, 'stars2', 'verif2to1'] = 0
         if (len(stars2_verified) != num_stars2) or (len(stars2_unverified) != 0):
             logger.debug(("Not all stars in stars2 were verified as matching stars in stars1:\n" +
                           "stars2_unverified =\n" +
@@ -1985,11 +1994,11 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     else:
         logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
         stars[('tform1to2', ['x_pix', 'y_pix'])] = stars[('stars1', ['x_pix', 'y_pix'])]
-        stars[('stars2', ['x_pix', 'y_pix'])] = stars[('tform1to2', ['x_pix', 'y_pix'])]
+        stars[('stars2', ['x_pix', 'y_pix'])] = stars[('stars1', ['x_pix', 'y_pix'])]
         stars[('stars1', 'verif1to2')] = 0
         stars[('stars2', 'verif2to1')] = 0
     # Sort columns to permit heirarchical slicing.
-    # Replace 1/0 with True/False.
+    # Replace 1 with True; 0/NaN with False.
     stars.sort_index(axis=1, inplace=True)
     stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
     stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
@@ -2046,7 +2055,7 @@ def make_timestamps_timeseries(dobj, radii):
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
             # Report if new stars were found.
-            if len(timeseries_dict[ftnum_new]) != len(timeseries_dict[ftnum_new-1]):
+            if len(timeseries_dict[ftnum_new]) != len(timeseries_dict[last_ftnum_with_stars]):
                 logger.info(("New stars found.\n" +
                              "Frame tracking number: {ftnum}\n" +
                              "All current stars:\n" +
