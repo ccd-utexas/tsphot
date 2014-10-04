@@ -1861,31 +1861,79 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
         # sigma than the actual sigma of the PSF.
         # TODO: Allow users to define stars by hand instead of by `find_stars`
         # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
-        dist_stars1_stars2 = pd.DataFrame(index=stars1.index, columns=stars2.index)
-        dist_stars1_stars2.index.names = ['stars1_index']
-        dist_stars1_stars2.columns.names = ['stars2_index']
+        # For comparing distances, starsN dataframe with fewest stars is index so that mapping is injective.
+        if num_stars1 <= num_stars2:
+            stars_dist = pd.DataFrame(index=stars1.index, columns=stars2.index)
+            stars_dist.index.names = ['stars1_index']
+            stars_dist.columns.names = ['stars2_index']
+        else:
+            stars_dist = pd.DataFrame(index=stars2.index, columns=stars1.index)
+            stars_dist.index.names = ['stars2_index']
+            stars_dist.columns.names = ['stars1_index']
+        # Make dataframes to cross-check that stars are matched correctly.
         stars1_verified = pd.DataFrame(columns=stars1.columns)
         stars1_unverified = stars1.copy()
         stars2_verified = pd.DataFrame(columns=stars2.columns)
         stars2_unverified = stars2.copy()
+        # Compute distances from each translated star coordinate to each found star coordinate.
         # TODO: vectorize
-        for (idx1, row1) in stars.iterrows():
+        # TODO: move if-else into loop.
+        if stars_dist.index.names[0] == 'stars1_index':
+            for (idx1, row1) in stars.iterrows():
+                for (idx2, row2) in stars2.iterrows():
+                    stars_dist.loc[idx1, idx2] =  \
+                        scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
+                                                         v=row2.loc[['x_pix', 'y_pix']])
+        elif stars_dist.index.names[0] == 'stars2_index':
             for (idx2, row2) in stars2.iterrows():
-                dist_stars1_stars2.loc[idx1, idx2] =  \
-                    scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
-                                                     v=row2.loc[['x_pix', 'y_pix']])
-        # go back and make sure fewest stars are on index
-        for idx1 in dist_stars1_stars2.index.values:
-            min_idx1to2 = dist_stars1_stars2.loc[idx1].argmin()
-            min_dist1to2 = dist_stars1_stars2.loc[idx1].min()
-            min_idx2to1 = dist_stars1_stars2.loc[:, min_idx1to2].argmin()
-            min_dist2to1 = dist_stars1_stars2.loc[:, min_idx1to2].min()
-            # If this is the nearest star and is 1to1...
-            if (idx1 == min_idx2to1) and (min_dist1to2 == min_dist2to1):
-                # If the nearest star is within 2*max(sigma_pix) away...
-                if min_dist1to2 < 2.0 * np.nanmax([max_sigma,
-                                                   stars.loc[idx1, ('stars1', 'sigma_pix')],
-                                                   stars2.loc[min_idx1to2, 'sigma_pix']]):
+                for (idx1, row1) in stars.iterrows():
+                    stars_dist.loc[idx2, idx1] =  \
+                        scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
+                                                         v=row2.loc[['x_pix', 'y_pix']])
+        else:
+            raise AssertionError(("Program error. `stars_dist` index name should be " +
+                                  "'stars1_index' or 'stars2_index':\n" +
+                                  "stars_dist =\n{stars_dist}").format(stars_dist=stars_dist))
+        # Note: Index of stars_dist is translated stars or found stars, whichever is fewer.
+        # Without loss of generality, assuming index of stars_dist is translated stars:
+        #     For every translated star coordinate, match to nearest found star coordinate.
+        #     And for every found star coordinate, match to nearest translated star coordinate.
+        #     Check that original translated star coordinate is the matched translated star coordinate.
+        #     Check that the distance between matched coordinates is within 2*max(sigma_pix) since each coordinate is
+        #     only known to +/- sigma..
+        #     Keep track of verified stars to prevent over counting.
+        # Notation:
+        #     idxr = index row (i.e. if `stars_dist` index is 'stars1_index', idxr is index from stars1)
+        #     idx_rtoc = index mapped from row to column
+        for idx_r in stars_dist.index:
+            min_idx_rtoc = stars_dist.loc[idx_r].argmin()
+            min_dist_rtoc = stars_dist.loc[idx_r].min()
+            min_idx_ctor = stars_dist.loc[:, min_idx_rtoc].argmin()
+            min_dist_ctor = stars_dist.loc[:, min_idx_rtoc].min()
+            # If this is the nearest star and is 1-to-1...
+            if (idx_r == min_idx_ctor) and (min_dist_rtoc == min_dist_ctor):
+                # Identify index, columns as stars1 or stars2.
+                if stars_dist.index.names[0] == 'stars1_index':
+                    idx1 = idx_r
+                    idx2 = min_idx_rtoc
+                elif stars_dist.index.names[0] == 'stars2_index':
+                    idx1 = min_idx_rtoc
+                    idx2 = idx_r
+                else:
+                    raise AssertionError(("Program error. `stars_dist` index name should be " +
+                                          "'stars1_index' or 'stars2_index':\n" +
+                                          "stars_dist =\n{stars_dist}").format(stars_dist=stars_dist))
+                # If the nearest star is within 2*max(sigma_pix)...
+                verify_match = None
+                if min_dist_rtoc < 2.0 * np.nanmax([max_sigma,
+                                                    stars.loc[idx1, ('stars1', 'sigma_pix')],
+                                                    stars2.loc[idx2, 'sigma_pix']]):
+                    verify_match = True
+                else:
+                    verify_match = False
+                # Verify and cross-check match.
+                if verify_match:
+
                     row1 = stars1.loc[idx1]
                     if idx1 not in stars1_verified.index:
                         stars1_verified.loc[idx1] = row1
@@ -1893,8 +1941,18 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
                         stars.loc[idx1, ('stars1', 'verif1to2')] = 1
                     else:
                         raise AssertionError(("Program error. Star from stars1 already verified:\n" +
-                                              "{row}").format(row=stars.loc[idx1]))
-                    # repeat for row2, stars2
+                                              "row from stars1 =\n"
+                                              "{row1}").format(row1=row1))
+                    row2 = stars2.loc[idx2]
+                    if idx2 not in stars2_verified.index:
+                        stars2_verified.loc[idx2] = row2
+                        stars2_unverified.drop(idx2, inplace=True)
+                        stars.loc[idx2, ('stars2', 'verif2to1')] = 1
+                    else:
+                        raise AssertionError(("Program error. Star from stars2 already verified:\n" +
+                                              "row from stars2 =\n"
+                                              "{row2}").format(row2=row2))
+
                 # else, not verified
             # else not verified
         pdb.set_trace()
