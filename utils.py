@@ -1667,153 +1667,154 @@ def plot_matches(image1, image2, stars1, stars2):
     return None
 
 
-# noinspection PyUnresolvedReferences
+# TODO: delete old match_stars
+# # noinspection PyUnresolvedReferences
+# def match_stars(image1, image2, stars1, stars2, test=False):
+#     """
+#     Match stars within two images.
+#     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
+#     """
+#     # TODO: rewrite match_stars function. see https://github.com/ccd-utexas/tsphot/issues/93
+#     # Check input.
+#     # TODO: prevent warning: SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame
+#     stars1.dropna(subset=['x_pix', 'y_pix'], inplace=True)
+#     stars2.dropna(subset=['x_pix', 'y_pix'], inplace=True)
+#     num_stars1 = len(stars1)
+#     num_stars2 = len(stars2)
+#     if num_stars1 < 1:
+#         raise IOError(("stars1 must have at least one star.\n" +
+#                        "stars1 = {stars1}").format(stars1=stars1))
+#     if num_stars1 != num_stars2:
+#         logger.debug(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
+#                       "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
+#     # Create heirarchical dataframe for tracking star matches. Match from star1 positions to star2 positions.
+#     # `stars` dataframe has the same number of stars as `stars1`: num_stars = num_stars1
+#     # Sort columns to permit heirarchical slicing.
+#     df_stars1 = stars1.copy()
+#     df_stars1['verif1to2'] = np.NaN
+#     df_tform1to2 = (stars1.copy())[['x_pix', 'y_pix']]
+#     df_tform1to2[:] = np.NaN
+#     df_stars2 = stars1.copy()
+#     df_stars2[:] = np.NaN
+#     df_stars2['idx2'] = np.NaN
+#     df_stars2['verif2to1'] = np.NaN
+#     df_stars2['min_dist'] = np.NaN
+#     df_dict = {'stars1': df_stars1,
+#                'tform1to2': df_tform1to2,
+#                'stars2': df_stars2}
+#     stars = pd.concat(df_dict, axis=1)
+#     stars.sort_index(axis=1, inplace=True)
+#     # If any stars exist in stars2, match them...
+#     if num_stars2 > 0:
+#         # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
+#         # TODO: allow user to give custom translation
+#         translation = translate_images_1to2(image1=image1, image2=image2)
+#         tform = skimage.transform.SimilarityTransform(translation=translation)
+#         stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
+#         pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
+#                                        params=tform.params)
+#         logger.debug("Transform parameters:\n{pars}".format(pars={}))
+#         # Use least sum of squares to match stars. Verify that matched stars are within 1 sigma
+#         # of the centroid of stars2 and are matched 1-to-1.
+#         # TODO: Allow users to define stars by hand instead of by `find_stars`
+#         # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
+#         stars1_verified = pd.DataFrame(columns=stars1.columns)
+#         stars1_unverified = stars1.copy()
+#         stars2_verified = pd.DataFrame(columns=stars2.columns)
+#         stars2_unverified = stars2.copy()
+#         for (idx, row) in stars.iterrows():
+#             min_dist = None
+#             min_idx2 = None
+#             update_dist = None
+#             # TODO: vectorize
+#             for (idx2, row2) in stars2.iterrows():
+#                 dist = scipy.spatial.distance.euclidean(u=row.loc['tform1to2', ['x_pix', 'y_pix']],
+#                                                         v=row2.loc[['x_pix', 'y_pix']])
+#                 if min_dist is None:
+#                     update_dist = True
+#                 elif dist < min_dist:
+#                     update_dist = True
+#                 else:
+#                     update_dist = False
+#                 if update_dist:
+#                     min_dist = dist
+#                     min_idx2 = idx2
+#             # Accept stars at least 2*max(sigma_pix) away.
+#             # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
+#             # sigma than the actual sigma of the PSF.
+#             # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
+#             if min_dist < 2.0 * np.nanmax([max_sigma, row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
+#                 idx1 = idx
+#                 row1 = stars1.loc[idx1]
+#                 if idx1 not in stars1_verified.index:
+#                     stars1_verified.loc[idx1] = row1
+#                     stars1_unverified.drop(idx1, inplace=True)
+#                     row.loc['stars1', 'verif1to2'] = 1
+#                 else:
+#                     raise AssertionError(("Program error. Star from stars1 already verified:\n" +
+#                                           "{row}").format(row=row))
+#                 row2 = stars2.loc[min_idx2]
+#                 # If the matched star from stars2 was not yet verified...
+#                 if min_idx2 not in stars2_verified.index:
+#                     stars2_verified.loc[min_idx2] = row2
+#                     row.loc['stars2'].update(stars2.loc[min_idx2])
+#                     row.loc['stars2', 'idx2'] = min_idx2
+#                     row.loc['stars2', 'min_dist'] = min_dist
+#                     stars2_unverified.drop(min_idx2, inplace=True)
+#                     row.loc['stars2', 'verif2to1'] = 1
+#                 # ...otherwise if the matched star from stars2 is a better match...
+#                 elif min_dist < stars[stars[('stars2', 'idx2')] == min_idx2][('stars2', 'min_dist')].values[0]:
+#                     stars2_verified.loc[min_idx2] = row2
+#                     row.loc['stars2'].update(stars2.loc[min_idx2])
+#                     row.loc['stars2', 'idx2'] = min_idx2
+#                     row.loc['stars2', 'min_dist'] = min_dist
+#                     stars2_unverified.drop(min_idx2, inplace=True)
+#                     row.loc['stars2', 'verif2to1'] = 1
+#                 # ...otherwise "matched" star was close but not a match.
+#                 else:
+#                     row.loc['stars2'].update(row.loc['tform1to2'])
+#                     row.loc['stars1', 'verif1to2'] = 0
+#                     row.loc['stars2', 'verif2to1'] = 0
+#                     logger.debug("Star not verified:\n{row}".format(row=row))
+#             else:
+#                 row.loc['stars2'].update(row.loc['tform1to2'])
+#                 row.loc['stars1', 'verif1to2'] = 0
+#                 row.loc['stars2', 'verif2to1'] = 0
+#                 logger.debug("Star not verified:\n{row}".format(row=row))
+#             # Save results and verify found matches.
+#             stars.loc[idx].update(row)
+#         # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
+#         # Sort columns to permit heirarchical slicing.
+#         if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
+#             logger.debug(("Not all stars in stars1 were verified as matching stars in stars2." +
+#                           " stars1_unverified:\n{s1u}").format(s1u=stars1_unverified))
+#         if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
+#             logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
+#                           " stars2_unverified:\n{s2u}").format(s2u=stars2_unverified))
+#             df_dict = {'stars1': stars['stars1'],
+#                        'tform1to2': stars['tform1to2'],
+#                        'stars2': (stars['stars2']).append(stars2_unverified, ignore_index=True)}
+#             stars = pd.concat(df_dict, axis=1)
+#     # ...otherwise there are no stars in stars2.
+#     else:
+#         logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
+#         stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values
+#         stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values
+#         stars.loc[:, ('stars1', 'verif1to2')] = 0
+#         stars.loc[:, ('stars2', 'verif2to1')] = 0
+#     stars.sort_index(axis=1, inplace=True)
+#     stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
+#     stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
+#     if test:
+#         plot_matches(image1=image1, image2=image2, stars1=stars['stars1'], stars2=stars['stars2'])
+#     # Report results.
+#     df_dict = {'stars1': stars['stars1'],
+#                'stars2': stars['stars2'].drop(['idx2', 'min_dist'], axis=1)}
+#     matched_stars = pd.concat(df_dict, axis=1)
+#     return matched_stars
+
+
 def match_stars(image1, image2, stars1, stars2, test=False):
-    """
-    Match stars within two images.
-    http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
-    """
-    # TODO: rewrite match_stars function. see https://github.com/ccd-utexas/tsphot/issues/93
-    # Check input.
-    # TODO: prevent warning: SettingWithCopyWarning: A value is trying to be set on a copy of a slice from a DataFrame
-    stars1.dropna(subset=['x_pix', 'y_pix'], inplace=True)
-    stars2.dropna(subset=['x_pix', 'y_pix'], inplace=True)
-    num_stars1 = len(stars1)
-    num_stars2 = len(stars2)
-    if num_stars1 < 1:
-        raise IOError(("stars1 must have at least one star.\n" +
-                       "stars1 = {stars1}").format(stars1=stars1))
-    if num_stars1 != num_stars2:
-        logger.debug(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
-                      "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
-    # Create heirarchical dataframe for tracking star matches. Match from star1 positions to star2 positions.
-    # `stars` dataframe has the same number of stars as `stars1`: num_stars = num_stars1
-    # Sort columns to permit heirarchical slicing.
-    df_stars1 = stars1.copy()
-    df_stars1['verif1to2'] = np.NaN
-    df_tform1to2 = (stars1.copy())[['x_pix', 'y_pix']]
-    df_tform1to2[:] = np.NaN
-    df_stars2 = stars1.copy()
-    df_stars2[:] = np.NaN
-    df_stars2['idx2'] = np.NaN
-    df_stars2['verif2to1'] = np.NaN
-    df_stars2['min_dist'] = np.NaN
-    df_dict = {'stars1': df_stars1,
-               'tform1to2': df_tform1to2,
-               'stars2': df_stars2}
-    stars = pd.concat(df_dict, axis=1)
-    stars.sort_index(axis=1, inplace=True)
-    # If any stars exist in stars2, match them...
-    if num_stars2 > 0:
-        # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
-        # TODO: allow user to give custom translation
-        translation = translate_images_1to2(image1=image1, image2=image2)
-        tform = skimage.transform.SimilarityTransform(translation=translation)
-        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
-        pars = collections.OrderedDict(translation=tform.translation, rotation=tform.rotation, scale=tform.scale,
-                                       params=tform.params)
-        logger.debug("Transform parameters:\n{pars}".format(pars={}))
-        # Use least sum of squares to match stars. Verify that matched stars are within 1 sigma
-        # of the centroid of stars2 and are matched 1-to-1.
-        # TODO: Allow users to define stars by hand instead of by `find_stars`
-        # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
-        stars1_verified = pd.DataFrame(columns=stars1.columns)
-        stars1_unverified = stars1.copy()
-        stars2_verified = pd.DataFrame(columns=stars2.columns)
-        stars2_unverified = stars2.copy()
-        for (idx, row) in stars.iterrows():
-            min_dist = None
-            min_idx2 = None
-            update_dist = None
-            # TODO: vectorize
-            for (idx2, row2) in stars2.iterrows():
-                dist = scipy.spatial.distance.euclidean(u=row.loc['tform1to2', ['x_pix', 'y_pix']],
-                                                        v=row2.loc[['x_pix', 'y_pix']])
-                if min_dist is None:
-                    update_dist = True
-                elif dist < min_dist:
-                    update_dist = True
-                else:
-                    update_dist = False
-                if update_dist:
-                    min_dist = dist
-                    min_idx2 = idx2
-            # Accept stars at least 2*max(sigma_pix) away.
-            # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
-            # sigma than the actual sigma of the PSF.
-            # TODO: calculate psf from image. Use values from psf instead of fixed pixel values?
-            if min_dist < 2.0 * np.nanmax([max_sigma, row.loc['stars1', 'sigma_pix'], stars2.loc[min_idx2, 'sigma_pix']]):
-                idx1 = idx
-                row1 = stars1.loc[idx1]
-                if idx1 not in stars1_verified.index:
-                    stars1_verified.loc[idx1] = row1
-                    stars1_unverified.drop(idx1, inplace=True)
-                    row.loc['stars1', 'verif1to2'] = 1
-                else:
-                    raise AssertionError(("Program error. Star from stars1 already verified:\n" +
-                                          "{row}").format(row=row))
-                row2 = stars2.loc[min_idx2]
-                # If the matched star from stars2 was not yet verified...
-                if min_idx2 not in stars2_verified.index:
-                    stars2_verified.loc[min_idx2] = row2
-                    row.loc['stars2'].update(stars2.loc[min_idx2])
-                    row.loc['stars2', 'idx2'] = min_idx2
-                    row.loc['stars2', 'min_dist'] = min_dist
-                    stars2_unverified.drop(min_idx2, inplace=True)
-                    row.loc['stars2', 'verif2to1'] = 1
-                # ...otherwise if the matched star from stars2 is a better match...
-                elif min_dist < stars[stars[('stars2', 'idx2')] == min_idx2][('stars2', 'min_dist')].values[0]:
-                    stars2_verified.loc[min_idx2] = row2
-                    row.loc['stars2'].update(stars2.loc[min_idx2])
-                    row.loc['stars2', 'idx2'] = min_idx2
-                    row.loc['stars2', 'min_dist'] = min_dist
-                    stars2_unverified.drop(min_idx2, inplace=True)
-                    row.loc['stars2', 'verif2to1'] = 1
-                # ...otherwise "matched" star was close but not a match.
-                else:
-                    row.loc['stars2'].update(row.loc['tform1to2'])
-                    row.loc['stars1', 'verif1to2'] = 0
-                    row.loc['stars2', 'verif2to1'] = 0
-                    logger.debug("Star not verified:\n{row}".format(row=row))
-            else:
-                row.loc['stars2'].update(row.loc['tform1to2'])
-                row.loc['stars1', 'verif1to2'] = 0
-                row.loc['stars2', 'verif2to1'] = 0
-                logger.debug("Star not verified:\n{row}".format(row=row))
-            # Save results and verify found matches.
-            stars.loc[idx].update(row)
-        # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
-        # Sort columns to permit heirarchical slicing.
-        if (len(stars1_verified) != len(stars1)) or (len(stars1_unverified) != 0):
-            logger.debug(("Not all stars in stars1 were verified as matching stars in stars2." +
-                          " stars1_unverified:\n{s1u}").format(s1u=stars1_unverified))
-        if (len(stars2_verified) != len(stars2)) or (len(stars2_unverified) != 0):
-            logger.debug(("Not all stars in stars2 were verified as matching stars in stars1." +
-                          " stars2_unverified:\n{s2u}").format(s2u=stars2_unverified))
-            df_dict = {'stars1': stars['stars1'],
-                       'tform1to2': stars['tform1to2'],
-                       'stars2': (stars['stars2']).append(stars2_unverified, ignore_index=True)}
-            stars = pd.concat(df_dict, axis=1)
-    # ...otherwise there are no stars in stars2.
-    else:
-        logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
-        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values
-        stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values
-        stars.loc[:, ('stars1', 'verif1to2')] = 0
-        stars.loc[:, ('stars2', 'verif2to1')] = 0
-    stars.sort_index(axis=1, inplace=True)
-    stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
-    stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
-    if test:
-        plot_matches(image1=image1, image2=image2, stars1=stars['stars1'], stars2=stars['stars2'])
-    # Report results.
-    df_dict = {'stars1': stars['stars1'],
-               'stars2': stars['stars2'].drop(['idx2', 'min_dist'], axis=1)}
-    matched_stars = pd.concat(df_dict, axis=1)
-    return matched_stars
-
-
-def match_stars2(image1, image2, stars1, stars2, test=False):
     """Match stars.
     """
     # Drop NaNs and check input.
@@ -1846,6 +1847,12 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
     stars.sort_index(axis=1, inplace=True)
     # If any stars exist in stars2, match them...
     if num_stars2 > 0:
+        # Use least Euclidean distance to match stars. Verify that matched stars are within 1 sigma of each other
+        # and are matched 1-to-1.
+        # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
+        # sigma than the actual sigma of the PSF.
+        # TODO: Allow users to define stars by hand instead of by `find_stars`
+        # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
         # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
         # TODO: allow user to give custom translation
         translation = translate_images_1to2(image1=image1, image2=image2)
@@ -1855,12 +1862,6 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
                                                                   'rotation': tform.rotation,
                                                                   'scale': tform.scale,
                                                                   'params': tform.params}))
-        # Use least Euclidean distance to match stars. Verify that matched stars are within 1 sigma of each other
-        # and are matched 1-to-1.
-        # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
-        # sigma than the actual sigma of the PSF.
-        # TODO: Allow users to define stars by hand instead of by `find_stars`
-        # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
         # For comparing distances, starsN dataframe with fewest stars is index so that mapping is injective.
         if num_stars1 <= num_stars2:
             stars_dist = pd.DataFrame(index=stars1.index, columns=stars2.index)
@@ -1876,24 +1877,22 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
         stars2_verified = pd.DataFrame(columns=stars2.columns)
         stars2_unverified = stars2.copy()
         # Compute distances from each translated star coordinate to each found star coordinate.
-        # TODO: vectorize
-        # TODO: move if-else into loop.
-        if stars_dist.index.names[0] == 'stars1_index':
-            for (idx1, row1) in stars.iterrows():
-                for (idx2, row2) in stars2.iterrows():
-                    stars_dist.loc[idx1, idx2] =  \
-                        scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
-                                                         v=row2.loc[['x_pix', 'y_pix']])
-        elif stars_dist.index.names[0] == 'stars2_index':
+        # Notation:
+        #     idx_r = index row (i.e. if `stars_dist` index is 'stars1_index', idx_r is index from stars1)
+        #     idx_c = index column
+        for (idx1, row1) in stars.iterrows():
             for (idx2, row2) in stars2.iterrows():
-                for (idx1, row1) in stars.iterrows():
-                    stars_dist.loc[idx2, idx1] =  \
-                        scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
-                                                         v=row2.loc[['x_pix', 'y_pix']])
-        else:
-            raise AssertionError(("Program error. `stars_dist` index name should be " +
-                                  "'stars1_index' or 'stars2_index':\n" +
-                                  "stars_dist =\n{stars_dist}").format(stars_dist=stars_dist))
+                if stars_dist.index.names[0] == 'stars1_index':
+                    (idx_r, idx_c) = (idx1, idx2)
+                elif stars_dist.index.names[0] == 'stars2_index':
+                    (idx_r, idx_c) = (idx2, idx1)
+                else:
+                    raise AssertionError(("Program error. `stars_dist` index name should be " +
+                                          "'stars1_index' or 'stars2_index':\n" +
+                                          "stars_dist =\n{stars_dist}").format(stars_dist=stars_dist))
+                stars_dist.loc[idx_r, idx_c] =  \
+                    scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
+                                                     v=row2.loc[['x_pix', 'y_pix']])
         # Note: Index of stars_dist is translated stars or found stars, whichever is fewer.
         # Without loss of generality, assuming index of stars_dist is translated stars:
         #     For every translated star coordinate, match to nearest found star coordinate.
@@ -1903,7 +1902,7 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
         #     only known to +/- sigma..
         #     Keep track of verified stars to prevent over counting.
         # Notation:
-        #     idxr = index row (i.e. if `stars_dist` index is 'stars1_index', idxr is index from stars1)
+        #     idx_r = index row (i.e. if `stars_dist` index is 'stars1_index', idx_r is index from stars1)
         #     idx_rtoc = index mapped from row to column
         for idx_r in stars_dist.index:
             min_idx_rtoc = stars_dist.loc[idx_r].argmin()
@@ -1914,11 +1913,9 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
             if (idx_r == min_idx_ctor) and (min_dist_rtoc == min_dist_ctor):
                 # Identify index, columns as stars1 or stars2.
                 if stars_dist.index.names[0] == 'stars1_index':
-                    idx1 = idx_r
-                    idx2 = min_idx_rtoc
+                    (idx1, idx2) = (idx_r, min_idx_rtoc)
                 elif stars_dist.index.names[0] == 'stars2_index':
-                    idx1 = min_idx_rtoc
-                    idx2 = idx_r
+                    (idx1, idx2) = (min_idx_rtoc, idx_r)
                 else:
                     raise AssertionError(("Program error. `stars_dist` index name should be " +
                                           "'stars1_index' or 'stars2_index':\n" +
@@ -1931,9 +1928,8 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
                     verify_match = True
                 else:
                     verify_match = False
-                # Verify and cross-check match.
+                # If match was verified, update values and cross-check...
                 if verify_match:
-
                     row1 = stars1.loc[idx1]
                     if idx1 not in stars1_verified.index:
                         stars1_verified.loc[idx1] = row1
@@ -1947,25 +1943,51 @@ def match_stars2(image1, image2, stars1, stars2, test=False):
                     if idx2 not in stars2_verified.index:
                         stars2_verified.loc[idx2] = row2
                         stars2_unverified.drop(idx2, inplace=True)
-                        stars.loc[idx2, ('stars2', 'verif2to1')] = 1
+                        stars.loc[idx1, 'stars2'].update(row2)
+                        stars.loc[idx1, ('stars2', ['idx2', 'min_dist', 'verif2to1'])] = (idx2, min_dist_rtoc, 1)
                     else:
                         raise AssertionError(("Program error. Star from stars2 already verified:\n" +
                                               "row from stars2 =\n"
                                               "{row2}").format(row2=row2))
-
-                # else, not verified
-            # else not verified
-        pdb.set_trace()
-
-
-
-    # ...otherwise there are no stars in stars2.
+                # ...Else match was not verified so use translated coordinates as positions for stars2.
+                else:
+                    stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
+                    stars.loc[idx1, 'stars1', 'verif1to2'] = 0
+                    stars.loc[idx1, 'stars2', 'verif2to1'] = 0
+                    logger.debug(("Star not verified:\n" +
+                                  "row from stars =\n" +
+                                  "{row}").format(row=stars.loc[idx1]))
+            # ...Else matched star was not the closest and/or 1-to-1 so use translated coordinates
+            # as positions for stars2.
+            else:
+                stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
+                stars.loc[idx1, 'stars1', 'verif1to2'] = 0
+                stars.loc[idx1, 'stars2', 'verif2to1'] = 0
+                logger.debug(("Star not verified:\n" +
+                              "row from stars =\n" +
+                              "{row}").format(row=stars.loc[idx1]))
+        # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
+        # Sort columns to permit heirarchical slicing.
+        if (len(stars1_verified) != num_stars1) or (len(stars1_unverified) != 0):
+            logger.debug(("Not all stars in stars1 were verified as matching stars in stars2:\n" +
+                          "stars1_unverified =\n" +
+                          "{s1u}").format(s1u=stars1_unverified))
+        if (len(stars2_verified) != num_stars2) or (len(stars2_unverified) != 0):
+            logger.debug(("Not all stars in stars2 were verified as matching stars in stars1:\n" +
+                          "stars2_unverified =\n" +
+                          "{s2u}").format(s2u=stars2_unverified))
+            df_dict = {'stars1': stars['stars1'],
+                       'tform1to2': stars['tform1to2'],
+                       'stars2': (stars['stars2']).append(stars2_unverified, ignore_index=True)}
+            stars = pd.concat(df_dict, axis=1)
+    # ...Else there are no stars in stars2.
+    # Assume star coordinates are unchanged.
     else:
         logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
-        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values
-        stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values
-        stars.loc[:, ('stars1', 'verif1to2')] = 0
-        stars.loc[:, ('stars2', 'verif2to1')] = 0
+        stars[('tform1to2', ['x_pix', 'y_pix'])] = stars[('stars1', ['x_pix', 'y_pix'])]
+        stars[('stars2', ['x_pix', 'y_pix'])] = stars[('tform1to2', ['x_pix', 'y_pix'])]
+        stars[('stars1', 'verif1to2')] = 0
+        stars[('stars2', 'verif2to1')] = 0
     # Sort columns to permit heirarchical slicing.
     # Replace 1/0 with True/False.
     stars.sort_index(axis=1, inplace=True)
@@ -2019,7 +2041,7 @@ def make_timestamps_timeseries(dobj, radii):
                          "{stars}").format(ftnum=ftnum_new, stars=timeseries_dict[ftnum_new]))
         else:
             # noinspection PyUnboundLocalVariable
-            matched_stars = match_stars2(image1=last_image_with_stars, image2=image_new,
+            matched_stars = match_stars(image1=last_image_with_stars, image2=image_new,
                                         stars1=last_stars, stars2=stars_new)
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
