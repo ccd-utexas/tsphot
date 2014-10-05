@@ -1281,6 +1281,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
     .. [4] http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
     
     """
+    # TODO: rewrite to remove subimaging. operate on median-subtraced image.
     # Check input.
     valid_methods = ['fit_2dgaussian', 'fit_bivariate_normal']
     if method not in valid_methods:
@@ -1299,12 +1300,11 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
         # The initial position relative to the subimage is an integer pixel.
         (height_actl, width_actl) = subimage.shape
         if (width_actl != width) or (height_actl != width):
-            # noinspection PyShadowingBuiltins
-            tmp_vars = collections.OrderedDict(idx=idx, x_init=x_init, y_init=y_init,
-                                               sigma_init=sigma_init, box_pix=box_pix,
-                                               width=width, width_actl=width_actl, height_actl=height_actl)
             logger.debug(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
-                          "Program variables: {tmp_vars}").format(tmp_vars=tmp_vars))
+                          "Program variables: {vars}").format(vars={'idx': idx, 'x_init': x_init, 'y_init': y_init,
+                                                                    'sigma_init': sigma_init, 'box_pix': box_pix,
+                                                                    'width': width, 'width_actl': width_actl,
+                                                                    'height_actl': height_actl}))
             continue
         x_init_sub = (width_actl - 1) / 2
         y_init_sub = (height_actl - 1) / 2
@@ -1516,7 +1516,6 @@ def drop_duplicate_stars(stars):
     stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     # noinspection PyTypeChecker
     if len(stars) > 1:
-        logger.debug("More than 1 star in:\n{stars}".format(stars=stars))
         for (idx, row) in stars.sort(columns=['sigma_pix']).iterrows():
             # Check length again since `stars` is dynamically updated at the end of each iteration.
             # noinspection PyTypeChecker
@@ -1557,11 +1556,28 @@ def drop_duplicate_stars(stars):
 
 
 def translate_images_1to2(image1, image2):
-    """
-    Determine image translation from phase correlation.
+    """Calculate image translation from phase correlation.
+
+    translation = image2_coords - image1_coords so that
+    image1_coords + translation = image2_coords
+    translation = (`dx_pix`, `dy_pix`)
+
+    Parameters
+    ----------
+    image1 : numpy.ndarray
+    image2 : numpy.ndarray
+
+    Returns
+    -------
+    dx_pix : float
+        `dx_pix` = image2_coord_x - image1_coord_x
+    dy_pix : float
+        `dy_pix` = image2_coord_y - image1_coord_y
+
+    Notes
+    -----
     Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
     """
-    # TODO: complete docstring
     # Check input.
     if image1.shape != image2.shape:
         raise IOError(("Images must have the same shape:\n" +
@@ -1608,8 +1624,8 @@ def translate_images_1to2(image1, image2):
         dy_pix -= shape[0]
     if dx_pix > shape[1] / 2.0:
         dx_pix -= shape[1]
-    logger.debug(("Image translation: image1_coords - image2_coords = (dx_pix, dy_pix)" +
-                  " = {tup}").format(tup=(dx_pix, dy_pix)))
+    logger.debug(("Image translation:\n" +
+                  "image2_coords - image1_coords = (dx_pix, dy_pix) = {tup}").format(tup=(dx_pix, dy_pix)))
     return dx_pix, dy_pix
 
 
@@ -1826,8 +1842,8 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         raise IOError(("stars1 must have at least one star.\n" +
                        "stars1 = {stars1}").format(stars1=stars1))
     if num_stars1 != num_stars2:
-        logger.debug(("`image1` and `image2` have different numbers of stars. There may be clouds. " +
-                      "num_stars1: {n1} num_stars2: {n2}").format(n1=num_stars1, n2=num_stars2))
+        logger.debug(("`image1` and `image2` have different numbers of stars. There may be clouds.\n" +
+                      "num_stars1 = {n1}, num_stars2 = {n2}").format(n1=num_stars1, n2=num_stars2))
     # Create heirarchical dataframe for tracking star matches. Match from star1 positions to star2 positions.
     # `stars` dataframe has the same number of stars as `stars1`.
     # Sort columns to permit heirarchical slicing.
@@ -1905,7 +1921,6 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         #     idx_r = index row (i.e. if `stars_dist` index is 'stars1_index', idx_r is index from stars1)
         #     idx_rtoc = index mapped from row to column
         for idx_r in stars_dist.index:
-            logger.debug("TEST: idx_r = {idx_r}".format(idx_r=idx_r))
             min_idx_rtoc = stars_dist.loc[idx_r].argmin()
             min_dist_rtoc = stars_dist.loc[idx_r].min()
             min_idx_ctor = stars_dist.loc[:, min_idx_rtoc].argmin()
@@ -1952,24 +1967,21 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                                               "{row2}").format(row2=row2))
                 # ...Else match was not verified so use translated coordinates as positions for stars2.
                 else:
-                    logger.debug("TEST, match was not verified")
                     stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
-                    stars.loc[idx1, 'stars1', 'verif1to2'] = 0
-                    stars.loc[idx1, 'stars2', 'verif2to1'] = 0
+                    stars.loc[idx1, ('stars1', 'verif1to2')] = 0
+                    stars.loc[idx1, ('stars2', 'verif2to1')] = 0
                     logger.debug(("Star not verified:\n" +
                                   "row from stars =\n" +
                                   "{row}").format(row=stars.loc[idx1]))
             # ...Else matched star was not the closest and/or not 1-to-1 so use translated coordinates
             # as positions for stars2.
             else:
-                logger.debug("TEST, matched star was not the closest and/or not 1-to-1")
                 stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
-                stars.loc[idx1, 'stars1', 'verif1to2'] = 0
-                stars.loc[idx1, 'stars2', 'verif2to1'] = 0
+                stars.loc[idx1, ('stars1', 'verif1to2')] = 0
+                stars.loc[idx1, ('stars2', 'verif2to1')] = 0
                 logger.debug(("Star not verified:\n" +
                               "row from stars =\n" +
                               "{row}").format(row=stars.loc[idx1]))
-            logger.debug("TEST, stars =\n{stars}".format(stars=stars))
         # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
         # If stars in stars1 were not verified, use translated coordinates as positions in new image.
         # If stars in stars2 were not verified, append new stars to positions in new image.
@@ -1979,8 +1991,8 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                           "{s1u}").format(s1u=stars1_unverified))
             for idx1 in stars1_unverified.index:
                 stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
-                stars.loc[idx1, 'stars1', 'verif1to2'] = 0
-                stars.loc[idx1, 'stars2', 'verif2to1'] = 0
+                stars.loc[idx1, ('stars1', 'verif1to2')] = 0
+                stars.loc[idx1, ('stars2', 'verif2to1')] = 0
         if (len(stars2_verified) != num_stars2) or (len(stars2_unverified) != 0):
             logger.debug(("Not all stars in stars2 were verified as matching stars in stars1:\n" +
                           "stars2_unverified =\n" +
