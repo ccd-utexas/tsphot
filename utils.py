@@ -44,6 +44,7 @@ import pdb
 import math
 import json
 import logging
+import itertools
 import collections
 import datetime as dt
 
@@ -1556,7 +1557,7 @@ def drop_duplicate_stars(stars):
 
 
 def translate_images_1to2(image1, image2):
-    """Calculate image translation from phase correlation.
+    """Calculate sub-pixel image translation from phase correlation.
 
     translation = image2_coords - image1_coords so that
     image1_coords + translation = image2_coords
@@ -1578,9 +1579,11 @@ def translate_images_1to2(image1, image2):
     --------
     match_stars
 
-    Notes
-    -----
-    - Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    References
+    ----------
+    ..[1] Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    ..[2] http://docs.scipy.org/doc/scipy/reference/generated/
+        scipy.interpolate.griddata.html#scipy.interpolate.griddata
 
     Examples
     --------
@@ -1612,45 +1615,69 @@ def translate_images_1to2(image1, image2):
                        "image1.ndim = {n1}\n" +
                        "image2.ndim = {n2}").format(n1=image1.ndim, n2=image2.ndim))
     # Compute the maximum phase correlation for to determine the image translation.
+    # Tile the phase correlation image since the coordinate for maximum phase correlation is usually
+    #     near the domain edge. (Tiling allows smoothing the correlation without biasing the max away from the image
+    #     boundaries. Tile the image, don't mirror, since the phase correlation is continuous across image boundaries.)
     # Smooth the phase correlation using a median filter since poor focus and clouds will make the correlation noisy.
-    # Use 3 pixels for smoothing kernel since kernel will offset location of max
-    # if max is near correlation array boundary.
-    # Translation: delta = final - initial = image2 - image1
     # The first estimate for image translation is to an integer pixel.
+    # Then use 2D cubic interpolation to determine maximum phase correlation to sub-pixel precision.
     # Note: numpy is row-major: (y_pix, x_pix)
+    #pdb.set_trace()
     shape = image1.shape
     f1 = np.fft.fft2(image1)
     f2 = np.fft.fft2(image2)
     phase_corr = abs(np.fft.ifft2((f1.conjugate() * f2) / (abs(f1) * abs(f2))))
-    phase_corr = scipy.signal.medfilt2d(phase_corr, kernel_size=3)
-    return phase_corr
-    (dy_int, dx_int) = np.unravel_index(int(np.argmax(phase_corr)), shape)
-    # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
-    # allows more precise star identification between images. (A 2D Gaussian fit is not correct.
-    # Do not use 'sigma_pix' as uncertainty.)
-    # Tile the phase correlation image when estimating subpixel translation since the coordinate for maximum phase
-    # correlation is usually near the domain edge. (Tile the image, don't mirror, since the phase correlation is
-    # continuous across image boundaries.)
-    tiled = np.tile(phase_corr, (3, 3))
     (tiled_offset_y, tiled_offset_x) = shape
-    # Returned order should be (x, y) for to match rest of utils convention.
-    (tiled_dx_int, tiled_dy_int) = np.add((tiled_offset_x, tiled_offset_y), (dx_int, dy_int))
-    translation = center_stars(image=tiled,
-                               stars=pd.DataFrame([[tiled_dx_int, tiled_dy_int, 1.0]],
-                                                  columns=['x_pix', 'y_pix', 'sigma_pix']))
-    if len(translation) != 1:
-        raise AssertionError(("Program error. `translation` dataframe should have only one row,\n" +
-                              "the maximum phase correlation. translation:\n" +
-                              "{df}").format(df=translation))
-    (dx_pix, dy_pix) = np.subtract(translation.loc[0, ['x_pix', 'y_pix']], (tiled_offset_x, tiled_offset_y))
-    # Because phase correlation image is continuous across boundaries, restrict all coordinates to be relative to
-    # first quandrant (containing (1,1)).
+    tiled = np.tile(phase_corr, (3, 3))
+    tiled = scipy.signal.medfilt2d(tiled, kernel_size=3)
+    # Note: Determine the max phase correlation from the center tile,
+    # otherwise max will be in upper right tile and not original image.
+    (dy_int, dx_int) = \
+        np.unravel_index(
+            int(np.nanargmax(tiled[tiled_offset_y : 2*tiled_offset_y, tiled_offset_x : 2*tiled_offset_x])),
+            shape)
+    (dy_pix, dx_pix) = (dy_int, dx_int)
+    # TODO: Do better subpixel translation. Implementation below is off by +/- 0.5 pix in x and y
+    #      (due to limit from information theory?) STH, 2014-10-06
+    ####################
+    # BEGIN SUBPIXEL PHASE CORRELATION
+    ####################
+    # (tiled_dy_int, tiled_dx_int) = np.add((tiled_offset_y, tiled_offset_x), (dy_int, dx_int))
+    # subimg_halfwidth = 5
+    # subimg_subpix_res = 0.1
+    # subimg = \
+    #     tiled[
+    #         tiled_dy_int - subimg_halfwidth : tiled_dy_int + subimg_halfwidth + 1,
+    #         tiled_dx_int - subimg_halfwidth : tiled_dx_int + subimg_halfwidth + 1]
+    # # Note: numpy.ndarray.flatten collapses array so that x index advances faster than y index.
+    # subimg_pixels = \
+    #     [(x, y)
+    #      for y in xrange(tiled_dy_int - subimg_halfwidth, tiled_dy_int + subimg_halfwidth + 1)
+    #      for x in xrange(tiled_dx_int - subimg_halfwidth, tiled_dx_int + subimg_halfwidth + 1)]
+    # subimg_values = subimg.flatten()
+    # (subimg_x_subpix, subimg_y_subpix) = \
+    #     np.mgrid[
+    #         tiled_dx_int - subimg_halfwidth : tiled_dx_int + subimg_halfwidth + 1 : subimg_subpix_res,
+    #         tiled_dy_int - subimg_halfwidth : tiled_dy_int + subimg_halfwidth + 1 : subimg_subpix_res]
+    # # Note: scipy.interpolate.griddata uses (x, y) order. numpy uses (y, x) order.
+    # subimg_interp = scipy.interpolate.griddata(subimg_pixels, subimg_values,
+    #                                            (subimg_x_subpix, subimg_y_subpix), method='cubic')
+    # subimg_shape = (len(subimg_y_subpix), len(subimg_x_subpix))
+    # (subimg_y_subidx, subimg_x_subidx) = np.unravel_index(int(np.nanargmax(subimg_interp)), subimg_shape)
+    # (subimg_dy_pix, subimg_dx_pix) = (subimg_y_subpix[0, subimg_y_subidx], subimg_x_subpix[subimg_x_subidx, 0])
+    # (dy_pix, dx_pix) = np.subtract((subimg_dy_pix, subimg_dx_pix), (tiled_offset_y, tiled_offset_x))
+    ####################
+    # END SUBPIXEL PHASE CORRELATION
+    ####################
+    # Restrict all coordinates to be relative to first quandrant (containing (1,1))
+    # because phase correlation image is continuous across boundaries, .
     if dy_pix > shape[0] / 2.0:
         dy_pix -= shape[0]
     if dx_pix > shape[1] / 2.0:
         dx_pix -= shape[1]
     logger.debug(("Image translation:\n" +
                   "image2_coords - image1_coords = (dx_pix, dy_pix) = {tup}").format(tup=(dx_pix, dy_pix)))
+    # Returned order should be (x, y) to be consistent with rest of utils convention.
     return dx_pix, dy_pix
 
 
@@ -2044,11 +2071,14 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
         stars[('stars1', 'verif1to2')] = 0
         stars[('stars2', 'verif2to1')] = 0
+    logger.debug("Match stars result:\n{stars}".format(stars=stars))
     # TEST
     logger.debug("TEST BEGIN")
-    logger.debug("stars =\n{stars}".format(stars=stars))
     logger.debug("tform1to2 - stars1 =\n{diff}".format(
         diff=stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values -
+             stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values))
+    logger.debug("stars2 - stars1 =\n{diff}".format(
+        diff=stars.loc[:, ('stars2', ['x_pix', 'y_pix'])].values -
              stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values))
     logger.debug("TEST END")
     # Sort columns to permit heirarchical slicing.
@@ -2243,7 +2273,7 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
                 [sigma for sigma in
                  timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values.flatten()
                  if sigma is not np.NaN]))
-    radius = radii[np.abs(radii - fwhm_med).argmin()]
+    radius = radii[np.abs(radii - fwhm_med).nanargmin()]
     logger.info("Photometry aperture radius: {rad}".format(rad=radius))
     # Ensure that all timeseries have median value of 1.
     targ_norm = target / target.median(axis=0, skipna=True)
