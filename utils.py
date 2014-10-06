@@ -1574,11 +1574,35 @@ def translate_images_1to2(image1, image2):
     dy_pix : float
         `dy_pix` = image2_coord_y - image1_coord_y
 
+    See Also
+    --------
+    match_stars
+
     Notes
     -----
-    Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    - Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+
+    Examples
+    --------
+    ```
+    from __future__ import print_function
+    import skimage
+    import utils
+    stars1 = utils.find_stars(image1)
+    print(stars1)
+    translation = utils.translate_images_1to2(image1, image2)
+    print(translation)
+    tform = skimage.transform.SimilarityTransform(translation=translation)
+    print(tform(stars1[['x_pix', 'y_pix']].values))
+    stars2 = utils.find_stars(image2)
+    print(stars2)
+    ```
     """
     # Check input.
+    if np.all(image1 == image2):
+        logger.info("Images are identical.")
+        (dx_pix, dy_pix) = (0.0, 0.0)
+        return dx_pix, dy_pix
     if image1.shape != image2.shape:
         raise IOError(("Images must have the same shape:\n" +
                        "image1.shape = {s1}\n" +
@@ -1597,16 +1621,17 @@ def translate_images_1to2(image1, image2):
     shape = image1.shape
     f1 = np.fft.fft2(image1)
     f2 = np.fft.fft2(image2)
-    ir = abs(np.fft.ifft2((f1.conjugate() * f2) / (abs(f1) * abs(f2))))
-    ir = scipy.signal.medfilt2d(ir, kernel_size=3)
-    (dy_int, dx_int) = np.unravel_index(int(np.argmax(ir)), shape)
+    phase_corr = abs(np.fft.ifft2((f1.conjugate() * f2) / (abs(f1) * abs(f2))))
+    phase_corr = scipy.signal.medfilt2d(phase_corr, kernel_size=3)
+    return phase_corr
+    (dy_int, dx_int) = np.unravel_index(int(np.argmax(phase_corr)), shape)
     # Use center_stars to get the subpixel estimate for the translation. Sub-pixel precision for the image translation
     # allows more precise star identification between images. (A 2D Gaussian fit is not correct.
     # Do not use 'sigma_pix' as uncertainty.)
     # Tile the phase correlation image when estimating subpixel translation since the coordinate for maximum phase
     # correlation is usually near the domain edge. (Tile the image, don't mirror, since the phase correlation is
     # continuous across image boundaries.)
-    tiled = np.tile(ir, (3, 3))
+    tiled = np.tile(phase_corr, (3, 3))
     (tiled_offset_y, tiled_offset_x) = shape
     # Returned order should be (x, y) for to match rest of utils convention.
     (tiled_dx_int, tiled_dy_int) = np.add((tiled_offset_x, tiled_offset_y), (dx_int, dy_int))
@@ -1865,12 +1890,13 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     if num_stars2 > 0:
         # Use least Euclidean distance to match stars. Verify that matched stars are within 1 sigma of each other
         # and are matched 1-to-1.
-        # Note: Faint stars undersample the PSF given a noisy background and are calculated to have smaller
-        # sigma than the actual sigma of the PSF.
+        # Note:
+        # - Faint stars undersample the PSF given a noisy background and are calculated to have smaller
+        #     sigma than the actual sigma of the PSF.
+        # - Use .loc with ('tform1to2', ['x_pix', 'y_pix']) to prevent Type Error.
+        # TODO: Report pandas bug with Type Error ('tform1to2', ['x_pix', 'y_pix'])?
         # TODO: Allow users to define stars by hand instead of by `find_stars`
         # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
-        # Compute image transformation using only translation and transform coordinates of stars from image1 to image2.
-        # TODO: allow user to give custom translation
         translation = translate_images_1to2(image1=image1, image2=image2)
         tform = skimage.transform.SimilarityTransform(translation=translation)
         stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
@@ -1909,6 +1935,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 stars_dist.loc[idx_r, idx_c] =  \
                     scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
                                                      v=row2.loc[['x_pix', 'y_pix']])
+        logger.debug("TEST: stars_dist =\n{sd}".format(sd=stars_dist))
         # Note: Index of stars_dist is translated stars or found stars, whichever is fewer.
         # Without loss of generality, assuming index of stars_dist is translated stars:
         #     For every translated star coordinate, match to nearest found star coordinate.
@@ -1921,12 +1948,18 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         #     idx_r = index row (i.e. if `stars_dist` index is 'stars1_index', idx_r is index from stars1)
         #     idx_rtoc = index mapped from row to column
         for idx_r in stars_dist.index:
+            logger.debug("TEST: idx_r = {idx_r}".format(idx_r=idx_r))
             min_idx_rtoc = stars_dist.loc[idx_r].argmin()
+            logger.debug("TEST: min_idx_rtoc = {min_idx_rtoc}".format(min_idx_rtoc=min_idx_rtoc))
             min_dist_rtoc = stars_dist.loc[idx_r].min()
+            logger.debug("TEST: min_dist_rtoc = {min_dist_rtoc}".format(min_dist_rtoc=min_dist_rtoc))
             min_idx_ctor = stars_dist.loc[:, min_idx_rtoc].argmin()
+            logger.debug("TEST: min_idx_ctor = {min_idx_ctor}".format(min_idx_ctor=min_idx_ctor))
             min_dist_ctor = stars_dist.loc[:, min_idx_rtoc].min()
-            # If this is the nearest star and is 1-to-1...
+            logger.debug("TEST: min_dist_ctor = {min_dist_ctor}".format(min_dist_ctor=min_dist_ctor))
+            # If this star's closest match is unique...
             if (idx_r == min_idx_ctor) and (min_dist_rtoc == min_dist_ctor):
+                logger.debug("TEST: star's closest match is unique")
                 # Identify index, columns as stars1 or stars2.
                 if stars_dist.index.names[0] == 'stars1_index':
                     (idx1, idx2) = (idx_r, min_idx_rtoc)
@@ -2004,11 +2037,20 @@ def match_stars(image1, image2, stars1, stars2, test=False):
     # ...Else there are no stars in stars2.
     # Assume star coordinates are unchanged.
     else:
+        # Use .loc with ('tform1to2', ['x_pix', 'y_pix']) to prevent Type Error.
+        # TODO: Report pandas bug with Type Error for ('tform1to2', ['x_pix', 'y_pix'])?
         logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
-        stars[('tform1to2', ['x_pix', 'y_pix'])] = stars[('stars1', ['x_pix', 'y_pix'])]
-        stars[('stars2', ['x_pix', 'y_pix'])] = stars[('stars1', ['x_pix', 'y_pix'])]
+        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
+        stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
         stars[('stars1', 'verif1to2')] = 0
         stars[('stars2', 'verif2to1')] = 0
+    # TEST
+    logger.debug("TEST BEGIN")
+    logger.debug("stars =\n{stars}".format(stars=stars))
+    logger.debug("tform1to2 - stars1 =\n{diff}".format(
+        diff=stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values -
+             stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values))
+    logger.debug("TEST END")
     # Sort columns to permit heirarchical slicing.
     # Replace 1 with True; 0/NaN with False.
     stars.sort_index(axis=1, inplace=True)
@@ -2033,8 +2075,8 @@ def make_timestamps_timeseries(dobj, radii):
     `quantity_unit`: Quantities calculated with units, separated by an underscore. Example: sigma_pix
     rows:
     `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
-    TODO: let users define own stars
     """
+    # TODO: let users define own stars
     print_progress = define_progress(dobj=dobj)
     sorted_image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
     timestamps_dict = {}
@@ -2054,6 +2096,10 @@ def make_timestamps_timeseries(dobj, radii):
         stars_new.index.names = ['star_index']
         stars_new.columns.names = ['quantity_unit']
         if key == sorted_image_keys[0]:
+            if len(stars_new) < 1:
+                raise IOError(("The first frame must have stars:\n" +
+                               "frame_tracking_number = {ftnum_new}\n" +
+                               "stars =\n{stars}").format(stars=stars_new))
             timeseries_dict[ftnum_new] = stars_new
             timeseries_dict[ftnum_new]['matchedprev_bool'] = np.NaN
             logger.info(("Initial stars found.\n" +
@@ -2066,13 +2112,13 @@ def make_timestamps_timeseries(dobj, radii):
                                         stars1=last_stars, stars2=stars_new)
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
+            logger.debug("Matched stars:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
             # Report if new stars were found.
             if len(timeseries_dict[ftnum_new]) != len(timeseries_dict[last_ftnum_with_stars]):
                 logger.info(("New stars found.\n" +
                              "Frame tracking number: {ftnum}\n" +
                              "All current stars:\n" +
                              "{stars}").format(ftnum=ftnum_new, stars=timeseries_dict[ftnum_new]))
-        logger.debug("Matched stars:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
         # Reset variables for next iteration, checking for clouds.
         if (key == sorted_image_keys[0]) or (len(stars_new) > 0):
             last_image_with_stars = image_new
