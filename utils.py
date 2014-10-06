@@ -1682,26 +1682,6 @@ def translate_images_1to2(image1, image2):
 
 
 # noinspection PyUnresolvedReferences
-def gaussian_weights(width=11, sigma=3):
-    """
-    Weight pixels depending on distance to center pixel.
-    Sigma is standard deviation of Gaussian weighting function
-    Useful for localized image matching.
-    http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
-    http://en.wikipedia.org/wiki/Gaussian_blur
-    """
-    left = int(math.floor(width / 2.0))
-    right = int(math.ceil(width / 2.0))
-    bottom = int(math.floor(width / 2.0))
-    top = int(math.ceil(width / 2.0))
-    (y_pix, x_pix) = np.mgrid[-left:right, -bottom:top]
-    weights = np.zeros(y_pix.shape, dtype=np.double)
-    weights[:] = (1.0 / (2.0 * np.pi * sigma ** 2.0)) * np.exp(
-        -0.5 * ((x_pix ** 2.0 / sigma ** 2.0) + (y_pix ** 2.0 / sigma ** 2.0)))
-    return weights
-
-
-# noinspection PyUnresolvedReferences
 def plot_matches(image1, image2, stars1, stars2):
     """
     Visualize image matching.
@@ -1920,15 +1900,6 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars[('stars1', 'verif1to2')] = 0
         stars[('stars2', 'verif2to1')] = 0
     logger.debug("Match stars result:\n{stars}".format(stars=stars))
-    # TEST
-    logger.debug("TEST BEGIN")
-    logger.debug("tform1to2 - stars1 =\n{diff}".format(
-        diff=stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])].values -
-             stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values))
-    logger.debug("stars2 - stars1 =\n{diff}".format(
-        diff=stars.loc[:, ('stars2', ['x_pix', 'y_pix'])].values -
-             stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values))
-    logger.debug("TEST END")
     # Sort columns to permit heirarchical slicing.
     # Replace 1 with True; 0/NaN with False.
     stars.sort_index(axis=1, inplace=True)
