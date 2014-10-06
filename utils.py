@@ -1815,8 +1815,9 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                 stars_dist.loc[idx_r, idx_c] =  \
                     scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
                                                      v=row2.loc[['x_pix', 'y_pix']])
-        logger.debug("TEST: stars_dist =\n{sd}".format(sd=stars_dist))
-        # Note: Index of stars_dist is translated stars or found stars, whichever is fewer.
+        logger.debug("Distances between translated stars from stars1 and newly found stars from stars2.\n" +
+                     "stars_dist =\n{sd}".format(sd=stars_dist))
+        # Note: Index of stars_dist is translated stars (stars1) or found stars (stars2), whichever is fewer in number.
         # Without loss of generality, assuming index of stars_dist is translated stars:
         #     For every translated star coordinate, match to nearest found star coordinate.
         #     And for every found star coordinate, match to nearest translated star coordinate.
@@ -1828,18 +1829,12 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         #     idx_r = index row (i.e. if `stars_dist` index is 'stars1_index', idx_r is index from stars1)
         #     idx_rtoc = index mapped from row to column
         for idx_r in stars_dist.index:
-            logger.debug("TEST: idx_r = {idx_r}".format(idx_r=idx_r))
             min_idx_rtoc = stars_dist.loc[idx_r].argmin()
-            logger.debug("TEST: min_idx_rtoc = {min_idx_rtoc}".format(min_idx_rtoc=min_idx_rtoc))
             min_dist_rtoc = stars_dist.loc[idx_r].min()
-            logger.debug("TEST: min_dist_rtoc = {min_dist_rtoc}".format(min_dist_rtoc=min_dist_rtoc))
             min_idx_ctor = stars_dist.loc[:, min_idx_rtoc].argmin()
-            logger.debug("TEST: min_idx_ctor = {min_idx_ctor}".format(min_idx_ctor=min_idx_ctor))
             min_dist_ctor = stars_dist.loc[:, min_idx_rtoc].min()
-            logger.debug("TEST: min_dist_ctor = {min_dist_ctor}".format(min_dist_ctor=min_dist_ctor))
             # If this star's closest match is unique...
             if (idx_r == min_idx_ctor) and (min_dist_rtoc == min_dist_ctor):
-                logger.debug("TEST: star's closest match is unique")
                 # Identify index, columns as stars1 or stars2.
                 if stars_dist.index.names[0] == 'stars1_index':
                     (idx1, idx2) = (idx_r, min_idx_rtoc)
