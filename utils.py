@@ -214,9 +214,9 @@ def check_reduce_config(dobj):
 # http://stackoverflow.com/questions/17336680/python-logging-with-multiple-modules-does-not-work
 logger = logging.getLogger(__name__)
 # Maximum sigma (in pixels) for Gaussian kernel used for finding stars, dropping duplicates, and matching stars.
-# max_sigma = 9.0 for very poor conditions.
+# max_sigma = 5.0 for very poor conditions.
 # TODO: make class to manage max_sigma variable if need to change. (Bad practice to modify global vars.)
-max_sigma = 9.0
+max_sigma = 5.0
 
 
 def define_progress(dobj, interval=0.05):
@@ -855,7 +855,7 @@ def normalize(array):
 
 # noinspection PyUnresolvedReferences
 # TODO: don't shadow max_sigma
-def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3, **kwargs):
+def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3, **kwargs):
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
@@ -869,9 +869,9 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=3, threshold=3
         2D array of image.
     min_sigma : {1}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
-    max_sigma : {9}, int, optional
+    max_sigma : {5}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Largest sigma (pixels) to use for Gaussian kernel.
-    num_sigma : {3}, int, optional
+    num_sigma : {2}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Number sigma between smallest and largest sigmas (pixels)
         to use for Gaussian kernel.
     threshold : {3}, int, optional
