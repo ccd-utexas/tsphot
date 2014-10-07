@@ -120,8 +120,8 @@ def create_reduce_config(fjson='reduce_config.json'):
     config_settings['object']['raw'] = "object_raw.spe"
     config_settings['object']['reduced'] = "object_reduced.pkl"
     # Use binary read-write for cross-platform compatibility. Use Python-style indents in the JSON file.
-    with open(fjson, 'wb') as fp:
-        json.dump(config_settings, fp, sort_keys=False, indent=4)
+    with open(fjson, 'wb') as fobj:
+        json.dump(config_settings, fobj, sort_keys=False, indent=4)
     return None
 
 
