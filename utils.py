@@ -1557,7 +1557,7 @@ def drop_duplicate_stars(stars):
 
 
 def translate_images_1to2(image1, image2):
-    """Calculate sub-pixel image translation from phase correlation.
+    """Calculate integer-pixel image translation from phase correlation.
 
     translation = image2_coords - image1_coords so that
     image1_coords + translation = image2_coords
@@ -1871,16 +1871,31 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                               "row from stars =\n" +
                               "{row}").format(row=stars.loc[idx1]))
         # Check that all stars have been accounted for. Stars without matches have NaNs in 'star1' or 'star2'.
-        # If stars in stars1 were not verified, use translated coordinates as positions in new image.
+        # If stars in stars1 were not verified, use translated coordinates as positions in new image. (A transformation
+        # from feature detection gives subpixel precision for translation, otherwise star positions will drift over
+        # many frames.)
         # If stars in stars2 were not verified, append new stars to positions in new image.
+        # TODO: pandas.DataFrame.update doesn't work when using true/false mask. report bug?
         if (len(stars1_verified) != num_stars1) or (len(stars1_unverified) != 0):
             logger.debug(("Not all stars in stars1 were verified as matching stars in stars2:\n" +
                           "stars1_unverified =\n" +
                           "{s1u}").format(s1u=stars1_unverified))
-            for idx1 in stars1_unverified.index:
-                stars.loc[idx1, 'stars2'].update(stars.loc[idx1, 'tform1to2'])
-                stars.loc[idx1, ('stars1', 'verif1to2')] = 0
-                stars.loc[idx1, ('stars2', 'verif2to1')] = 0
+            tfmask_verif = (stars[('stars1', 'verif1to2')] == 1) & (stars[('stars2', 'verif2to1')] == 1)
+            translation_subpix = np.nanmean(stars.loc[tfmask_verif, ('stars2', ['x_pix', 'y_pix'])].values -
+                                            stars.loc[tfmask_verif, ('stars1', ['x_pix', 'y_pix'])].values,
+                                            axis=0)
+            tform_subpix = skimage.transform.SimilarityTransform(translation=translation_subpix)
+            tfmask_unverif = -tfmask_verif
+            stars.loc[tfmask_unverif, ('tform1to2', ['x_pix', 'y_pix'])] = \
+                tform_subpix(stars.loc[tfmask_unverif, ('stars1', ['x_pix', 'y_pix'])].values)
+            stars.loc[tfmask_unverif, ('stars2', ['x_pix', 'y_pix'])] = \
+                stars.loc[tfmask_unverif, ('tform1to2', ['x_pix', 'y_pix'])].values
+            stars.loc[tfmask_unverif, ('stars1', 'verif1to2')] = 0
+            stars.loc[tfmask_unverif, ('stars2', 'verif2to1')] = 0
+            if stars.loc[:, ('stars2', ['x_pix', 'y_pix'])].isnull().any().any():
+                raise AssertionError(("Program error. " +
+                                      "('stars2', ['x_pix', 'y_pix']) should not have any null values:\n" +
+                                      "stars =\n{stars}").format(stars=stars))
         if (len(stars2_verified) != num_stars2) or (len(stars2_unverified) != 0):
             logger.debug(("Not all stars in stars2 were verified as matching stars in stars1:\n" +
                           "stars2_unverified =\n" +
@@ -1889,6 +1904,10 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                        'tform1to2': stars['tform1to2'],
                        'stars2': (stars['stars2']).append(stars2_unverified, ignore_index=True)}
             stars = pd.concat(df_dict, axis=1)
+            if stars.loc[:, ('stars2', ['x_pix', 'y_pix'])].isnull().any().any():
+                raise AssertionError(("Program error. " +
+                                      "('stars2', ['x_pix', 'y_pix']) should not have any null values:\n" +
+                                      "stars =\n{stars}").format(stars=stars))
     # ...Else there are no stars in stars2.
     # Assume star coordinates are unchanged.
     else:
@@ -1899,12 +1918,12 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
         stars[('stars1', 'verif1to2')] = 0
         stars[('stars2', 'verif2to1')] = 0
-    logger.debug("Match stars result:\n{stars}".format(stars=stars))
     # Sort columns to permit heirarchical slicing.
     # Replace 1 with True; 0/NaN with False.
     stars.sort_index(axis=1, inplace=True)
     stars[('stars1', 'verif1to2')] = (stars[('stars1', 'verif1to2')] == 1)
     stars[('stars2', 'verif2to1')] = (stars[('stars2', 'verif2to1')] == 1)
+    logger.debug("Match stars result:\n{stars}".format(stars=stars))
     # Show plot for testing.
     if test:
         plot_matches(image1=image1, image2=image2, stars1=stars['stars1'], stars2=stars['stars2'])
