@@ -923,7 +923,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
     if len(stars_arr) > 0:
         stars = pd.DataFrame(stars_arr, columns=['y_pix', 'x_pix', 'sigma_pix'])
     else:
-        logger.debug("No stars found.")
+        logger.debug("No stars found. num_stars = {num}".format(num=len(stars_arr)))
         stars = pd.DataFrame(columns=['y_pix', 'x_pix', 'sigma_pix'])
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
@@ -1288,218 +1288,225 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
     if method not in valid_methods:
         raise IOError(("Invalid method: {meth}\n" +
                        "Valid methods: {vmeth}").format(meth=method, vmeth=valid_methods))
+    stars.dropna(subset=['x_pix', 'y_pix'], inplace=True)
     # Make square subimages and compute centroids and sigma by chosen method.
     # Each star or extended source may have a different sigma. Store results in a dataframe.
     stars_init = stars.copy()
     stars_finl = stars.copy()
     stars_finl[['x_pix', 'y_pix', 'sigma_pix']] = np.NaN
-    width = int(math.ceil(box_pix))
-    for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
-        subimage = get_square_subimage(image=image, position=(x_init, y_init), width=width)
-        # If the star was too close to the image edge to extract the square subimage, skip the star.
-        # Otherwise, compute the initial position for the star relative to the subimage.
-        # The initial position relative to the subimage is an integer pixel.
-        (height_actl, width_actl) = subimage.shape
-        if (width_actl != width) or (height_actl != width):
-            logger.debug(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
-                          "Program variables: {vars}").format(vars={'idx': idx, 'x_init': x_init, 'y_init': y_init,
-                                                                    'sigma_init': sigma_init, 'box_pix': box_pix,
-                                                                    'width': width, 'width_actl': width_actl,
-                                                                    'height_actl': height_actl}))
-            continue
-        x_init_sub = (width_actl - 1) / 2
-        y_init_sub = (height_actl - 1) / 2
-        # Compute the centroid position and standard deviation sigma for the star relative to the subimage.
-        # using the selected method. Subtract background to fit counts only belonging to the source.
-        subimage = subtract_subimage_background(subimage, threshold_sigma)
-        if method == 'fit_2dgaussian':
-            # Test results: 2014-08-11, STH
-            # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
-            # - For varying subimages, position converges to within 0.01 pix of final solution at 11x11 subimage.
-            # - For varying subimages, sigma converges to within 0.05 pix of final solution at 11x11 subimage.
-            # - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
-            # - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
-            # - For 11x11 subimage, method takes ~25 ms. Method scales \propto box_pix.
-            # Method description:
-            # - See photutils [1]_ and astropy [2]_.
-            # - To calculate the standard deviation for the 2D Gaussian:
-            # zvec = xvec + yvec
-            # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
-            # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
-            # Notation: x = |xvec|, y = |yvec|, z = |zvec|
-            # ==> Var(z) = Var(x + y)
-            # = Var(x) + Var(y) + 2*Cov(x, y)
-            # = Var(x) + Var(y) since Cov(x, y) = 0 due to orthogonality.
-            # ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
-            fit = morphology.fit_2dgaussian(subimage)
-            (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
-            sigma_finl_sub = math.sqrt(fit.x_stddev ** 2.0 + fit.y_stddev ** 2.0)
-        elif method == 'fit_bivariate_normal':
-            # Test results: 2014-08-11, STH
-            # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
-            # - For varying subimages, position converges to within 0.02 pix of final solution at 11x11 subimage.
-            # - For varying subimages, sigma converges to within 0.1 pix of final solution at 11x11 subimage.
-            # - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
-            # - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
-            # - For 11x11 subimage, method takes ~450 ms. Method scales \propto box_pix**2.
-            # Method description:
-            # - Model the photons hitting the pixels of the subimage and
-            # robustly fit a bivariate normal distribution.
-            # - Conservatively assume that photons hit each pixel, even those of the star,
-            # with a uniform distribution. See [3]_, [4]_.
-            # - Seed the random number generator only once per call to this method for reproducibility.
-            # - To calculate the standard deviation for the 2D Gaussian:
-            # zvec = xvec + yvec
-            # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
-            # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
-            # Notation: x = |xvec|, y = |yvec|, z = |zvec|
-            # ==> Var(z) = Var(x + y)
-            # = Var(x) + Var(y) + 2*Cov(x, y)
-            # = Var(x) + Var(y)
-            # since Cov(x, y) = 0 due to orthogonality.
-            #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
-            x_dist = []
-            y_dist = []
+    # noinspection PyTypeChecker
+    if len(stars) > 0:
+        width = int(math.ceil(box_pix))
+        for (idx, x_init, y_init, sigma_init) in stars_init[['x_pix', 'y_pix', 'sigma_pix']].itertuples():
+            subimage = get_square_subimage(image=image, position=(x_init, y_init), width=width)
+            # If the star was too close to the image edge to extract the square subimage, skip the star.
+            # Otherwise, compute the initial position for the star relative to the subimage.
+            # The initial position relative to the subimage is an integer pixel.
             (height_actl, width_actl) = subimage.shape
-            np.random.seed(0)
-            for y_idx in xrange(height_actl):
-                for x_idx in xrange(width_actl):
-                    pixel_counts = np.rint(subimage[y_idx, x_idx])
-                    x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
-                    x_dist.extend(x_dist_pix.rvs(pixel_counts))
-                    y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
-                    y_dist.extend(y_dist_pix.rvs(pixel_counts))
-            (mu, sigma1, sigma2, alpha) = astroML_stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
-            (x_finl_sub, y_finl_sub) = mu
-            sigma_finl_sub = math.sqrt(sigma1 ** 2.0 + sigma2 ** 2.0)
-        # # NOTE: 2014-08-10, STH
-        # # The following methods have been commented out because they do not provide an estimate for the star's
-        # # standard deviation as a 2D Gaussian.
-        # # elif method == 'centroid_com':
-        # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
-        # # Method is very fast but only accurate between 7 <= `box_pix` <= 11 given `sigma`=1 due to
-        # # sensitivity to outliers.
-        # # Test results: 2014-08-09, STH
-        # # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
-        # #   seeing = 1.4 arcsec.
-        # # - For varying subimages, method does not converge to final centroid solution.
-        # # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
-        # #   +/- 0.01 pix, but then diverges from solution with larger subimages.
-        # #   Method is susceptible to outliers.
-        #     # - For 7x7 subimages, method takes ~3 ms per subimage. Method is invariant to box_pix and always
-        #     #   takes ~3 ms.
-        #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subimage)
-        #     # elif method == 'fit_max_phot_flux':
-        #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from
-        #     # computing the centroid that yields the largest photometric flux. Method is fast, but,
-        #     # as of 2014-08-08 (STH), implementation is inaccurate by ~0.1 pix (given `sigma`=1, `box_pix`=7),
-        #     # and method is possibly sensitive to outliers.
-        #     # Test results: 2014-08-09, STH
-        #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
-        #     #   seeing = 1.4 arcsec.
-        #     # - For varying subimages, method converges to within +/- 0.0001 pix of final centroid solution at
-        #     #   7x7 subimage, however final centroid solution disagrees with other methods' centroid solutions.
-        #     # - For 7x7 subimage, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subimage
-        #     #   by ~0.1 pix. Method may be susceptible to outliers.
-        #     # - For 7x7 subimage, method takes ~130 ms. Method scales \propto box_pix.
-        #     # TODO: Test different minimization methods
-        #     def obj_func(subimage, position, radius):
-        #         """Objective function to minimize: -1*photometric flux from star.
-        #         Assumed to follow a 2D Gaussian point-spread function.
-        #
-        #         Parameters
-        #         ----------
-        #         subimage : array_like
-        #             2D subimage of image. Used only by `obj_func`.
-        #         position : list or array of a tuple
-        #             Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``,
-        #                 i.e. [x_pix, y_pix] [1]_, [2]_.
-        #             Used by both `obj_func` and `jac_func`.
-        #         radius : float
-        #             The radius of the aperture [1]_. Used only by `obj_func`.
-        #
-        #         Returns
-        #         -------
-        #         flux_neg : float
-        #             Negative flux computed by photutils [2]_.
-        #
-        #         References
-        #         ----------
-        #         .. [1] http://photutils.readthedocs.org/en/latest/api/
-        #                photutils.CircularAperture.html#photutils.CircularAperture
-        #         .. [2] http://photutils.readthedocs.org/en/latest/api/
-        #                photutils.aperture_photometry.html#photutils.aperture_photometry
-        #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
-        #
-        #         """
-        #         aperture = ('circular', radius)
-        #         (flux_table, aux_dict) = photutils.aperture_photometry(subimage, position, aperture)
-        #         flux_neg = -1. * flux_table['aperture_sum'].data
-        #         return flux_neg
-        #
-        #     def jac_func(subimage, position, radius, eps=0.005):
-        #         """Jacobian of the objective function for fixed radius.
-        #         Assumed to follow a 2D Gaussian point-spread function.
-        #
-        #         Parameters
-        #         ----------
-        #         subimage : array_like
-        #             2D subimage of image. Used only by `obj_func`
-        #         position : list or array of a tuple
-        #             Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``,
-        #                 i.e. [x_pix, y_pix] [1]_, [2]_.
-        #             Used by both `obj_func` and `jac_func`.
-        #         radius : float
-        #             The radius of the aperture [1]_. Used only by `obj_func`.
-        #         eps : float
-        #             Epsilon value for computing the change in the gradient. Used only by `jac_func`.
-        #
-        #         Returns
-        #         -------
-        #         jac : numpy.ndarray
-        #             Jacobian of obj_func as ``numpy.ndarray`` [dx, dy].
-        #
-        #         References
-        #         ----------
-        #         .. [1] http://photutils.readthedocs.org/en/latest/api/
-        #                photutils.CircularAperture.html#photutils.CircularAperture
-        #         .. [2] http://photutils.readthedocs.org/en/latest/api/
-        #                photutils.aperture_photometry.html#photutils.aperture_photometry
-        #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
-        #
-        #         """
-        #         try:
-        #             [x_pix, y_pix] = position
-        #         except ValueError:
-        #             raise ValueError(("'position' must have the format [x_pix, y_pix]\n"+
-        #                               "  position = {pos}").format(pos=position))
-        #         jac = np.zeros(len(position))
-        #         fxp1 = obj_func(subimage, (x_pix + eps, y_pix), radius)
-        #         fxm1 = obj_func(subimage, (x_pix - eps, y_pix), radius)
-        #         fyp1 = obj_func(subimage, (x_pix, y_pix + eps), radius)
-        #         fym1 = obj_func(subimage, (x_pix, y_pix - eps), radius)
-        #         jac[0] = (fxp1-fxm1)/(2.*eps)
-        #         jac[1] = (fyp1-fym1)/(2.*eps)
-        #         return jac
-        #
-        #     position = [x_init_sub, y_init_sub]
-        #     radius = sigma_to_fwhm(sigma_init)
-        #     res = scipy.optimize.minimize(fun=(lambda pos: obj_func(subimage, pos, radius)),
-        #                                   x0=position,
-        #                                   method='L-BFGS-B',
-        #                                   jac=(lambda pos: jac_func(subimage, pos, radius)),
-        #                                   bounds=((0, width), (0, height)))
-        #     (x_finl_sub, y_finl_sub) = res.x
-        else:
-            raise AssertionError("Program error. Method not accounted for:\n{meth}".format(meth=method))
-        # Compute the centroid coordinates relative to the entire image.
-        # Return the dataframe with centroid coordinates and sigma.
-        (x_offset, y_offset) = (x_finl_sub - x_init_sub,
-                                y_finl_sub - y_init_sub)
-        (x_finl, y_finl) = (x_init + x_offset,
-                            y_init + y_offset)
-        sigma_finl = sigma_finl_sub
-        stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
+            if (width_actl != width) or (height_actl != width):
+                logger.debug(("Star was too close to the edge of the image to extract a square subimage. Skipping star. " +
+                              "Program variables: {vars}").format(vars={'idx': idx, 'x_init': x_init, 'y_init': y_init,
+                                                                        'sigma_init': sigma_init, 'box_pix': box_pix,
+                                                                        'width': width, 'width_actl': width_actl,
+                                                                        'height_actl': height_actl}))
+                continue
+            x_init_sub = (width_actl - 1) / 2
+            y_init_sub = (height_actl - 1) / 2
+            # Compute the centroid position and standard deviation sigma for the star relative to the subimage.
+            # using the selected method. Subtract background to fit counts only belonging to the source.
+            subimage = subtract_subimage_background(subimage, threshold_sigma)
+            # TODO: move methods to own functions.
+            if method == 'fit_2dgaussian':
+                # Test results: 2014-08-11, STH
+                # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
+                # - For varying subimages, position converges to within 0.01 pix of final solution at 11x11 subimage.
+                # - For varying subimages, sigma converges to within 0.05 pix of final solution at 11x11 subimage.
+                # - Final position solution agrees with `fit_bivariate_normal` final position solution within +/- 0.1 pix.
+                # - Final sigma solution agrees with `fit_bivariate_normal` final sigma solution within +/- 0.2 pix.
+                # - For 11x11 subimage, method takes ~25 ms. Method scales \propto box_pix.
+                # Method description:
+                # - See photutils [1]_ and astropy [2]_.
+                # - To calculate the standard deviation for the 2D Gaussian:
+                # zvec = xvec + yvec
+                # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+                # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+                # Notation: x = |xvec|, y = |yvec|, z = |zvec|
+                # ==> Var(z) = Var(x + y)
+                # = Var(x) + Var(y) + 2*Cov(x, y)
+                # = Var(x) + Var(y) since Cov(x, y) = 0 due to orthogonality.
+                # ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
+                fit = morphology.fit_2dgaussian(subimage)
+                (x_finl_sub, y_finl_sub) = (fit.x_mean, fit.y_mean)
+                sigma_finl_sub = math.sqrt(fit.x_stddev ** 2.0 + fit.y_stddev ** 2.0)
+            elif method == 'fit_bivariate_normal':
+                # Test results: 2014-08-11, STH
+                # - Test on star with peak 18k ADU counts above background; FWHM ~3.8 pix.
+                # - For varying subimages, position converges to within 0.02 pix of final solution at 11x11 subimage.
+                # - For varying subimages, sigma converges to within 0.1 pix of final solution at 11x11 subimage.
+                # - Final position solution agrees with `fit_2dgaussian` final position solution within +/- 0.1 pix.
+                # - Final sigma solution agrees with `fit_2dgaussian` final sigma solution within +/- 0.2 pix.
+                # - For 11x11 subimage, method takes ~450 ms. Method scales \propto box_pix**2.
+                # Method description:
+                # - Model the photons hitting the pixels of the subimage and
+                # robustly fit a bivariate normal distribution.
+                # - Conservatively assume that photons hit each pixel, even those of the star,
+                # with a uniform distribution. See [3]_, [4]_.
+                # - Seed the random number generator only once per call to this method for reproducibility.
+                # - To calculate the standard deviation for the 2D Gaussian:
+                # zvec = xvec + yvec
+                # xvec, yvec made orthogonal after PCA ('x', 'y' no longer means x,y pixel coordinates)
+                # ==> |zvec| = |xvec + yvec| = |xvec| + |yvec|
+                # Notation: x = |xvec|, y = |yvec|, z = |zvec|
+                # ==> Var(z) = Var(x + y)
+                # = Var(x) + Var(y) + 2*Cov(x, y)
+                # = Var(x) + Var(y)
+                # since Cov(x, y) = 0 due to orthogonality.
+                #   ==> sigma(z) = sqrt(sigma_x**2 + sigma_y**2)
+                x_dist = []
+                y_dist = []
+                (height_actl, width_actl) = subimage.shape
+                np.random.seed(0)
+                for y_idx in xrange(height_actl):
+                    for x_idx in xrange(width_actl):
+                        pixel_counts = np.rint(subimage[y_idx, x_idx])
+                        x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
+                        x_dist.extend(x_dist_pix.rvs(pixel_counts))
+                        y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
+                        y_dist.extend(y_dist_pix.rvs(pixel_counts))
+                (mu, sigma1, sigma2, alpha) = astroML_stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
+                (x_finl_sub, y_finl_sub) = mu
+                sigma_finl_sub = math.sqrt(sigma1 ** 2.0 + sigma2 ** 2.0)
+            # # NOTE: 2014-08-10, STH
+            # # The following methods have been commented out because they do not provide an estimate for the star's
+            # # standard deviation as a 2D Gaussian.
+            # # elif method == 'centroid_com':
+            # # `centroid_com` : Method is from photutils [1]_. Return the centroid from computing the image moments.
+            # # Method is very fast but only accurate between 7 <= `box_pix` <= 11 given `sigma`=1 due to
+            # # sensitivity to outliers.
+            # # Test results: 2014-08-09, STH
+            # # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
+            # #   seeing = 1.4 arcsec.
+            # # - For varying subimages, method does not converge to final centroid solution.
+            # # - For 7x7 to 11x11 subimages, centroid solution agrees with centroid_2dg centroid solution within
+            # #   +/- 0.01 pix, but then diverges from solution with larger subimages.
+            # #   Method is susceptible to outliers.
+            #     # - For 7x7 subimages, method takes ~3 ms per subimage. Method is invariant to box_pix and always
+            #     #   takes ~3 ms.
+            #     # (x_finl_sub, y_finl_sub) = morphology.centroid_com(subimage)
+            #     # elif method == 'fit_max_phot_flux':
+            #     # `fit_max_phot_flux` : Method is from Mike Montgomery, UT Austin, 2014. Return the centroid from
+            #     # computing the centroid that yields the largest photometric flux. Method is fast, but,
+            #     # as of 2014-08-08 (STH), implementation is inaccurate by ~0.1 pix (given `sigma`=1, `box_pix`=7),
+            #     # and method is possibly sensitive to outliers.
+            #     # Test results: 2014-08-09, STH
+            #     # - Test on star with peak 18k ADU counts above background; platescale = 0.36 arcsec/superpix;
+            #     #   seeing = 1.4 arcsec.
+            #     # - For varying subimages, method converges to within +/- 0.0001 pix of final centroid solution at
+            #     #   7x7 subimage, however final centroid solution disagrees with other methods' centroid solutions.
+            #     # - For 7x7 subimage, centroid solution disagrees with centroid_2dg centroid solution for 7x7 subimage
+            #     #   by ~0.1 pix. Method may be susceptible to outliers.
+            #     # - For 7x7 subimage, method takes ~130 ms. Method scales \propto box_pix.
+            #     # TODO: Test different minimization methods
+            #     def obj_func(subimage, position, radius):
+            #         """Objective function to minimize: -1*photometric flux from star.
+            #         Assumed to follow a 2D Gaussian point-spread function.
+            #
+            #         Parameters
+            #         ----------
+            #         subimage : array_like
+            #             2D subimage of image. Used only by `obj_func`.
+            #         position : list or array of a tuple
+            #             Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``,
+            #                 i.e. [x_pix, y_pix] [1]_, [2]_.
+            #             Used by both `obj_func` and `jac_func`.
+            #         radius : float
+            #             The radius of the aperture [1]_. Used only by `obj_func`.
+            #
+            #         Returns
+            #         -------
+            #         flux_neg : float
+            #             Negative flux computed by photutils [2]_.
+            #
+            #         References
+            #         ----------
+            #         .. [1] http://photutils.readthedocs.org/en/latest/api/
+            #                photutils.CircularAperture.html#photutils.CircularAperture
+            #         .. [2] http://photutils.readthedocs.org/en/latest/api/
+            #                photutils.aperture_photometry.html#photutils.aperture_photometry
+            #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
+            #
+            #         """
+            #         aperture = ('circular', radius)
+            #         (flux_table, aux_dict) = photutils.aperture_photometry(subimage, position, aperture)
+            #         flux_neg = -1. * flux_table['aperture_sum'].data
+            #         return flux_neg
+            #
+            #     def jac_func(subimage, position, radius, eps=0.005):
+            #         """Jacobian of the objective function for fixed radius.
+            #         Assumed to follow a 2D Gaussian point-spread function.
+            #
+            #         Parameters
+            #         ----------
+            #         subimage : array_like
+            #             2D subimage of image. Used only by `obj_func`
+            #         position : list or array of a tuple
+            #             Center ``tuple`` coordinate of the aperture within a ``list`` or ``array``,
+            #                 i.e. [x_pix, y_pix] [1]_, [2]_.
+            #             Used by both `obj_func` and `jac_func`.
+            #         radius : float
+            #             The radius of the aperture [1]_. Used only by `obj_func`.
+            #         eps : float
+            #             Epsilon value for computing the change in the gradient. Used only by `jac_func`.
+            #
+            #         Returns
+            #         -------
+            #         jac : numpy.ndarray
+            #             Jacobian of obj_func as ``numpy.ndarray`` [dx, dy].
+            #
+            #         References
+            #         ----------
+            #         .. [1] http://photutils.readthedocs.org/en/latest/api/
+            #                photutils.CircularAperture.html#photutils.CircularAperture
+            #         .. [2] http://photutils.readthedocs.org/en/latest/api/
+            #                photutils.aperture_photometry.html#photutils.aperture_photometry
+            #         .. [3] http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.optimize.minimize.html
+            #
+            #         """
+            #         try:
+            #             [x_pix, y_pix] = position
+            #         except ValueError:
+            #             raise ValueError(("'position' must have the format [x_pix, y_pix]\n"+
+            #                               "  position = {pos}").format(pos=position))
+            #         jac = np.zeros(len(position))
+            #         fxp1 = obj_func(subimage, (x_pix + eps, y_pix), radius)
+            #         fxm1 = obj_func(subimage, (x_pix - eps, y_pix), radius)
+            #         fyp1 = obj_func(subimage, (x_pix, y_pix + eps), radius)
+            #         fym1 = obj_func(subimage, (x_pix, y_pix - eps), radius)
+            #         jac[0] = (fxp1-fxm1)/(2.*eps)
+            #         jac[1] = (fyp1-fym1)/(2.*eps)
+            #         return jac
+            #
+            #     position = [x_init_sub, y_init_sub]
+            #     radius = sigma_to_fwhm(sigma_init)
+            #     res = scipy.optimize.minimize(fun=(lambda pos: obj_func(subimage, pos, radius)),
+            #                                   x0=position,
+            #                                   method='L-BFGS-B',
+            #                                   jac=(lambda pos: jac_func(subimage, pos, radius)),
+            #                                   bounds=((0, width), (0, height)))
+            #     (x_finl_sub, y_finl_sub) = res.x
+            else:
+                    raise AssertionError("Program error. Method not accounted for:\n{meth}".format(meth=method))
+            # Compute the centroid coordinates relative to the entire image.
+            # Return the dataframe with centroid coordinates and sigma.
+            (x_offset, y_offset) = (x_finl_sub - x_init_sub,
+                                    y_finl_sub - y_init_sub)
+            (x_finl, y_finl) = (x_init + x_offset,
+                                y_init + y_offset)
+            sigma_finl = sigma_finl_sub
+            stars_finl.loc[idx, ['x_pix', 'y_pix', 'sigma_pix']] = (x_finl, y_finl, sigma_finl)
+    else:
+        # noinspection PyTypeChecker
+        logger.debug("No stars to center. num_stars = {num}".format(num=len(stars)))
     return stars_finl
 
 
@@ -1914,10 +1921,14 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         # Use .loc with ('tform1to2', ['x_pix', 'y_pix']) to prevent Type Error.
         # TODO: Report pandas bug with Type Error for ('tform1to2', ['x_pix', 'y_pix'])?
         logger.debug("No stars in stars2. Assuming stars2 (x, y) are same as stars1 (x, y).")
-        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
-        stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])]
+        stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values
+        stars.loc[:, ('stars2', ['x_pix', 'y_pix'])] = stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values
         stars[('stars1', 'verif1to2')] = 0
         stars[('stars2', 'verif2to1')] = 0
+        if stars.loc[:, ('stars2', ['x_pix', 'y_pix'])].isnull().any().any():
+            raise AssertionError(("Program error. " +
+                                  "('stars2', ['x_pix', 'y_pix']) should not have any null values:\n" +
+                                  "stars =\n{stars}").format(stars=stars))
     # Sort columns to permit heirarchical slicing.
     # Replace 1 with True; 0/NaN with False.
     stars.sort_index(axis=1, inplace=True)
