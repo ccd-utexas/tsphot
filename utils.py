@@ -422,7 +422,7 @@ def gain_readnoise_from_master(bias, flat):
     fwhm_bias = sigma_to_fwhm(sigmaG_bias)
     sigmaG_flat = astroML_stats.sigmaG(flat)
     fwhm_flat = sigma_to_fwhm(sigmaG_flat)
-    median_flat = np.median(flat)
+    median_flat = np.nanmedian(flat)
     gain = (median_flat / (fwhm_flat ** 2.0))
     readnoise = (gain * fwhm_bias)
     return (gain * (astropy.units.electron / astropy.units.adu),
@@ -483,11 +483,11 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     # TODO: As of 2014-08-18, gain_readnoise_from_master and gain_readnoise_from_random do not agree. Check formulas.
     # Note: As of 2014-08-18, `ccdproc.CCDData` objects give `numpy.ndarrays` that with 16-bit unsigned ints.
     # Subtracting these arrays gives values close to 0 and close to 65535. Add variance to circumvent unsigned ints.
-    b1 = np.median(bias1)
-    b2 = np.median(bias2)
+    b1 = np.nanmedian(bias1)
+    b2 = np.nanmedian(bias2)
     sigmaG_diff_b12 = math.sqrt(astroML_stats.sigmaG(bias1) ** 2.0 + astroML_stats.sigmaG(bias2) ** 2.0)
-    f1 = np.median(flat1)
-    f2 = np.median(flat2)
+    f1 = np.nanmedian(flat1)
+    f2 = np.nanmedian(flat2)
     sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1) ** 2.0 + astroML_stats.sigmaG(flat2) ** 2.0)
     gain = (((f1 + f2) - (b1 + b2)) /
             (sigmaG_diff_f12 ** 2.0 - sigmaG_diff_b12 ** 2.0))
@@ -845,7 +845,7 @@ def normalize(array):
     
     """
     array_np = np.array(array)
-    median = np.median(array_np)
+    median = np.nanmedian(array_np)
     sigmaG = astroML_stats.sigmaG(array_np)
     if sigmaG == 0:
         logger.warning("SigmaG = 0. Normalized array will be all numpy.NaN")
@@ -1191,7 +1191,7 @@ def subtract_subimage_background(subimage, threshold_sigma=3):
                               "  arr_background.size = {nb}\n" +
                               "  arr_source.size = {ns}").format(nb=arr_background.size,
                                                                  ns=arr_source.size))
-    median = np.median(arr_background)
+    median = np.nanmedian(arr_background)
     sigmaG = astroML_stats.sigmaG(arr_background)
     subimage_sub = subimage_np - (median + threshold_sigma * sigmaG)
     subimage_sub[subimage_sub < 0.0] = 0.0
@@ -2005,7 +2005,7 @@ def make_timestamps_timeseries(dobj, radii):
             last_stars = timeseries_dict[ftnum_new][['x_pix', 'y_pix', 'sigma_pix']]
         # Do aperture photometry.
         # TODO: do median subtraction above and remove unnecessary subframing
-        image_new -= np.median(image_new)
+        image_new -= np.nanmedian(image_new)
         positions = timeseries_dict[ftnum_new][['x_pix', 'y_pix']].values
         for radius in radii:
             apertures = photutils.CircularAperture(positions=positions, r=radius)
@@ -2117,7 +2117,7 @@ def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=Non
     # TODO: verify best aperture with scatter measure. Use SNR from photutils instead?
     fwhm_med = \
         sigma_to_fwhm(
-            np.median(
+            np.nanmedian(
                 [sigma for sigma in
                  timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values.flatten()
                  if sigma is not np.NaN]))
