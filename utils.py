@@ -2083,9 +2083,8 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     return None
 
 
-def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indices=None):
-    """
-    Make lightcurve from timestamps and timeseries
+def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=None):
+    """Make lightcurve from timestamps and timeseries.
     """
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
     target = timeseries[target_index].drop(drop_cols, axis=1).copy()
@@ -2111,8 +2110,9 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
                 [sigma for sigma in
                  timeseries.swaplevel('quantity_unit', 'star_index', axis=1)['sigma_pix'].values.flatten()
                  if sigma is not np.NaN]))
-    radius = radii[np.abs(radii - fwhm_med).nanargmin()]
-    logger.info("Photometry aperture radius: {rad}".format(rad=radius))
+    radii = [label[1] for label in timeseries.columns.levels[1].values if len(label) == 2]
+    best_radius = radii[np.nanargmin(np.abs(radii - fwhm_med))]
+    logger.info("Photometry aperture radius: {rad}".format(rad=best_radius))
     # Ensure that all timeseries have median value of 1.
     targ_norm = target / target.median(axis=0, skipna=True)
     comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
@@ -2122,9 +2122,9 @@ def make_lightcurve(timestamps, timeseries, target_index, radii, comparison_indi
     # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
     # When making lightcurve, combine dataframes not series.
     timestamps.rename(columns={'exp_mid': 'midexposure_timestamp_UTC'}, inplace=True)
-    lightcurves['target_normalized_relative_flux'] = lightcurves[('flux_ADU', radius)]
-    targ_norm['target_normalized_flux'] = targ_norm[('flux_ADU', radius)]
-    comp_norm['comparisons_sum_normalized_flux'] = comp_norm[('flux_ADU', radius)]
+    lightcurves['target_normalized_relative_flux'] = lightcurves[('flux_ADU', best_radius)]
+    targ_norm['target_normalized_flux'] = targ_norm[('flux_ADU', best_radius)]
+    comp_norm['comparisons_sum_normalized_flux'] = comp_norm[('flux_ADU', best_radius)]
     lightcurve = pd.concat([timestamps[['midexposure_timestamp_UTC']],
                             lightcurves[['target_normalized_relative_flux']],
                             targ_norm[['target_normalized_flux']],
