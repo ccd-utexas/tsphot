@@ -3,22 +3,15 @@
 
 See Also
 --------
-CALLS : {read_spe}
-CALLED_BY : {main}
-RELATED : {}
+read_spe, main
 
 Notes
 -----
 noinspection : Comments are created by PyCharm to flag permitted code inspection violations.
 docstrings : This module's documentation is adapted from the `numpy` doc example [1]_.
-TODO : Flag all to-do items with 'TODO:' in the code body (not the docstring) so that they are flagged when using
-    an IDE.
-See Also : Objects describe their relationships to each other within their docstrings under the 'See Also' section.
-    All objects should be connected to at least one other object within this module [2]_. Relationships are summarized
-    with labeled sets `CALLS`, `CALLED_BY`, `RELATED`
-    CALLS : Set of objects that this object calls.
-    CALLED_BY : Set of objects that call this object.
-    RELATED : Set of objects that this object is functionally related to but neither `CALLS` nor is `CALLED_BY`.
+TODO : Flag to-do items with 'TODO:' in the code body so that they are aggregated when using an IDE.
+See Also : Tuple of related objects (modules, classes, methods, etc). Tuple usually includes objects that this object
+    calls, objects that call this object, and objects that are functionally related to this object.
 SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their docstrings under 'Notes'.
     The sequence number identifies in what order the functions are typically called by higher-level scripts.
     Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions that are computation/IO-intensive and/or are
@@ -91,9 +84,7 @@ def create_reduce_config(fjson='reduce_config.json'):
 
     See Also
     --------
-    CALLS : {}
-    CALLED_BY : {}
-    RELATED : {check_reduce_config}
+    check_reduce_config
 
     Notes
     -----
@@ -148,16 +139,13 @@ def check_reduce_config(dobj):
 
     See Also
     --------
-    CALLS : {}
-    CALLED_BY : {}
-    RELATED : {create_reduce_config}
+    create_reduce_config
 
     Notes
     -----
     SEQUENCE_NUMBER : -0.9
 
     """
-    # TODO: Describe conditionals in docstring.
     # Logging file path need not be defined, but if it is then it must be .log.
     fname = dobj['logging']['filename']
     if fname is not None:
@@ -225,9 +213,46 @@ max_sigma = 5.0
 
 
 def define_progress(dobj, interval=0.05):
+    """Return a function (a closure) that prints the progress through a ``dict`` with ``ccdproc.CCDData``.
+
+    The returned function must be called when iterating through the sorted keys of the ``dict``.
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` with ``ccdproc.CCDData``.
+    interval : {0.05}, float, optional
+        Increments at which to print progress.
+        Example: `interval`=0.05 will print progress at keys that correspond to
+            0%, 5%, 10%, ..., 95%, 100% through ``dict``.
+
+    Returns
+    -------
+    print_progress : function
+        Call `print_progress` during iteration through sorted keys of ``dict``.
+
+    See Also
+    --------
+    logger
+
+    Notes
+    -----
+    SEQUENCE_NUMBER = -0.8
+
+    Examples
+    --------
+    ```
+    print_progress = define_progress(dobj=dobj)
+    for key in sorted(dobj):
+        print_progress(key=key)
+    ```
+
     """
-    Return a function that prints the progress through a `dict` of `ccdproc.CCDData`.
-    """
+    # TODO: make isinstance test an argument to generalize to other data (e.g. HDF5, FITS).
+    # Check input.
+    if (interval <= 0.0) or (interval > 1.0):
+        raise IOError(("`interval` must be > 0.0 and <= 1.0:\ninterval = {interval}").format(interval=interval))
+    # Define keys to track and create function to print progress.
     image_keys = sorted([key for key in dobj.keys() if isinstance(dobj[key], ccdproc.CCDData)])
     num_keys = len(image_keys)
     divisions = int(math.ceil(1.0 / interval))
@@ -265,11 +290,7 @@ def spe_to_dict(fpath):
 
     See Also
     --------
-    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to a create JSON configuration file.
-        Edit the file and use as the input to `spe_to_dict`.
-    create_master_calib : Next step in pipeline. Run `spe_to_dict` then use the output
-        in the input to `create_master_calib`.
-    read_spe : Module for reading SPE files.
+    create_reduce_config, create_master_calib, read_spe
 
     Notes
     -----
@@ -296,36 +317,30 @@ def spe_to_dict(fpath):
 
 def create_master_calib(dobj):
     """Create a master calibration image from a ``dict`` of `ccdproc.CCDData`.
+
     Median-combine individual calibration images and retain all metadata.
 
     Parameters
     ----------
-    dobj : dict with ccdproc.CCDData
-        ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
+    dobj : dict
+        ``dict`` with ``ccdproc.CCDData`` values. Non-``ccdproc.CCDData`` values are retained as metadata.
 
     Returns
     -------
     ccddata : ccdproc.CCDData
         A single master calibration image.
-        For `dobj` keys with non-`ccdproc.CCDData` values, the values
-        are returned in `ccddata.meta` under the same keys.
-        For `dobj` keys with `ccdproc.CCDData` values, the `dobj[key].meta` values
-        are returned  are returned as a ``dict`` of metadata.
+        For `dobj` keys with non-``ccdproc.CCDData`` values, the values are returned in ``ccddata.meta`` under
+        the same keys. For `dobj` keys with ``ccdproc.CCDData`` values, the `dobj[key].meta` values are returned
+        are returned as a ``dict`` of metadata.
 
     See Also
     --------
-    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the output
-        in the input to `create_master_calib`.
-    reduce_ccddata : Next step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration images as input to `reduce_ccddata`.
+    spe_to_dict, reduce_ccddata
 
     Notes
     -----
     SEQUENCE_NUMBER : 1.0
 
-    References
-    ----------
-    
     """
     combiner_list = []
     noncombiner_list = []
@@ -346,12 +361,11 @@ def create_master_calib(dobj):
 
 
 def sigma_to_fwhm(sigma):
-    """Convert the standard deviation sigma of a Gaussian into
-    the full width at half maximum (FWHM).
+    """Convert the standard deviation sigma of a Gaussian into the full-width-at-half-maximum (FWHM).
 
     Parameters
     ----------
-    sigma : float or int
+    sigma : float
 
     Returns
     -------
@@ -382,10 +396,10 @@ def gain_readnoise_from_master(bias, flat):
 
     Parameters
     ----------
-    bias : array_like
-        2D array of a master bias image.
-    flat : array_like
-        2D array of a master flat image.
+    bias : numpy.ndarray
+        2D ``numpy.ndarray`` of a master bias image.
+    flat : numpy.ndarray
+        2D ``numpy.ndarray`` of a master flat image.
 
     Returns
     -------
@@ -396,9 +410,7 @@ def gain_readnoise_from_master(bias, flat):
 
     See Also
     --------
-    create_master_calib : Previous step in pipeline. Run `create_master_calib` then use the master bias, flat
-        calibration images as input to `gain_readnoise_from_master`.
-    gain_readnoise_from_random : Independent method of computing gain and readnoise from random bias and flat images.
+    create_master_calib, gain_readnoise_from_random
 
     Notes
     -----
@@ -430,8 +442,7 @@ def gain_readnoise_from_master(bias, flat):
     median_flat = np.nanmedian(flat)
     gain = (median_flat / (fwhm_flat ** 2.0))
     readnoise = (gain * fwhm_bias)
-    return (gain * (astropy.units.electron / astropy.units.adu),
-            readnoise * astropy.units.electron)
+    return (gain * (astropy.units.electron / astropy.units.adu), readnoise * astropy.units.electron)
 
 
 # noinspection PyPep8Naming
@@ -440,10 +451,14 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
     Parameters
     ----------
-    bias1, bias2 : array_like
-        2D arrays of bias images.
-    flat1, flat2 : array_like
-        2D arrays of flat images.
+    bias1 : numpy.ndarray
+        2D ``numpy.ndarray`` of bias image 1.
+    bias2 : numpy.ndarray
+        2D ``numpy.ndarray`` of bias image 2.
+    flat1 : numpy.ndarray
+        2D ``numpy.ndarray`` of flat image 1.
+    flat2 : array_like
+        2D ``numpy.ndarray`` of flat image 2.
 
     Returns
     -------
@@ -454,9 +469,7 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
     See Also
     --------
-    spe_to_dict : Previous step in pipeline. Run `spe_to_dict` then use the bias and flat calibration images as input
-        to `gain_readnoise_from_random`.
-    gain_readnoise_from_master : Independent method of computing gain and readnoise from master bias and flat images.
+    spe_to_dict, gain_readnoise_from_master
 
     Notes
     -----
@@ -494,95 +507,84 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     f1 = np.nanmedian(flat1)
     f2 = np.nanmedian(flat2)
     sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1) ** 2.0 + astroML_stats.sigmaG(flat2) ** 2.0)
-    gain = (((f1 + f2) - (b1 + b2)) /
-            (sigmaG_diff_f12 ** 2.0 - sigmaG_diff_b12 ** 2.0))
+    gain = (((f1 + f2) - (b1 + b2)) / (sigmaG_diff_f12 ** 2.0 - sigmaG_diff_b12 ** 2.0))
     readnoise = gain * sigmaG_diff_b12 / math.sqrt(2.0)
-    return (gain * (astropy.units.electron / astropy.units.adu),
-            readnoise * astropy.units.electron)
+    return (gain * (astropy.units.electron / astropy.units.adu), readnoise * astropy.units.electron)
 
 
 # TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
-"""
-def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
-max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
-"""
-"""Calculate gain and readnoise using both master images
-    and random images.
-      Compare with image difference/sum method also from
-      sec 4.3. Calculation of read noise and gain, Howell
-      Needed by cosmic ray cleaner.
-"""
-"""
-    def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
-                     readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
-"""
-"""
-        sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
-              (abs(gain_new - gain_old)    < tol_pre_gain) and
-              (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
-              (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
-        return sc
-    # randomly select 2 bias images and 2 flat images
-    # Accuracy and precision are set to same.
-    # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
-    # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
-    # Initialize
-    np.random.seed(0)
-    is_first_iter = True
-    is_converged = False
-    num_consec_success = 0
-    (gain_finl, readnoise_finl) = (None, None)
-    sc_kwargs = {}
-    (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
-    (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
-    (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
-    # TODO: calc masters from dobjs if None.
-    (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
-    # TODO: Collect an array of values.
-    # TODO: redo new, old. new is new median. old is old median.
-    for iter in xrange(max_iters):
-        # TODO: Use bootstrap sample
-        (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
-        if not is_first_iter:
-            if (success_crit(**sc_kwargs)):
-                num_consec_success += 1
-            else:
-                num_consec_success = 0
-        if num_consec_success >= max_successes:
-            is_converged = True
-            break
-        # Ready for next iteration.
-        (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
-        is_first_iter = False
-    # After loop.
-    if is_converged:
-        # todo: give details
-        assert iter+1 > max_successes
-        assert ((abs(gain_new - gain_master) < tol_acc_gain) and
-                (abs(gain_new - gain_old)    < tol_pre_gain) and
-                (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
-                (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
-        logging.info("Calculations for gain and readnoise converged.")
-        (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
-    else:
-        # todo: assertion error statement
-        assert iter == (max_iters - 1)
-        # todo: warning stderr description.
-        logging.warning("Calculations for gain and readnoise did not converge")
-        (gain_finl, readnoise_finl) = (None, None)
-    return(gain_finl, readnoise_finl)
-"""
+# def check_gain_readnoise(bias_dobj, flat_dobj, bias_master = None, flat_master = None,
+#                          max_iters=30, max_successes=3, tol_gain=0.01, tol_readnoise = 0.1):
+#     """Calculate gain and readnoise using both master images and random images.
+#     Compare with image difference/sum method also from sec 4.3. Calculation of read noise and gain, Howell
+#     Needed by cosmic ray cleaner.
+#     """
+#     # Define success criteria for iterations.
+#     def success_crit(gain_master, gain_new, gain_old, tol_acc_gain, tol_pre_gain,
+#                      readnoise_master, readnoise_new, readnoise_old, tol_acc_readnoise, tol_pre_readnoise):
+#         sc = ((abs(gain_new - gain_master) < tol_acc_gain) and
+#               (abs(gain_new - gain_old)    < tol_pre_gain) and
+#               (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+#               (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+#         return sc
+#     # randomly select 2 bias images and 2 flat images
+#     # Accuracy and precision are set to same.
+#     # tol_readnoise in electrons. From differences in ProEM cameras on calibration sheet.
+#     # tol_gain in electrons/ADU. From differences in ProEM cameras on calibration sheet.
+#     # Initialize
+#     np.random.seed(0)
+#     is_first_iter = True
+#     is_converged = False
+#     num_consec_success = 0
+#     (gain_finl, readnoise_finl) = (None, None)
+#     sc_kwargs = {}
+#     (sc_kwargs['tol_acc_gain'], sc_kwargs['tol_pre_gain']) = (tol_gain, tol_gain)
+#     (sc_kwargs['tol_acc_readnoise'], sc_kwargs['tol_pre_readnoise']) = (tol_readnoise, tol_readnoise)
+#     (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (None, None)
+#     # TODO: calc masters from dobjs if None.
+#     (sc_kwargs['gain_master'], sc_kwargs['readnoise_master']) = gain_readnoise_from_master(bias_master, flat_master)
+#     # TODO: Collect an array of values.
+#     # TODO: redo new, old. new is new median. old is old median.
+#     for iter in xrange(max_iters):
+#         # TODO: Use bootstrap sample
+#         (sc_kwargs['gain_new'], sc_kwargs['readnoise_new']) = gain_readnoise_from_random(bias1, bias2, flat1, flat2)
+#         if not is_first_iter:
+#             if (success_crit(**sc_kwargs)):
+#                 num_consec_success += 1
+#             else:
+#                 num_consec_success = 0
+#         if num_consec_success >= max_successes:
+#             is_converged = True
+#             break
+#         # Ready for next iteration.
+#         (sc_kwargs['gain_old'], sc_kwargs['readnoise_old']) = (sc_kwargs['gain_new'], sc_kwargs['readnoise_new'])
+#         is_first_iter = False
+#     # After loop.
+#     if is_converged:
+#         # todo: give details
+#         assert iter+1 > max_successes
+#         assert ((abs(gain_new - gain_master) < tol_acc_gain) and
+#                 (abs(gain_new - gain_old)    < tol_pre_gain) and
+#                 (abs(readnoise_new - readnoise_master) < tol_acc_readnoise) and
+#                 (abs(readnoise_new - readnoise_old)    < tol_pre_readnoise))
+#         logging.info("Calculations for gain and readnoise converged.")
+#         (gain_finl, readnoise_finl) = (gain_master, readnoise_master)
+#     else:
+#         # todo: assertion error statement
+#         assert iter == (max_iters - 1)
+#         # todo: warning stderr description.
+#         logging.warning("Calculations for gain and readnoise did not converge")
+#         (gain_finl, readnoise_finl) = (None, None)
+#     return(gain_finl, readnoise_finl)
 
 
 def get_exptime_prog(spe_footer_xml):
-    """Get the programmed exposure time in seconds from
-    the string XML footer of an SPE file.
+    """Get the programmed exposure time in seconds from the string XML footer of an SPE file.
 
     Parameters
     ----------
     spe_foooter_xml : string
-        ``string`` must be properly formatted XML from a
-        Princeton Instruments SPE file footer [1]_.
+        ``string`` must be properly formatted XML from a Princeton Instruments SPE v3 file footer [1]_.
 
     Returns
     -------
@@ -591,7 +593,7 @@ def get_exptime_prog(spe_footer_xml):
 
     See Also
     --------
-    reduce_ccddata : Requires exposure times for images.
+    reduce_ccddata, main
 
     Notes
     -----
@@ -618,12 +620,10 @@ def reduce_ccddata(dobj, dobj_exptime=None,
                    bias=None,
                    dark=None, dark_exptime=None,
                    flat=None, flat_exptime=None):
-    """Reduce a dict of object dataframes using the master calibration images
-    for bias, dark, and flat.
+    """Reduce a dict of object dataframes using the master calibration images for bias, dark, and flat.
 
-    All images must be type `ccdproc.CCDData`. Method will do all reductions possible
-    with given master calibration images. Method operates on a ``dict``
-    in order to minimize the number of pre-reduction operations:
+    All images must be type `ccdproc.CCDData`. Method will do all reductions possible with given master calibration
+    images. Method operates on a ``dict`` in order to minimize the number of pre-reduction operations:
     `dark` - `bias`, `flat` - `bias`, `flat` - `dark`.
     Requires exposure time (seconds) for object dataframes.
     If master dark image is provided, requires exposure time for master dark image.
@@ -631,9 +631,9 @@ def reduce_ccddata(dobj, dobj_exptime=None,
 
     Parameters
     ----------
-    dobj : dict with ccdproc.CCDData
-         ``dict`` keys with non-`ccdproc.CCDData` values are retained as metadata.
-    dobj_exptime : {None}, float or int, optional
+    dobj : dict
+         ``dict`` with ``ccdproc.CCDData`` values. Non-`ccdproc.CCDData` values are retained as metadata.
+    dobj_exptime : {None}, float, optional
          Exposure time of images within `dobj`. All images must have the same exposure time.
          Required if `dark` is provided.
     bias : {None}, ccdproc.CCDData, optional
@@ -649,17 +649,13 @@ def reduce_ccddata(dobj, dobj_exptime=None,
 
     Returns
     -------
-    dobj_reduced : dict with ccdproc.CCDData
-        `dobj` with `ccdproc.CCDData` images reduced. ``dict`` keys with non-`ccdproc.CCDData` values
+    dobj_reduced : dict
+        `dobj` with ``ccdproc.CCDData`` images reduced. ``dict`` keys with non-`ccdproc.CCDData` values
         are also returned in `dobj_reduced`.
 
     See Also
     --------
-    create_master_calib : Previous step in pipeline. Run `create_master_calib` to create master
-        bias, dark, flat calibration images and input to `reduce_ccddata`.
-    remove_cosmic_rays : Next step in pipeline. Run `reduce_ccddata` then use the output
-        in the input to `remove_cosmic_rays`.
-    get_exptime_prog : Get programmed exposure time from an SPE footer XML string.
+    create_master_calib, remove_cosmic_rays, get_exptime_prog, main, logger
     
     Notes
     -----
@@ -755,7 +751,7 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     Parameters
     ----------
     image : array_like
-        2D array of image.
+        2D ``numpy.ndarray`` of image.
     contrast : {2.0}, float, optional
         Keyword argument for `photutils.detection.lacosmic` [1]_. Chosen from [1]_, and Fig 4 of [2]_.
     cr_threshold : {4.5}, float, optional
@@ -775,15 +771,13 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
     -------
     image_cleaned : numpy.ndarray
         `image` cleaned of cosmic rays as ``numpy.ndarray``.
-    ray_mask : numpy.ndarray of bool
-        ``numpy.ndarray`` with same dimensions as `image_cleaned` with only ``True``/``False`` values. Pixels where
-        cosmic rays were removed are ``True``.
+    ray_mask : numpy.ndarray
+        ``numpy.ndarray`` of booleans with same dimensions as `image_cleaned`s. Pixels where cosmic rays were removed
+        are ``True``.
         
     See Also
     --------
-    reduce_ccddata : Previous step in pipeline. Run `reduce_ccddata` then use the output in the input to
-        `remove_cosmic_rays`.
-    find_stars : Next step in pipeline. Run `remove_cosmic_rays` then use the output in the input to `find_stars`.
+    reduce_ccddata, find_stars, main, logger
 
     Notes
     -----
@@ -816,10 +810,9 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
 def normalize(array):
     """Normalize an array in a robust way.
 
-    The function flattens an array then normalizes in a way that is 
-    insensitive to outliers (i.e. ignore stars on an image of the night sky).
-    Following [1]_, the function uses `sigmaG` as a width estimator and
-    uses the median as an estimator for the mean.
+    The function flattens an array then normalizes in a way that is insensitive to outliers (i.e. ignore stars on an
+    image of the night sky). Following [1]_, the function uses `sigmaG` as a width estimator and uses the median as an
+    estimator for the mean.
     
     Parameters
     ----------
@@ -833,8 +826,7 @@ def normalize(array):
 
     See Also
     -------
-    find_stars : `find_stars` calls `normalize` to normalize images before
-        searching for stars.
+    find_stars, logger
     
     Notes
     -----
@@ -864,14 +856,12 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
     """Find stars in an image and return as a dataframe.
     
     Function normalizes the image [1]_ then uses Laplacian of Gaussian method [2]_ [3]_ to find star-like blobs.
-    Method can also find extended sources by modifying `blobargs`, however this pipeline is taylored for stars.
-    If focus is poor or if PSF is oversampled (FWHM is many pixels), method may find multiple small stars within a
-    single star. Use `center_stars` then `combine_stars` to resolve degeneracy in coordinates.
-    
+    Method can also find extended sources by modifying `blobargs`, however this pipeline is tailored for stars.
+
     Parameters
     ----------
     image : array_like
-        2D array of image.
+        2D ``numpy.ndarray`` of image.
     min_sigma : {1}, int, optional
         Keyword argument for `skimage.feature.blob_log` [3]_. Smallest sigma (pixels) to use for Gaussian kernel.
     max_sigma : {5}, int, optional
@@ -899,19 +889,16 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
 
     See Also
     --------
-    remove_cosmic_rays : Previous step in pipeline. Run `remove_cosmic_rays`
-        then use the output in the input to `find_stars`.
-    center_stars : Next step in pipeline. Run `find_stars` then use the output
-        in the input to `center_stars`.
-    normalize : `find_stars` calls `normalize` to normalize the image before
-        finding stars.
+    remove_cosmic_rays, center_stars, normalize, make_timestamps_timeseries, max_sigma, plot_stars
 
     Notes
     -----
     SEQUENCE_NUMBER : 4.0
     Can generalize to extended sources but for increased execution time.
     Use `find_stars` after removing cosmic rays to prevent spurious sources.
-    
+    If focus is poor or if PSF is oversampled (FWHM is many pixels), method may find multiple small stars within a
+        single star. Use `center_stars` then `combine_stars` to resolve degeneracy in coordinates.
+
     References
     ----------
     .. [1] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy",
@@ -933,7 +920,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs):
+def plot_stars(image, stars, zoom=None, radius=max_sigma, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -941,7 +928,7 @@ def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs
     Parameters
     ----------
     image : array_like
-        2D array of image.
+        2D ``numpy.ndarray`` of image.
     stars : pandas.DataFrame
         `pandas.DataFrame` with:
         Rows:
@@ -966,8 +953,7 @@ def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs
 
     See Also
     --------
-    find_stars : Run `find_stars` then use the output in the input to
-        `plot_stars` as a diagnostic tool.
+    find_stars, main, make_timestamps_timeseries, plot_positions, plot_lightcurve, plot_matches, max_sigma
 
     Notes
     -----
@@ -1034,7 +1020,7 @@ def is_odd(num):
 
     Parameters
     ----------
-    num : float or int
+    num : float
 
     Returns
     -------
@@ -1042,9 +1028,7 @@ def is_odd(num):
 
     See Also
     --------
-    `center_stars` : `center_stars` calls `is_odd` to check that the
-        square subimages extracted around each star have an odd number
-        pixels on each side.
+    center_stars
     
     Notes
     -----
@@ -1072,7 +1056,7 @@ def get_square_subimage(image, position, width=11):
     Parameters
     ----------
     image : array_like
-        2D array of image.
+        2D ``numpy.ndarray`` of image.
     position : tuple
         (x, y) pixel coordinate position of center of square subimage. Accepts ``float`` or ``int``.
     width : {11}, optional
@@ -1139,7 +1123,7 @@ def subtract_subimage_background(subimage, threshold_sigma=3):
     Parameters
     ----------
     subimage : array_like
-        2D array of subimage.
+        2D ``numpy.ndarray`` of subimage.
     threshold_sigma : {3}, float or int, optional
         `threshold_sigma` is the number of standard
         deviations above the subimage median for counts per pixel. Pixels with
@@ -1215,7 +1199,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
     Parameters
     ----------
     image : array_like
-        2D array of image.
+        2D ``numpy.ndarray`` of image.
     stars : pandas.DataFrame
         ``pandas.DataFrame`` with:
         Rows:
