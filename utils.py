@@ -3,24 +3,29 @@
 
 See Also
 --------
-read_spe : Module for reading SPE files.
-main : Top-level module.
+CALLS : {read_spe}
+CALLED_BY : {main}
+RELATED : {}
 
 Notes
 -----
 noinspection : Comments are created by PyCharm to flag permitted code inspection violations.
-docstrings : This module's documentation follows the `numpy` doc example [1]_.
+docstrings : This module's documentation is adapted from the `numpy` doc example [1]_.
 TODO : Flag all to-do items with 'TODO:' in the code body (not the docstring) so that they are flagged when using
     an IDE.
-'See Also' : Methods describe their relationships to each other within their docstrings under the 'See Also' section.
-    All methods should be connected to at least one other method within this module [2]_.
-PIPELINE_SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their docstrings under the 'Notes'
-    section. The sequence number identifies in what order the functions are usually called by higher-level scripts.
-    - Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions that are computation/IO-intensive and/or are
+See Also : Objects describe their relationships to each other within their docstrings under the 'See Also' section.
+    All objects should be connected to at least one other object within this module [2]_. Relationships are summarized
+    with labeled sets `CALLS`, `CALLED_BY`, `RELATED`
+    CALLS : Set of objects that this object calls.
+    CALLED_BY : Set of objects that call this object.
+    RELATED : Set of objects that this object is functionally related to but neither `CALLS` nor is `CALLED_BY`.
+SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their docstrings under 'Notes'.
+    The sequence number identifies in what order the functions are typically called by higher-level scripts.
+    Major numbers (..., -1.0, 0.0, 1.0, 2.0, ...) identify functions that are computation/IO-intensive and/or are
         critical to the pipeline.
-    - Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions that are not computation/IO-intensive,
+    Minor numbers (..., x.0.1, x.1, x.1.1, , x.2, ...) identify functions that are not computation/IO-intensive,
         are optional to the pipeline, and/or are diagnostic.
-    - All functions within this module should have a sequence number since they should all have a role in the
+    All functions within this module should have a sequence number since they should all have a role in the
         pipeline [2]_.
 
 References
@@ -28,11 +33,9 @@ References
 .. [1] https://github.com/numpy/numpy/blob/master/doc/example.py
 .. [2] http://en.wikipedia.org/wiki/Pipeline_(software)
 .. [3] http://semver.org/
-
 """
+# TODO: Use sphinx documentation instead: http://sphinx-doc.org/
 # TODO: Include FITS processing.
-# TODO: Write 'Raises' docstring sections.
-# TODO: Write 'Examples' docstring sections.
 
 # Forwards compatibility imports.
 from __future__ import division, absolute_import, print_function
@@ -79,7 +82,7 @@ def create_reduce_config(fjson='reduce_config.json'):
 
     Parameters
     ----------
-    fjson : {'config.json'}, string, optional
+    fjson : {'reduce_config.json'}, string, optional
         Path to write default JSON configuration file.
 
     Returns
@@ -88,12 +91,13 @@ def create_reduce_config(fjson='reduce_config.json'):
 
     See Also
     --------
-    spe_to_dict : Next step in pipeline. Run `create_reduce_config` to create a JSON configuration file. Edit the file
-        and use as the input to `spe_to_dict`.
+    CALLS : {}
+    CALLED_BY : {}
+    RELATED : {check_reduce_config}
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER: -1.0
+    SEQUENCE_NUMBER: -1.0
 
     """
     # TODO: Describe key, value pairs in docstring.
@@ -144,12 +148,13 @@ def check_reduce_config(dobj):
 
     See Also
     --------
-    create_reduce_config : Previous step in pipeline. Run `create_reduce_config` to create a JSON configuration file.
-        Edit the file and use as the input to `check_reduce_config`.
+    CALLS : {}
+    CALLED_BY : {}
+    RELATED : {create_reduce_config}
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : -0.9
+    SEQUENCE_NUMBER : -0.9
 
     """
     # TODO: Describe conditionals in docstring.
@@ -268,7 +273,7 @@ def spe_to_dict(fpath):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 0.0
+    SEQUENCE_NUMBER : 0.0
 
     References
     ----------
@@ -316,7 +321,7 @@ def create_master_calib(dobj):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 1.0
+    SEQUENCE_NUMBER : 1.0
 
     References
     ----------
@@ -360,7 +365,7 @@ def sigma_to_fwhm(sigma):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 1.0.1
+    SEQUENCE_NUMBER : 1.0.1
 
     References
     ----------
@@ -397,7 +402,7 @@ def gain_readnoise_from_master(bias, flat):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER = 1.1
+    SEQUENCE_NUMBER = 1.1
     from [1]_:
         fwhm_bias = readnoise / gain
     from [2]_:
@@ -455,7 +460,7 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER = 1.2
+    SEQUENCE_NUMBER = 1.2
     from [1]_:
         (b1, b2) = (bias1_mean, bias2_mean)
         diff_b12 = b1 - b2
@@ -590,7 +595,7 @@ def get_exptime_prog(spe_footer_xml):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 1.3
+    SEQUENCE_NUMBER : 1.3
     Method uses `bs4.BeautifulSoup` to parse the XML ``string``.
     Converts exposure time to seconds from 'ExposureTime' and 'DelayResolution' XML keywords.
 
@@ -658,7 +663,7 @@ def reduce_ccddata(dobj, dobj_exptime=None,
     
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 2.0
+    SEQUENCE_NUMBER : 2.0
     As of 2014-08-20, correlated errors in image images are not supported by astropy.
     Sequence of operations (following sec 4.5, "Basic CCD Reduction" [1]_):
     - subtract master bias from master dark
@@ -782,7 +787,7 @@ def remove_cosmic_rays(image, contrast=2.0, cr_threshold=4.5, neighbor_threshold
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 3.0
+    SEQUENCE_NUMBER : 3.0
     Use LA-Cosmic algorithm from `photutils` rather than `ccdproc` or `imageutils` until `ccdproc` issue #130 is
         closed [3]_.
     `photutils.detection.lacosmic` is verbose in stdout and stderr.
@@ -833,7 +838,7 @@ def normalize(array):
     
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 3.1
+    SEQUENCE_NUMBER : 3.1
     `array_normd` = (`array` - median(`array`)) / `sigmaG`
     `sigmaG` = 0.7413(q75(`array`) - q50(`array`))
     q50, q75 = 50th, 75th quartiles (q50 == median)
@@ -903,7 +908,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.0
+    SEQUENCE_NUMBER : 4.0
     Can generalize to extended sources but for increased execution time.
     Use `find_stars` after removing cosmic rays to prevent spurious sources.
     
@@ -966,7 +971,7 @@ def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.1
+    SEQUENCE_NUMBER : 4.1
 
     Examples
     --------
@@ -1043,7 +1048,7 @@ def is_odd(num):
     
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.0
+    SEQUENCE_NUMBER : 4.2.0
     Uses `math.fabs`, `math.fmod` rather than abs, % [1]_.
     Allows negative numbers.
     (1 - (1E-13)) evaluates as odd.
@@ -1091,7 +1096,7 @@ def get_square_subimage(image, position, width=11):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.1
+    SEQUENCE_NUMBER : 4.2.1
     Uses imageutils.extract_array_2d to extract the subimage [1]_.
 
     References
@@ -1154,7 +1159,7 @@ def subtract_subimage_background(subimage, threshold_sigma=3):
 
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 4.2.2
+    SEQUENCE_NUMBER : 4.2.2
     The source must be centered to within ~ +/- 1/4 of the subimage width.
     At least 3 times as many border pixels used in estimating the background
         as compared to the source [1]_.
@@ -1257,7 +1262,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             
     Notes
     -----
-    PIPELINE_SEQUENCE_NUMBER : 5.0
+    SEQUENCE_NUMBER : 5.0
     Example: Fitting methods `fit_2dgaussian` and `fit_bivariate_normal` were tested on a bright star with peak
         18000 ADU above background, FHWM ~3.8 pix, initial `sigma_pix` = 1, `box_pix` = 3 to 33. 2014-08-11, STH.
         For `fit_2dgaussian`:
