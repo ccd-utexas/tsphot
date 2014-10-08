@@ -60,7 +60,6 @@ import photutils
 from photutils.detection import morphology, lacosmic
 # noinspection PyPep8Naming
 from astroML import stats as astroML_stats
-from matplotlib.backends.backend_pdf import PdfPages
 
 # Internal package imports.
 import read_spe
@@ -920,7 +919,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
     return stars[['x_pix', 'y_pix', 'sigma_pix']]
 
 
-def plot_stars(image, stars, zoom=None, radius=max_sigma, interpolation='none', **kwargs):
+def plot_stars(image, stars, zoom=None, radius=5, interpolation='none', **kwargs):
     """Plot detected stars overlayed on image.
 
     Overlay circles around stars and label.
@@ -953,7 +952,7 @@ def plot_stars(image, stars, zoom=None, radius=max_sigma, interpolation='none', 
 
     See Also
     --------
-    find_stars, main, make_timestamps_timeseries, plot_positions, plot_lightcurve, plot_matches, max_sigma
+    find_stars, main, make_timestamps_timeseries, plot_positions, plot_lightcurve, plot_matches
 
     Notes
     -----
@@ -977,8 +976,6 @@ def plot_stars(image, stars, zoom=None, radius=max_sigma, interpolation='none', 
     .. [2] http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.blob_log
     
     """
-    #(fig, ax) = plt.subplots(1, 1)
-    # ax.imshow...
     # If zoom is used, check input dimensions.
     if zoom is None:
         plt.imshow(image, interpolation=interpolation, **kwargs)
@@ -1028,7 +1025,7 @@ def is_odd(num):
 
     See Also
     --------
-    center_stars
+    center_stars, get_square_subimage
     
     Notes
     -----
@@ -1055,7 +1052,7 @@ def get_square_subimage(image, position, width=11):
 
     Parameters
     ----------
-    image : array_like
+    image : numpy.ndarray
         2D ``numpy.ndarray`` of image.
     position : tuple
         (x, y) pixel coordinate position of center of square subimage. Accepts ``float`` or ``int``.
@@ -1071,12 +1068,7 @@ def get_square_subimage(image, position, width=11):
 
     See Also
     --------
-    find_stars : Previous step in pipeline. Run `find_stars` then use the output star coordinate positions as the
-        input to `get_square_subimage`.
-    subtract_subimage_background : Next step in pipeline. Run `get_square_subimage` to extract a subimage around a star
-        then use the output subimage as the input to `subtract_subimage_background`.
-    center_stars : `center_stars` calls `get_square_subimage` to extract subimages around stars for centroid fitting
-        algorithms.
+    find_stars, subtract_subimage_background, center_stars, logger
 
     Notes
     -----
@@ -1110,15 +1102,15 @@ def get_square_subimage(image, position, width=11):
     return subimage
 
 
+# TODO: function obsolete when median background subtracted before centering stars. remove when implemented in make_timestamps_timeseries
 # noinspection PyPep8Naming
 def subtract_subimage_background(subimage, threshold_sigma=3):
     """Subtract the background intensity from a subimage centered on a source.
 
-    The function estimates the background as the median intensity of pixels
-    bordering the subimage (i.e. square aperture photometry). Background sigma
-    is also computed from the border pixels. The median + number of selected sigma
-    is subtracted from the subimage. Pixels whose original intensity was less
-    than the median + sigma are set to 0.
+    The function estimates the background as the median intensity of pixels bordering the subimage (i.e. square
+    aperture photometry). Background sigma is also computed from the border pixels. The median + number of
+    selected sigma is subtracted from the subimage. Pixels whose original intensity was less than the
+    median + sigma are set to 0.
 
     Parameters
     ----------
@@ -1136,10 +1128,7 @@ def subtract_subimage_background(subimage, threshold_sigma=3):
 
     See Also
     --------
-    get_square_subimage : Previous step in pipeline. Run `get_square_subimage` then use the output subimage as
-        the input `subtract_subimage_background`.
-    center_stars : Next step in pipeline. `center_stars` calls `subtract_subimage_background` to
-        preprocess subimages around stars for centroid fitting algorithms.
+    get_square_subimage, center_stars
 
     Notes
     -----
@@ -1208,7 +1197,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
             `x_pix` : x-coordinate (pixels) of star.
             `y_pix` : y-coordinate (pixels) of star.
             `sigma_pix` : Standard deviation (pixels) of a rough 2D Gaussian fit to the star (usually 1 pixel).
-    box_pix : {11}, optional
+    box_pix : {21}, optional
         `box_pix` x `box_pix` are the dimensions for a square subimage around the source.
         `box_pix` will be corrected to be odd and >= 3 so that the center pixel of the subimage is
         the initial `x_pix`, `y_pix`. Fitting methods converge to within agreement for `box_pix`>=11.
@@ -1241,8 +1230,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
 
     See Also
     --------
-    find_stars : Previous step in pipeline. Run `find_stars` then use the output of `find_stars`
-        in the input to `center_stars`.
+    find_stars, get_square_subimage, subtract_subimage_background, logger, make_timestamps_timeseries
             
     Notes
     -----
@@ -1271,7 +1259,7 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
     .. [4] http://www.astroml.org/book_figures/chapter3/fig_robust_pca.html
     
     """
-    # TODO: rewrite to remove subimaging. operate on median-subtraced image.
+    # TODO: rewrite to remove subimaging. operate on median-subtracted image.
     # Check input.
     valid_methods = ['fit_2dgaussian', 'fit_bivariate_normal']
     if method not in valid_methods:
@@ -1500,11 +1488,24 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
 
 
 def drop_duplicate_stars(stars):
-    """
-    Stars within 2 sigma of each other are assumed to be the same star.
-    :type stars: object
-    :param stars:
-    :return stars:
+    """Stars within 2 sigma of each other are assumed to be the same star.
+
+    Parameters
+    ----------
+    stars : pandas.DataFrame
+
+    Returns
+    -------
+    stars : pandas.DataFrame
+
+    See Also
+    --------
+    logger, center_stars, make_timestamps_timeseries
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 6.0
+
     """
     # Remove all NaN values and sort `stars` by `sigma_pix` so that sources with larger sigma contain the
     # duplicate sources with smaller sigma.
@@ -1573,12 +1574,20 @@ def translate_images_1to2(image1, image2):
 
     See Also
     --------
-    match_stars
+    match_stars, logger
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 6.7
+    Translation from phase correlation is useful for >0.5 pixel image transfroms.
+    Use matched stars for sub-pixel transforms.
+    Only use on images with detected stars. Phase correlation is median-filtered, but clouds cause correlation
+        to be very noisy.
 
     References
     ----------
-    ..[1] Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
-    ..[2] http://docs.scipy.org/doc/scipy/reference/generated/
+    .. [1] Adapted from http://www.lfd.uci.edu/~gohlke/code/imreg.py.html
+    .. [2] http://docs.scipy.org/doc/scipy/reference/generated/
         scipy.interpolate.griddata.html#scipy.interpolate.griddata
 
     Examples
@@ -1596,6 +1605,7 @@ def translate_images_1to2(image1, image2):
     stars2 = utils.find_stars(image2)
     print(stars2)
     ```
+
     """
     # Check input.
     if np.all(image1 == image2):
@@ -1679,9 +1689,33 @@ def translate_images_1to2(image1, image2):
 
 # noinspection PyUnresolvedReferences
 def plot_matches(image1, image2, stars1, stars2):
-    """
-    Visualize image matching.
+    """Visualize image matching.
+
+    Green line connect matched stars. Red lines connect mismatched stars.
+
+    Parameters
+    ----------
+    image1 : numpy.ndarray
+    image2 : numpy.ndarray
+    stars1 : pandas.DataFrame
+    stars2 : pandas.DataFrame
+
+    Returns
+    -------
+    None
+
+    See Also
+    --------
+    match_stars, logger
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 6.8
+
+    References
+    ----------
     http://scikit-image.org/docs/dev/auto_examples/plot_matching.html
+
     """
     # Check input. Reindex so pandas dataframe indices match numpy ndarray indices.
     if (stars1['verif1to2'] != stars2['verif2to1']).any():
@@ -1713,6 +1747,28 @@ def plot_matches(image1, image2, stars1, stars2):
 
 def match_stars(image1, image2, stars1, stars2, test=False):
     """Match stars.
+
+    Parameters
+    ----------
+    image1 : numpy.ndarray
+    image2 : numpy.ndarray
+    stars1 : pandas.DataFrame
+    stars2 : pandas.DataFrame
+    test : {False, True}, bool, optional
+        Shows `plot_matches` if ``True``.
+
+    Returns
+    -------
+    matched_stars : pandas.DataFrame
+
+    See Also
+    --------
+    logger, plot_matches, translate_images_1to2, drop_duplicate_stars, make_timestamps_timeseries
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 6.9
+
     """
     # Drop NaNs and check input.
     stars1.dropna(subset=['x_pix', 'y_pix'], inplace=True)
@@ -1935,14 +1991,34 @@ def match_stars(image1, image2, stars1, stars2, test=False):
 
 
 def make_timestamps_timeseries(dobj, radii):
-    """
-    Calculate timeseries lightcurves from data and return tuple: timestamps, timeseries
-    Stars dataframe description:
-    columns:
-    `star_index`: Unique index label for stars, >= 0. Example: 0
-    `quantity_unit`: Quantities calculated with units, separated by an underscore. Example: sigma_pix
-    rows:
-    `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
+    """Calculate timeseries lightcurves from data and return tuple: timestamps, timeseries
+
+    Parameters
+    ----------
+    dobj : dict
+        ``dict`` of ``ccdproc.CCDData``
+    radii : list
+        ``list`` of floats for radii of apertures.
+         Example: radii = range(0.5, 10.5)
+
+    Returns
+    -------
+    timestamps : pandas.DataFrame
+    timeseries : pandas.DataFrame
+        columns:
+            `star_index`: Unique index label for stars, >= 0. Example: 0
+            `quantity_unit`: Quantities calculated with units, separated by an underscore. Example: sigma_pix
+        rows:
+            `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
+
+    See Also
+    --------
+    main, logger, match_stars
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 7.0
+
     """
     # TODO: let users define own stars
     print_progress = define_progress(dobj=dobj)
@@ -2026,15 +2102,13 @@ def make_timestamps_timeseries(dobj, radii):
 
 
 def drop_frames(timeseries, frame_tracking_numbers):
-    """
-    Drop images with frame_tracking_number.
+    """Drop images with frame_tracking_number.
     """
     # TODO: make clouded out method?
     pass
 
 def plot_positions(timeseries, zoom=None, show_line_plots=True):
-    """
-    Make plots of star positions for all star indices.
+    """Make plots of star positions for all star indices.
 
     Parameters
     ----------
@@ -2043,6 +2117,19 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
         x-y ranges of image for zoom. Must have format ((xmin, xmax), (ymin, ymax)).
     show_line_plots : {True}, optional, bool
         Show plots of (x_pix, y_pix, sigma_pix) vs frame_tracking_number for every star.
+
+    Returns
+    -------
+    None
+
+    See Also
+    --------
+    logger, make_timestamps_timeseries, plot_matches, plot_stars
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 7.1
+
     """
     # If using zoom, check input.
     if zoom is not None:
@@ -2085,6 +2172,27 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
 
 def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=None):
     """Make lightcurve from timestamps and timeseries.
+
+    Parameters
+    ----------
+    timestamps : pandas.DataFrame
+    timeseries : pandas.DataFrame
+    target_index : int
+    comparison_indices : {None}, list, optional.
+        ``list`` of ``int``.
+
+    Returns
+    -------
+    lightcurve : pandas.DataFrame
+
+    See Also
+    --------
+    logger, make_timeseries_timestamps
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 8.0
+
     """
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
     target = timeseries[target_index].drop(drop_cols, axis=1).copy()
@@ -2134,19 +2242,28 @@ def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=Non
 
 
 def plot_lightcurve(lightcurve, fpath=None, **kwargs):
-    """
-    Plot lightcurve.
+    """Plot lightcurve.
 
     Parameters
     ----------
-    kwargs : keywords to pass to `matplotlib`
+    lightcurve ; pandas.DataFrame
+    fpath : string
+    kwargs : keyword arguments
+        keywords to pass to `matplotlib`
+
+    Returns
+    -------
+    None
+
+    See Also
+    --------
+    make_lightcurve, logger, plot_positions, plot_matches, plot_stars
+
+    Notes
+    -----
+    SEQUENCE_NUMBER : 8.1
 
     """
-    # TODO: pdf infodict from config file
-    # TODO: check input
-    if fpath is not None:
-        logger.info("Writing plot to: {fpath}".format(fpath=fpath))
-        pdf = PdfPages(fpath)
     plt.figure()
     lightcurve = lightcurve[['target_normalized_relative_flux',
                              'midexposure_timestamp_UTC']].set_index(keys=['midexposure_timestamp_UTC'])
@@ -2156,7 +2273,7 @@ def plot_lightcurve(lightcurve, fpath=None, **kwargs):
                       legend=False, marker='o', markersize=2, linestyle='', **kwargs)
     plt.ylabel('target_normalized_relative_flux')
     if fpath is not None:
-        # noinspection PyUnboundLocalVariable
-        pdf.savefig()
-        pdf.close()
+        logger.info("Writing plot to: {fpath}".format(fpath=fpath))
+        plt.savefig(fpath, bbox_inches='tight')
+    plt.show()
     return None
