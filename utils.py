@@ -29,6 +29,7 @@ References
 .. [1] https://github.com/numpy/numpy/blob/master/doc/example.py
 .. [2] http://en.wikipedia.org/wiki/Pipeline_(software)
 .. [3] http://semver.org/
+
 """
 # TODO: Use sphinx documentation instead: http://sphinx-doc.org/
 # TODO: Include FITS processing.
@@ -2003,16 +2004,21 @@ def make_timestamps_timeseries(dobj, radii):
     Returns
     -------
     timestamps : pandas.DataFrame
-    timeseries : pandas.DataFrame
-        columns:
-            `star_index`: Unique index label for stars, >= 0. Example: 0
-            `quantity_unit`: Quantities calculated with units, separated by an underscore. Example: sigma_pix
-        rows:
+        row names:
             `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
+        column names:
+            `timestamps_UTC` : Timestamps for `exposure_start`, `exposure_mid`, `exposure_end` as ``datetime.datetime``
+    timeseries : pandas.DataFrame
+        row names:
+            `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
+        column names:
+            `star_index` : Unique index label for stars, >= 0. Example: 0
+            `quantity_unit` : Quantities calculated with units, separated by an underscore.
+                Examples: `sigma_pix`; `(flux_ADU, 6.0)`, 6.0 is aperture radius in pixels.
 
     See Also
     --------
-    main, logger, match_stars
+    main, logger, match_stars, make_lightcurve
 
     Notes
     -----
@@ -2078,8 +2084,8 @@ def make_timestamps_timeseries(dobj, radii):
             timeseries_dict[ftnum_new][('flux_ADU', radius)] = phot_table['aperture_sum']
         logger.debug("Calculated aperture photometry:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
         # Record timestamp
-        timestamps_dict[ftnum_new] = {'exp_start': dobj[key].meta['time_stamp_exposure_started'],
-                                      'exp_end': dobj[key].meta['time_stamp_exposure_ended']}
+        timestamps_dict[ftnum_new] = {'exposure_start': dobj[key].meta['time_stamp_exposure_started'],
+                                      'exposure_end': dobj[key].meta['time_stamp_exposure_ended']}
         print_progress(key=key)
     # Format timeseries.
     timeseries = pd.concat(timeseries_dict, axis=0).stack()
@@ -2094,17 +2100,10 @@ def make_timestamps_timeseries(dobj, radii):
     timestamps = pd.DataFrame.from_dict(timestamps_dict, orient='index')
     timestamps.index.names = ['frame_tracking_number']
     timestamps.columns.names = ['timestamps_UTC']
-    timestamps['exp_mid'] = timestamps.mean(axis=1)
+    timestamps['exposure_mid'] = timestamps.mean(axis=1)
     timestamps = timestamps.applymap(lambda x: x / ticks_per_second)
     timestamps = timestamps.applymap(lambda x: dt_begin + dt.timedelta(seconds=x))
     return timestamps, timeseries
-
-
-def drop_frames(timeseries, frame_tracking_numbers):
-    """Drop images with frame_tracking_number.
-    """
-    # TODO: make clouded out method?
-    pass
 
 def plot_positions(timeseries, zoom=None, show_line_plots=True):
     """Make plots of star positions for all star indices.
@@ -2169,39 +2168,74 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     return None
 
 
-def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=None):
+def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=None,
+                    ftnum_drop=None, ftnum_med=None):
     """Make lightcurve from timestamps and timeseries.
+    
+    Optimal aperture radius is taken as ~1*FHWM, sec 5.4, [1]_. Median of each returned column with flux is 1.0.
+    Median is taken after `ftnum_drop` and over `ftnum_med`.
 
     Parameters
     ----------
     timestamps : pandas.DataFrame
+        Ouptut `timestamps` ``pandas.DataFrame`` from `make_timestamps_timeseries`.
     timeseries : pandas.DataFrame
+        Ouptut `timeseries` ``pandas.DataFrame`` from `make_timestamps_timeseries`.
     target_index : int
+        ``int`` with star index to use as target star.
+        Example: 0
     comparison_indices : {None}, list, optional.
-        ``list`` of ``int``.
+        ``list`` of ``int`` with star indices to use as comparison stars.
+        Example: [2, 3, 4]
+    ftnum_drop : {None}, list, optional
+        ``list`` of ``int`` with frame tracking numbers of images to drop (e.g. due to clouds).
+        Example: ftnum_drop = range(10, 13) + range(20, 21) = [10, 11, 12, 20]
+    ftnum_med : {None}, list, optional
+        ``list`` of ``int`` with frame tracking numbers of images to use for median calculation.
+        Example: See `ftnum_drop`
 
     Returns
     -------
     lightcurve : pandas.DataFrame
+        Median of each returned column with flux is 1.0. Median is taken after `ftnum_drop` and over `ftnum_med`.
+        Median calculation omits ``numpy.nan``.
+        row names:
+            `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
+        column names:
+            `exposure_mid_timestamp_UTC` : Midexposure timestamp as ``datetime.datetime``.
+            `target_relative_normalized_flux` : (target flux / comparisons sum flux) /
+                                                median of (target flux / comparisons sum flux) 
+            `target_normalized_flux` : target flux / median of target flux
+            `comparisions_sum_normalized_flux` :  comparisons sum / median of comparisons sum
 
     See Also
     --------
-    logger, make_timeseries_timestamps
+    logger, make_timeseries_timestamps, plot_lightcurve
 
     Notes
     -----
     SEQUENCE_NUMBER : 8.0
+    Data is undersampled if FHWM < 1.5 pix. sec 5.4 [1]_.
+    
+    References
+    ----------
+    .. [1] Howell, 2009, "Handbook of CCD Astronomy"
 
     """
+    if ftnum_drop is not None:
+        logger.info("Dropping images with frame tracking numbers:\n{ftd}".format(ftd=ftnum_drop))
+        timeseries = timeseries.drop(ftnum_drop, axis=0)
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
-    target = timeseries[target_index].drop(drop_cols, axis=1).copy()
+    target = timeseries[target_index].drop(drop_cols, axis=1)
     if comparison_indices is None:
-        comparisons = timeseries.drop(target_index, level='star_index', axis=1).drop(drop_cols,
-                                                                                     level='quantity_unit',
-                                                                                     axis=1).copy()
+        comparisons = timeseries.drop(target_index,
+                                      level='star_index',
+                                      axis=1).drop(drop_cols,
+                                                   level='quantity_unit',
+                                                   axis=1)
         comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)
     else:
-        comparisons = timeseries.loc[:, comparison_indices].drop(drop_cols, level='quantity_unit', axis=1).copy()
+        comparisons = timeseries.loc[:, comparison_indices].drop(drop_cols, level='quantity_unit', axis=1)
         comp_indices = comparison_indices
     for comp_idx in comp_indices:
         if comp_idx == comp_indices[0]:
@@ -2221,19 +2255,28 @@ def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=Non
     best_radius = radii[np.nanargmin(np.abs(radii - fwhm_med))]
     logger.info("Photometry aperture radius: {rad}".format(rad=best_radius))
     # Ensure that all timeseries have median value of 1.
+    lightcurves = target / comp_sum
+    if ftnum_med is not None:
+        # logger.info calc median using ftnums
+        # target_median = target.loc[ftnum_med].median(axis=0, skipna=True)
+        # comp_sum_median = comp_sum.loc.median
+        # lightcurves_median = lightcurves.loc.median
+        pass
+    else:
+        # todo: use median below
+        pass
     targ_norm = target / target.median(axis=0, skipna=True)
     comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
-    lightcurves = target / comp_sum
     lightcurves = lightcurves / lightcurves.median(axis=0, skipna=True)
     # Rename dataframe columns prior to joining since column names are identical.
     # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
     # When making lightcurve, combine dataframes not series.
-    timestamps.rename(columns={'exp_mid': 'midexposure_timestamp_UTC'}, inplace=True)
-    lightcurves['target_normalized_relative_flux'] = lightcurves[('flux_ADU', best_radius)]
+    timestamps = timestamps.rename(columns={'exposure_mid': 'exposure_mid_timestamp_UTC'})
+    lightcurves['target_relative_normalized_flux'] = lightcurves[('flux_ADU', best_radius)]
     targ_norm['target_normalized_flux'] = targ_norm[('flux_ADU', best_radius)]
     comp_norm['comparisons_sum_normalized_flux'] = comp_norm[('flux_ADU', best_radius)]
-    lightcurve = pd.concat([timestamps[['midexposure_timestamp_UTC']],
-                            lightcurves[['target_normalized_relative_flux']],
+    lightcurve = pd.concat([timestamps[['exposure_mid_timestamp_UTC']],
+                            lightcurves[['target_relative_normalized_flux']],
                             targ_norm[['target_normalized_flux']],
                             comp_norm[['comparisons_sum_normalized_flux']]],
                            axis=1)
@@ -2264,13 +2307,13 @@ def plot_lightcurve(lightcurve, fpath=None, **kwargs):
 
     """
     plt.figure()
-    lightcurve = lightcurve[['target_normalized_relative_flux',
-                             'midexposure_timestamp_UTC']].set_index(keys=['midexposure_timestamp_UTC'])
+    lightcurve = lightcurve[['target_relative_normalized_flux',
+                             'exposure_mid_timestamp_UTC']].set_index(keys=['exposure_mid_timestamp_UTC'])
     pd.DataFrame.plot(lightcurve,
                       title="{fpath}\n{ts}".format(fpath=os.path.basename(fpath),
                                                  ts=lightcurve.index[0].isoformat()),
                       legend=False, marker='o', markersize=2, linestyle='', **kwargs)
-    plt.ylabel('target_normalized_relative_flux')
+    plt.ylabel('target_relative_normalized_flux')
     if fpath is not None:
         logger.info("Writing plot to: {fpath}".format(fpath=fpath))
         plt.savefig(fpath, bbox_inches='tight')
