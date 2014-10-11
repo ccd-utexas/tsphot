@@ -20,6 +20,9 @@ SEQUENCE_NUMBER : Methods are labeled like semantic versioning [3]_ within their
         are optional to the pipeline, and/or are diagnostic.
     All functions within this module should have a sequence number since they should all have a role in the
         pipeline [2]_.
+IDE comments : Some comments are flags for IDEs (e.g. Eclipse PyDev, Spyder, PyCharm)
+    #@UndefinedVariable : Eclipse PyDev does not recognize imports such as scipy.signal.med2d
+    # noinspection : PyCharm flag to not inspect for statement or function
 
 References
 ----------
@@ -32,7 +35,6 @@ References
 
 # Forwards compatibility imports.
 from __future__ import division, absolute_import, print_function
-
 # Standard library imports.
 import os
 import sys
@@ -43,7 +45,6 @@ import logging
 import itertools
 import collections
 import datetime as dt
-
 # External package imports. Grouped procedurally then categorically.
 from bs4 import BeautifulSoup
 import numpy as np
@@ -60,7 +61,6 @@ import photutils
 from photutils.detection import morphology, lacosmic
 # noinspection PyPep8Naming
 from astroML import stats as astroML_stats
-
 # Internal package imports.
 import read_spe
 
@@ -261,7 +261,6 @@ def define_progress(dobj, interval=0.05):
         key_idx = int(math.ceil((num_keys - 1) * progress))
         key = image_keys[key_idx]
         key_progress[key] = progress
-
     # noinspection PyShadowingNames
     def print_progress(key, key_progress=key_progress):
         if key in key_progress:
@@ -309,7 +308,7 @@ def spe_to_dict(fpath):
     object_ccddata['footer_xml'] = spe.footer_metadata
     for fidx in xrange(spe.get_num_frames()):
         (data, meta) = spe.get_frame(fidx)
-        object_ccddata[fidx] = ccdproc.CCDData(data=data, meta=meta, unit=astropy.units.adu)
+        object_ccddata[fidx] = ccdproc.CCDData(data=data, meta=meta, unit=astropy.units.adu) #@UndefinedVariable
     spe.close()
     return object_ccddata
 
@@ -441,7 +440,7 @@ def gain_readnoise_from_master(bias, flat):
     median_flat = np.nanmedian(flat)
     gain = (median_flat / (fwhm_flat ** 2.0))
     readnoise = (gain * fwhm_bias)
-    return (gain * (astropy.units.electron / astropy.units.adu), readnoise * astropy.units.electron)
+    return (gain * (astropy.units.electron / astropy.units.adu), readnoise * astropy.units.electron) #@UndefinedVariable
 
 
 # noinspection PyPep8Naming
@@ -508,7 +507,7 @@ def gain_readnoise_from_random(bias1, bias2, flat1, flat2):
     sigmaG_diff_f12 = math.sqrt(astroML_stats.sigmaG(flat1) ** 2.0 + astroML_stats.sigmaG(flat2) ** 2.0)
     gain = (((f1 + f2) - (b1 + b2)) / (sigmaG_diff_f12 ** 2.0 - sigmaG_diff_b12 ** 2.0))
     readnoise = gain * sigmaG_diff_b12 / math.sqrt(2.0)
-    return (gain * (astropy.units.electron / astropy.units.adu), readnoise * astropy.units.electron)
+    return (gain * (astropy.units.electron / astropy.units.adu), readnoise * astropy.units.electron) #@UndefinedVariable
 
 
 # TODO: Once gain_readnoise_from_masters and gain_readnoise_from_random agree, fix and use check_gain_readnoise
@@ -908,7 +907,7 @@ def find_stars(image, min_sigma=1, max_sigma=max_sigma, num_sigma=2, threshold=3
     """
     # Normalize and smooth image then find stars. Order by x,y,sigma.
     image = normalize(image)
-    image = scipy.signal.medfilt2d(image, kernel_size=3)
+    image = scipy.signal.medfilt2d(image, kernel_size=3) #@UndefinedVariable
     stars_arr = feature.blob_log(image=image, min_sigma=min_sigma, max_sigma=max_sigma,
                                  num_sigma=num_sigma, threshold=threshold, **kwargs)
     if len(stars_arr) > 0:
@@ -1346,9 +1345,9 @@ def center_stars(image, stars, box_pix=21, threshold_sigma=3, method='fit_2dgaus
                 for y_idx in xrange(height_actl):
                     for x_idx in xrange(width_actl):
                         pixel_counts = np.rint(subimage[y_idx, x_idx])
-                        x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1)
+                        x_dist_pix = scipy.stats.uniform(x_idx - 0.5, 1) #@UndefinedVariable
                         x_dist.extend(x_dist_pix.rvs(pixel_counts))
-                        y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1)
+                        y_dist_pix = scipy.stats.uniform(y_idx - 0.5, 1) #@UndefinedVariable
                         y_dist.extend(y_dist_pix.rvs(pixel_counts))
                 (mu, sigma1, sigma2, alpha) = astroML_stats.fit_bivariate_normal(x_dist, y_dist, robust=True)
                 (x_finl_sub, y_finl_sub) = mu
@@ -1523,7 +1522,7 @@ def drop_duplicate_stars(stars):
                 update_dist = None
                 # TODO: vectorize
                 for (idx2, row2) in stars.drop(idx, inplace=False).iterrows():
-                    dist = scipy.spatial.distance.euclidean(u=row.loc[['x_pix', 'y_pix']],
+                    dist = scipy.spatial.distance.euclidean(u=row.loc[['x_pix', 'y_pix']], #@UndefinedVariable
                                                             v=row2.loc[['x_pix', 'y_pix']])
                     if min_dist is None:
                         update_dist = True
@@ -1635,7 +1634,7 @@ def translate_images_1to2(image1, image2):
     phase_corr = abs(np.fft.ifft2((f1.conjugate() * f2) / (abs(f1) * abs(f2))))
     (tiled_offset_y, tiled_offset_x) = shape
     tiled = np.tile(phase_corr, (3, 3))
-    tiled = scipy.signal.medfilt2d(tiled, kernel_size=3)
+    tiled = scipy.signal.medfilt2d(tiled, kernel_size=3) #@UndefinedVariable
     # Note: Determine the max phase correlation from the center tile,
     # otherwise max will be in upper right tile and not original image.
     (dy_int, dx_int) = \
@@ -1810,7 +1809,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
         # TODO: Allow users to define stars by hand instead of by `find_stars`
         # TODO: Can't individually set pandas.DataFrame elements to True. Report bug?
         translation = translate_images_1to2(image1=image1, image2=image2)
-        tform = skimage.transform.SimilarityTransform(translation=translation)
+        tform = skimage.transform.SimilarityTransform(translation=translation) #@UndefinedVariable
         stars.loc[:, ('tform1to2', ['x_pix', 'y_pix'])] = tform(stars.loc[:, ('stars1', ['x_pix', 'y_pix'])].values)
         logger.debug("Transform parameters:\n{pars}".format(pars={'translation': tform.translation,
                                                                   'rotation': tform.rotation,
@@ -1845,7 +1844,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
                                           "'stars1_index' or 'stars2_index':\n" +
                                           "stars_dist =\n{stars_dist}").format(stars_dist=stars_dist))
                 stars_dist.loc[idx_r, idx_c] =  \
-                    scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']],
+                    scipy.spatial.distance.euclidean(u=row1.loc['tform1to2', ['x_pix', 'y_pix']], #@UndefinedVariable
                                                      v=row2.loc[['x_pix', 'y_pix']])
         logger.debug("Distances between translated stars from stars1 and newly found stars from stars2.\n" +
                      "stars_dist =\n{sd}".format(sd=stars_dist))
@@ -1936,7 +1935,7 @@ def match_stars(image1, image2, stars1, stars2, test=False):
             translation_subpix = np.nanmean(stars.loc[tfmask_verif, ('stars2', ['x_pix', 'y_pix'])].values -
                                             stars.loc[tfmask_verif, ('stars1', ['x_pix', 'y_pix'])].values,
                                             axis=0)
-            tform_subpix = skimage.transform.SimilarityTransform(translation=translation_subpix)
+            tform_subpix = skimage.transform.SimilarityTransform(translation=translation_subpix) #@UndefinedVariable
             tfmask_unverif = -tfmask_verif
             stars.loc[tfmask_unverif, ('tform1to2', ['x_pix', 'y_pix'])] = \
                 tform_subpix(stars.loc[tfmask_unverif, ('stars1', ['x_pix', 'y_pix'])].values)
@@ -2052,13 +2051,13 @@ def make_timestamps_timeseries(dobj, radii):
                          "{stars}").format(ftnum=ftnum_new, stars=timeseries_dict[ftnum_new]))
         else:
             # noinspection PyUnboundLocalVariable
-            matched_stars = match_stars(image1=last_image_with_stars, image2=image_new,
-                                        stars1=last_stars, stars2=stars_new)
+            matched_stars = match_stars(image1=last_image_with_stars, image2=image_new, #@UndefinedVariable
+                                        stars1=last_stars, stars2=stars_new) #@UndefinedVariable
             timeseries_dict[ftnum_new] = matched_stars['stars2']
             timeseries_dict[ftnum_new].rename(columns={'verif2to1': 'matchedprev_bool'}, inplace=True)
             logger.debug("Matched stars:\n{stars}".format(stars=timeseries_dict[ftnum_new]))
             # Report if new stars were found.
-            if len(timeseries_dict[ftnum_new]) != len(timeseries_dict[last_ftnum_with_stars]):
+            if len(timeseries_dict[ftnum_new]) != len(timeseries_dict[last_ftnum_with_stars]): #@UndefinedVariable
                 logger.info(("New stars found.\n" +
                              "Frame tracking number: {ftnum}\n" +
                              "All current stars:\n" +
@@ -2146,7 +2145,7 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
     sorted_star_indices = sorted(timeseries.columns.levels[0].values)
     for star_idx in sorted_star_indices:
         plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
-                    c=timeseries.index.values, s=50.0, cmap=plt.cm.jet, linewidths=0)
+                    c=timeseries.index.values, s=50.0, cmap=plt.cm.jet, linewidths=0) #@UndefinedVariable
     plt.colorbar(ticks=np.linspace(timeseries.index.min(), timeseries.index.max(), 5, dtype=int))
     if zoom is not None:
         # noinspection PyUnboundLocalVariable
