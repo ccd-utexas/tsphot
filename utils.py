@@ -2188,21 +2188,37 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs=None,
         Example: 0
     comparison_idxs : {None}, list, optional.
         ``list`` of ``int`` with star indices to use as comparison stars.
+        If default ``None``, uses all stars except for target as comparison stars. 
         Example: [2, 3, 4]
     ftnums_drop : {None}, list, optional
-        ``list`` of ``int`` with frame tracking numbers of images to drop (e.g. due to clouds).
+        ``list`` of ``int`` with frame tracking numbers of images to drop. Use for dropping frames due to clouds.
+        If default ``None``, no frames are dropped.
         Example: ftnum_drop = range(10, 14) + range(20, 21) = [10, 11, 12, 13, 20]
-    ftnums_norm : {None}, list, optional
+    ftnums_norm : {'all'}, list, optional
         ``list`` of ``int`` with frame tracking numbers of images to use for normalization.
         The entire lightcurve will be scaled so that median flux of these frames is 1.0.
-        If default ``None``, entire lightcurve is scaled so that median flux of the lightcurve is 1.0.  
-        Example: See `ftnum_drop`
-    ftnums_calc_detrend : {None}, list, optional
-        ``list`` of ``int`` with frame tracking numbers of images to use for calculating the curve for detrending.
-        The detrending is for correcting differential color extinction. A polynomial curve with degree 0 to 10 is
-        selected using cross-validation and Bayesian Information Criterion. See `ftnums_apply_detrend` to select
-        the data to be detrended. 
-    ftnums_apply_detrend : {None}, list, optional
+        If default 'all', entire lightcurve is scaled so that median flux of the lightcurve is 1.0.  
+        Example: See example for `ftnum_drop`.
+    ftnums_calc_detrend : {None, 'all'}, list, optional
+        ``list`` of ``int`` with frame tracking numbers of images from which to calculate the polynomial for detrending.
+        Use for correcting differential color extinction. Polynomial is fit to `target_relative_normalized_flux`.
+        Polynomial degree from 0 to 3 is selected using cross-validation and Bayesian Information Criterion.
+        Polynomial model is averaged over multiple fits. Data are detrended after being normalized.
+        Adapted from sec 8.11 of [2]_.
+        A warning is raised if `ftnums_norm` does not overlap with `ftnums_calc_detrend` since fluxes will be
+        detrended to level of normalized flux. 
+        See `ftnums_apply_detrend` to select the data to be detrended.
+        If default ``None``, no curve is fit for detrending.
+        If 'all', a curve is fit to entire lightcurve for detrending.
+        Example: See example for `ftnum_drop`.
+    ftnums_apply_detrend : {None, 'all'}, list, optional
+        ``list`` of ``int`` with frame tracking numbers of images to which to apply the polynomial for detrending.
+        Use for correcting differential color extinction. Selected data are detrended by adding 1.0 to fit residuals.
+        Data are detrended after being normalized. A warning is raised if `ftnums_calc_detrend` is not a subset of
+        `ftnums_apply_detrend` since detrending should be applied to data from which it was calculated.
+        If default ``None``, no detrending is applied.
+        if 'all', detrending is applied to entire lightcurve.
+        Example: See example for `ftnum_drop`.
 
     Returns
     -------
@@ -2230,15 +2246,19 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs=None,
     References
     ----------
     .. [1] Howell, 2009, "Handbook of CCD Astronomy"
+    .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
 
     """
     # Drop frames to be excluded (e.g. due to clouds).
     # Define target, compsum lightcurves.
-    if ftnums_drop is not None:
-        logger.info("Dropping images with frame tracking numbers:\n{ftd}".format(ftd=ftnums_drop))
+    if ftnums_drop is None:
+        logger.info("Not dropping any images.")
+    else:
+        logger.info("Dropping images with frame tracking numbers:\n{nums}".format(nums=ftnums_drop))
         timeseries = timeseries.drop(ftnums_drop, axis=0)
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
     target = timeseries[target_idx].drop(drop_cols, axis=1)
+    logger.info("Target star index:\ntarget_idx = {idx}".format(idx=target_idx))
     if comparison_idxs is None:
         comps = timeseries.drop(target_idx,
                                       level='star_index',
@@ -2251,6 +2271,7 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs=None,
                                                                  level='quantity_unit',
                                                                  axis=1)
         comp_idxs = comparison_idxs
+    logger.info("Comparision star indices:\ncomp_idxs = {idxs}".format(idxs=comp_idxs))
     for comp_idx in comp_idxs:
         if comp_idx == comp_idxs[0]:
             compsum = comps[comp_idx]
@@ -2270,26 +2291,21 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs=None,
                  if sigma is not np.NaN]))
     radii = [label[1] for label in timeseries.columns.levels[1].values if len(label) == 2]
     best_radius = radii[np.nanargmin(np.abs(radii - fwhm_med))]
-    logger.info("Optimal photometry aperture radius: {rad}".format(rad=best_radius))
+    logger.info("Optimal photometry aperture radius (pixels):\nbest_radius = {rad}".format(rad=best_radius))
     # Normalize timeseries to get relative changes in brightness.
     # Ensure that all timeseries have median value of 1 (over chosen frames).
     lightcurves = target / compsum
-    if ftnums_norm is not None:
-        logger.info("Normalizing to median from images with frame tracking numbers:\n{ftm}".format(ftm=ftnums_norm))
-        target_median = target.loc[ftnums_norm].median(axis=0, skipna=True)
-        compsum_median = compsum.loc[ftnums_norm].median(axis=0, skipna=True)
-        lightcurves_median = lightcurves.loc[ftnums_norm].median(axis=0, skipna=True)
+    if ftnums_norm == 'all':
+        logger.info("Normalizing to median from all images.")
+        ftnums_norm = lightcurves.index.values
     else:
-        target_median = target.median(axis=0, skipna=True)
-        compsum_median = compsum.median(axis=0, skipna=True)
-        lightcurves_median = lightcurves.median(axis=0, skipna=True)
+        logger.info("Normalizing to median from images with frame tracking numbers:\n{nums}".format(nums=ftnums_norm))
+    target_median = target.loc[ftnums_norm].median(axis=0, skipna=True)
+    compsum_median = compsum.loc[ftnums_norm].median(axis=0, skipna=True)
+    lightcurves_median = lightcurves.loc[ftnums_norm].median(axis=0, skipna=True)
     target_norm = target / target_median
     comp_norm = compsum / compsum_median
     lightcurves = lightcurves / lightcurves_median
-    # Detrend timeseries to remove differential color extinction.
-    # Calculate curve using cross-validation and Bayesian Information Criterion.
-    
-    
     # Rename dataframe columns prior to joining since column names are identical.
     # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
     # When making lightcurve, combine dataframes not series.
@@ -2302,6 +2318,72 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs=None,
                             target_norm[['target_normalized_flux']],
                             comp_norm[['comparisons_sum_normalized_flux']]],
                            axis=1)
+    # Detrend lightcurve to remove differential color extinction.
+    # Calculate curve using cross-validation and Bayesian Information Criterion.
+    # Shuffle and split into training set (80%) and cross-validation set (20%).
+    # Do once for each degree to determine best-fit number of degrees.
+    if ftnums_calc_detrend is not None:
+        if ftnums_calc_detrend == 'all':
+            logger.info("Calculating polynomial for detrending from all images.")
+            ftnums_calc_detrend = lightcurves.index.values
+        else:
+            logger.info(("Calculating polynomial for detrending from images with frame tracking numbers:\n" + 
+                         "{nums}").format(nums=ftnums_calc_detrend))
+        if len(ftnums_calc_detrend) < 5:
+            raise IOError(("`ftnums_calc_detrend` must have at least 5 images:\n" +
+                           "len(ftnums_calc_detrend) = {num}").format(num=len(ftnums_calc_detrend)))
+        if not set(ftnums_norm) & set(ftnums_calc_detrend):
+            logger.warning("`ftnums_norm` and `ftnums_calc_detrend` do not overlap.")
+        num_calc_detrend = len(ftnums_calc_detrend)
+        fluxes_calc_detrend = lightcurve.loc[ftnums_calc_detrend, 'target_relative_normalized_flux'].values
+        models_df = {}
+        degrees = range(4)
+        for degree in degrees:
+            models_df[degree] = {}
+            # Splits data set into train set and cval set.
+            for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(num_calc_detrend, n_iter=1, test_size=0.2, random_state=0):
+                (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
+                (ftnums_cval, fluxes_cval) = (ftnums_calc_detrend[idxs_cval], fluxes_calc_detrend[idxs_cval])
+                model = np.polyfit(ftnums_train, fluxes_train, degree)
+                models_df[degree]['model'] = model
+                train_err = np.sqrt(np.sum((np.polyval(model, ftnums_train) - fluxes_train)**2.0) / len(fluxes_train))
+                models_df[degree]['train_err'] = train_err
+                cval_err = np.sqrt(np.sum((np.polyval(model, ftnums_cval) - fluxes_cval)**2.0) / len(fluxes_cval))
+                models_df[degree]['cval_err'] = cval_err
+        models_df = pd.DataFrame.from_dict(models_df, orient='index')
+        models_df.index.names = ['degree']
+        models_df.columns.names = ['quantity']
+        # Estimate intrinsic scatter for weighting BIC.
+        scatter_est = models_df['cval_err'].min()
+        models_df['train_BIC'] = (np.sqrt(num_calc_detrend) * np.divide(models_df['train_err'], scatter_est)) + np.multiply(degrees, np.log(num_calc_detrend))
+        models_df['cval_BIC'] = (np.sqrt(num_calc_detrend) * np.divide(models_df['cval_err'], scatter_est)) + np.multiply(degrees, np.log(num_calc_detrend))
+        # Calcualte best model with chosen number of degrees.
+        # Do 5 times to mitigate influence of outliers then average.
+        best_degree = models_df['cval_BIC'].idxmin()
+        logger.info("Degree of detrending polynomial:\nbest_degree = {deg}".format(deg=best_degree))
+        models = []
+        for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(len(ftnums_calc_detrend), n_iter=5, test_size=0.2, random_state=0):
+            (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
+            (ftnums_cval, fluxes_cval) = (ftnums_calc_detrend[idxs_cval], fluxes_calc_detrend[idxs_cval])
+            model = np.polyfit(ftnums_train, fluxes_train, best_degree)
+            models.append(model)
+        best_model = np.mean(models, axis=0)
+        logger.info("Coefficients of best model:\nbest_model = {mod}".format(mod=best_model))
+    # Apply best model to detrend lightcurve.
+    if ftnums_apply_detrend is not None:
+        if ftnums_apply_detrend == 'all':
+            logger.info("Detrending all images.")
+            ftnums_apply_detrend = lightcurves.index.values
+        else:
+            logger.info(("Detrending images with frame tracking numbers:\n" + 
+                         "{nums}").format(nums=ftnums_apply_detrend))
+        if not set(ftnums_calc_detrend) <= set(ftnums_apply_detrend):
+            logger.warning("`ftnums_calc_detrend` is not a subset of `ftnums_apply_detrend`.")
+        fluxes_apply_detrend = lightcurve.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'].values
+        fluxes_fit = np.polyval(best_model, ftnums_apply_detrend)
+        fluxes_residual = fluxes_apply_detrend - fluxes_fit
+        fluxes_detrended = fluxes_residual + 1.0
+        lightcurve.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'] = fluxes_detrended 
     return lightcurve
 
 
