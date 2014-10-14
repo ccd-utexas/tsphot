@@ -47,6 +47,7 @@ import itertools
 import collections
 import datetime as dt
 # External package imports. Grouped procedurally then categorically.
+# Note: Must import modules directly from skimage, sklearn, photutils.
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
@@ -54,6 +55,7 @@ import dateutil
 import scipy
 import skimage
 from skimage import feature
+import sklearn.cross_validation as sklearn_cval
 import matplotlib.pyplot as plt
 import astropy
 import ccdproc
@@ -61,7 +63,7 @@ import imageutils
 import photutils
 from photutils.detection import morphology, lacosmic
 # noinspection PyPep8Naming
-from astroML import stats as astroML_stats
+import astroML.stats as astroML_stats
 # Internal package imports.
 import read_spe
 
@@ -2141,8 +2143,8 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
         if not ((xmax - xmin) >= 1 and (ymax - ymin) >= 1):
             raise IOError(("`zoom` = ((xmin, xmax), (ymin, ymax)). Required: (xmax - xmin) and (ymax - ymin) >= 1.\n" +
                            "zoom = {zoom}").format(zoom=zoom))
-    sorted_star_indices = sorted(timeseries.columns.levels[0].values)
-    for star_idx in sorted_star_indices:
+    sorted_star_idxs = sorted(timeseries.columns.levels[0].values)
+    for star_idx in sorted_star_idxs:
         plt.scatter(x=timeseries[(star_idx, 'x_pix')], y=timeseries[(star_idx, 'y_pix')],
                     c=timeseries.index.values, s=50.0, cmap=plt.cm.jet, linewidths=0) #@UndefinedVariable
     plt.colorbar(ticks=np.linspace(timeseries.index.min(), timeseries.index.max(), 5, dtype=int))
@@ -2155,21 +2157,21 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
         plt.ylabel('y_pix')
     plt.gca().invert_yaxis()
     last_image_idx = timeseries.index.max()
-    for star_idx in sorted_star_indices:
+    for star_idx in sorted_star_idxs:
         (x_pix, y_pix) = timeseries.loc[last_image_idx, (star_idx, ['x_pix', 'y_pix'])].values
         plt.annotate(str(star_idx), xy=(x_pix, y_pix), xycoords='data', xytext=(0, 0),
                      textcoords='offset points', color='black', fontsize=18, rotation=0)
     plt.title("Star positions by frame tracking number")
     plt.show()
     if show_line_plots:
-        for star_idx in sorted_star_indices:
+        for star_idx in sorted_star_idxs:
             pd.DataFrame.plot(timeseries[star_idx][['x_pix', 'y_pix', 'sigma_pix']], kind='line',
                               secondary_y='sigma_pix', title="Star index: {idx}".format(idx=star_idx))
     return None
 
 
-def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=None,
-                    ftnum_drop=None, ftnum_med=None):
+def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs=None,
+                    ftnums_drop=None, ftnums_norm=None, ftnums_calc_detrend=None, ftnums_apply_detrend=None):
     """Make lightcurve from timestamps and timeseries.
     
     Optimal aperture radius is taken as ~1*FHWM, sec 5.4, [1]_. Median of each returned column with flux is 1.0.
@@ -2181,18 +2183,26 @@ def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=Non
         Ouptut `timestamps` ``pandas.DataFrame`` from `make_timestamps_timeseries`.
     timeseries : pandas.DataFrame
         Ouptut `timeseries` ``pandas.DataFrame`` from `make_timestamps_timeseries`.
-    target_index : int
+    target_idx : int
         ``int`` with star index to use as target star.
         Example: 0
-    comparison_indices : {None}, list, optional.
+    comparison_idxs : {None}, list, optional.
         ``list`` of ``int`` with star indices to use as comparison stars.
         Example: [2, 3, 4]
-    ftnum_drop : {None}, list, optional
+    ftnums_drop : {None}, list, optional
         ``list`` of ``int`` with frame tracking numbers of images to drop (e.g. due to clouds).
-        Example: ftnum_drop = range(10, 13) + range(20, 21) = [10, 11, 12, 20]
-    ftnum_med : {None}, list, optional
-        ``list`` of ``int`` with frame tracking numbers of images to use for median calculation.
+        Example: ftnum_drop = range(10, 14) + range(20, 21) = [10, 11, 12, 13, 20]
+    ftnums_norm : {None}, list, optional
+        ``list`` of ``int`` with frame tracking numbers of images to use for normalization.
+        The entire lightcurve will be scaled so that median flux of these frames is 1.0.
+        If default ``None``, entire lightcurve is scaled so that median flux of the lightcurve is 1.0.  
         Example: See `ftnum_drop`
+    ftnums_calc_detrend : {None}, list, optional
+        ``list`` of ``int`` with frame tracking numbers of images to use for calculating the curve for detrending.
+        The detrending is for correcting differential color extinction. A polynomial curve with degree 0 to 10 is
+        selected using cross-validation and Bayesian Information Criterion. See `ftnums_apply_detrend` to select
+        the data to be detrended. 
+    ftnums_apply_detrend : {None}, list, optional
 
     Returns
     -------
@@ -2222,29 +2232,36 @@ def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=Non
     .. [1] Howell, 2009, "Handbook of CCD Astronomy"
 
     """
-    if ftnum_drop is not None:
-        logger.info("Dropping images with frame tracking numbers:\n{ftd}".format(ftd=ftnum_drop))
-        timeseries = timeseries.drop(ftnum_drop, axis=0)
+    # Drop frames to be excluded (e.g. due to clouds).
+    # Define target, compsum lightcurves.
+    if ftnums_drop is not None:
+        logger.info("Dropping images with frame tracking numbers:\n{ftd}".format(ftd=ftnums_drop))
+        timeseries = timeseries.drop(ftnums_drop, axis=0)
     drop_cols = ['x_pix', 'y_pix', 'sigma_pix', 'matchedprev_bool']
-    target = timeseries[target_index].drop(drop_cols, axis=1)
-    if comparison_indices is None:
-        comparisons = timeseries.drop(target_index,
+    target = timeseries[target_idx].drop(drop_cols, axis=1)
+    if comparison_idxs is None:
+        comps = timeseries.drop(target_idx,
                                       level='star_index',
                                       axis=1).drop(drop_cols,
                                                    level='quantity_unit',
                                                    axis=1)
-        comp_indices = np.delete(timeseries.columns.levels[0].values, target_index)
+        comp_idxs = np.delete(timeseries.columns.levels[0].values, target_idx)
     else:
-        comparisons = timeseries.loc[:, comparison_indices].drop(drop_cols, level='quantity_unit', axis=1)
-        comp_indices = comparison_indices
-    for comp_idx in comp_indices:
-        if comp_idx == comp_indices[0]:
-            comp_sum = comparisons[comp_idx]
+        comps = timeseries.loc[:, comparison_idxs].drop(drop_cols,
+                                                                 level='quantity_unit',
+                                                                 axis=1)
+        comp_idxs = comparison_idxs
+    for comp_idx in comp_idxs:
+        if comp_idx == comp_idxs[0]:
+            compsum = comps[comp_idx]
         else:
             # noinspection PyUnboundLocalVariable
-            comp_sum = comp_sum.add(comparisons[comp_idx], fill_value=0.0)
+            compsum = compsum.add(comps[comp_idx], fill_value=0.0)
+    # Select optimal aperture radius.
     # From Howell, 2009, sec 5.4, optimal aperture radius is ~1*FHWM. Data is undersampled if FHWM < 1.5 pix.
     # TODO: verify best aperture with scatter measure. Use SNR from photutils instead?
+    # Example of decreasing scatter with radius:
+    # comp_norm.apply(astroML.stats.sigmaG, axis=0).plot(marker='o', markersize=3)
     fwhm_med = \
         sigma_to_fwhm(
             np.nanmedian(
@@ -2253,31 +2270,36 @@ def make_lightcurve(timestamps, timeseries, target_index, comparison_indices=Non
                  if sigma is not np.NaN]))
     radii = [label[1] for label in timeseries.columns.levels[1].values if len(label) == 2]
     best_radius = radii[np.nanargmin(np.abs(radii - fwhm_med))]
-    logger.info("Photometry aperture radius: {rad}".format(rad=best_radius))
-    # Ensure that all timeseries have median value of 1.
-    lightcurves = target / comp_sum
-    if ftnum_med is not None:
-        # logger.info calc median using ftnums
-        # target_median = target.loc[ftnum_med].median(axis=0, skipna=True)
-        # comp_sum_median = comp_sum.loc.median
-        # lightcurves_median = lightcurves.loc.median
-        pass
+    logger.info("Optimal photometry aperture radius: {rad}".format(rad=best_radius))
+    # Normalize timeseries to get relative changes in brightness.
+    # Ensure that all timeseries have median value of 1 (over chosen frames).
+    lightcurves = target / compsum
+    if ftnums_norm is not None:
+        logger.info("Normalizing to median from images with frame tracking numbers:\n{ftm}".format(ftm=ftnums_norm))
+        target_median = target.loc[ftnums_norm].median(axis=0, skipna=True)
+        compsum_median = compsum.loc[ftnums_norm].median(axis=0, skipna=True)
+        lightcurves_median = lightcurves.loc[ftnums_norm].median(axis=0, skipna=True)
     else:
-        # todo: use median below
-        pass
-    targ_norm = target / target.median(axis=0, skipna=True)
-    comp_norm = comp_sum / comp_sum.median(axis=0, skipna=True)
-    lightcurves = lightcurves / lightcurves.median(axis=0, skipna=True)
+        target_median = target.median(axis=0, skipna=True)
+        compsum_median = compsum.median(axis=0, skipna=True)
+        lightcurves_median = lightcurves.median(axis=0, skipna=True)
+    target_norm = target / target_median
+    comp_norm = compsum / compsum_median
+    lightcurves = lightcurves / lightcurves_median
+    # Detrend timeseries to remove differential color extinction.
+    # Calculate curve using cross-validation and Bayesian Information Criterion.
+    
+    
     # Rename dataframe columns prior to joining since column names are identical.
     # Pandas 0.14 doesn't fully support tuples as column label, so make a separate column.
     # When making lightcurve, combine dataframes not series.
     timestamps = timestamps.rename(columns={'exposure_mid': 'exposure_mid_timestamp_UTC'})
     lightcurves['target_relative_normalized_flux'] = lightcurves[('flux_ADU', best_radius)]
-    targ_norm['target_normalized_flux'] = targ_norm[('flux_ADU', best_radius)]
+    target_norm['target_normalized_flux'] = target_norm[('flux_ADU', best_radius)]
     comp_norm['comparisons_sum_normalized_flux'] = comp_norm[('flux_ADU', best_radius)]
     lightcurve = pd.concat([timestamps[['exposure_mid_timestamp_UTC']],
                             lightcurves[['target_relative_normalized_flux']],
-                            targ_norm[['target_normalized_flux']],
+                            target_norm[['target_normalized_flux']],
                             comp_norm[['comparisons_sum_normalized_flux']]],
                            axis=1)
     return lightcurve
