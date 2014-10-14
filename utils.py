@@ -2171,7 +2171,7 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
 
 
 def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', ftnums_drop=None,
-                    ftnums_norm='all', ftnums_calc_detrend=None, ftnums_apply_detrend=None, show_plots=False):
+                    ftnums_norm=None, ftnums_calc_detrend=None, ftnums_apply_detrend=None, show_plots=False):
     """Make lightcurve from timestamps and timeseries.
     
     Optimal aperture radius is taken as ~1*FHWM, sec 5.4, [1]_. Median of each returned column with flux is 1.0.
@@ -2194,10 +2194,11 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
         ``list`` of ``int`` with frame tracking numbers of images to drop. Use for dropping frames due to clouds.
         If default ``None``, no frames are dropped.
         Example: ftnum_drop = range(10, 14) + range(20, 21) = [10, 11, 12, 13, 20]
-    ftnums_norm : {'all'}, list, optional
+    ftnums_norm : {None, 'all'}, list, optional
         ``list`` of ``int`` with frame tracking numbers of images to use for normalization.
         The entire lightcurve will be scaled so that median flux of these frames is 1.0.
-        If default 'all', entire lightcurve is scaled so that median flux of the lightcurve is 1.0.  
+        If default ``None``, lightcurve is not scaled.
+        If 'all', entire lightcurve is scaled so that median flux of the lightcurve is 1.0.  
         Example: See example for `ftnum_drop`.
     ftnums_calc_detrend : {None, 'all'}, list, optional
         ``list`` of ``int`` with frame tracking numbers of images from which to calculate the polynomial for detrending.
@@ -2220,7 +2221,7 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
         if 'all', detrending is applied to entire lightcurve.
         Example: See example for `ftnum_drop`.
     show_plots : {False}, bool, optional
-        ``True``/``False`` flag to show diagnostic plots from polynomial fit for detrending lightcurve. 
+        ``True``/``False`` flag to show diagnostic plots. 
 
     Returns
     -------
@@ -2231,10 +2232,15 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
             `frame_tracking_number`: Frame tracking number from SPE metadata, >= 1. Example: 1
         column names:
             `exposure_mid_timestamp_UTC` : Midexposure timestamp as ``datetime.datetime``.
-            `target_relative_normalized_flux` : (target flux / comparisons sum flux) /
-                                                median of (target flux / comparisons sum flux) 
-            `target_normalized_flux` : target flux / median of target flux
-            `comparisions_sum_normalized_flux` :  comparisons sum / median of comparisons sum
+            `target_flux` : target flux
+            `comparisons_sum_flux` : comparisions sum flux
+            `target_relative_flux` : `target_flux` / `comparisons_sum_flux`  
+            if `ftnums_norm` is not None:
+            `target_normalized_flux` : `target_flux` / median(`target_flux`)
+            `comparisions_sum_normalized_flux` :  `comparisons_sum_flux` / median(`comparisons_sum_flux`)
+            `target_relative_normalized_flux` : `target_relative_flux` / median(`target_relative_flux`)
+            if `ftnums_apply_detrend` is not None:
+            `target_relative_normalized_detrended_flux` : `target_relative_normalized_flux` with detrending applied
 
     See Also
     --------
@@ -2392,17 +2398,13 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
         lightcurve.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'] = fluxes_detrended
     # Show diagnostic plots.
     if show_plots:
-        models_df[['train_err', 'cval_err']].plot(title="Training and cross-validation error")
-        plt.show()
-        models_df[['train_BIC', 'cval_BIC']].plot(title="Bayesian Information Criterion\nfor training and cross-validation")
+        models_df.plot(secondary_y=['train_BIC', 'cval_BIC'], marker='o',
+                       title="Error and Bayesian Info. Crit.\nfor training and cross-validation")
         plt.show()
         plt.scatter(ftnums_apply_detrend, fluxes_apply_detrend, c='blue', s=50)
         plt.plot(ftnums_apply_detrend, fluxes_fit, c='red', linewidth=5)
-        plt.title("`ftnums_apply_detrend` and fit")
-        plt.show()
-        plt.scatter(ftnums_apply_detrend, fluxes_apply_detrend, c='blue', s=50)
-        plt.scatter(ftnums_apply_detrend, fluxes_detrended, c='red', s=50)
-        plt.title("`ftnums_apply_detrend` and after detrending")
+        plt.scatter(ftnums_apply_detrend, fluxes_detrended, c='red', s=20)
+        plt.title("`ftnums_apply_detrend` before, fit,\nand after detrended")
         plt.show()
     return lightcurve
 
