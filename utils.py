@@ -2310,10 +2310,7 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
     # Ensure that all timeseries have median value of 1.0 (over chosen frames).
     if ftnums_norm is None:
         logger.info("Not normalizing lightcurve to median.")
-        logger.info("Skipping detrending. Setting `ftnums_calc_detrend` and `ftnums_apply_detrend` to ``None``.")
-        ftnums_calc_detrend = None
-        ftnums_apply_detrend = None
-    else:    
+    else:
         if ftnums_norm == 'all':
             logger.info("Normalizing lightcurve to median from all images.")
             ftnums_norm = lightcurves.index.values
@@ -2329,114 +2326,143 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
         targrel_median = lightcurves.loc[ftnums_norm, 'target_relative_flux'].median(axis=0, skipna=True)
         lightcurves.loc[ftnums_norm, 'target_relative_normalized_flux'] = \
             lightcurves.loc[ftnums_norm, 'target_relative_flux'].divide(targrel_median)
-    # Detrend lightcurve to remove differential color extinction.
-    # Calculate polynomial models for detrending using cross-validation and Bayesian Information Criterion.
-    # Shuffle and split into training set (80%) and cross-validation set (20%).
-    # Do once for each degree to determine best-fit number of degrees.
-    if ftnums_calc_detrend is None:
-        logger.info("Not calculating or applying polynomial to detrend.")
-    else:
-        if ftnums_calc_detrend == 'all':
-            logger.info("Calculating polynomial to detrend from all images.")
-            ftnums_calc_detrend = lightcurves.index.values
+        # Detrend lightcurve to remove differential color extinction.
+        # Calculate polynomial models for detrending using cross-validation and Bayesian Information Criterion.
+        # Shuffle and split into training set (80%) and cross-validation set (20%).
+        # Do once for each degree to determine best-fit number of degrees.
+        if ftnums_calc_detrend is None:
+            logger.info("Not calculating polynomial to detrend.")
         else:
-            logger.info(("Calculating polynomial to detrend from images with frame tracking numbers:\n" + 
-                         "{nums}").format(nums=ftnums_calc_detrend))
-        if not set(ftnums_norm) & set(ftnums_calc_detrend):
-            logger.warning("`ftnums_norm` and `ftnums_calc_detrend` do not overlap.")
-        num_calc_detrend = len(ftnums_calc_detrend)
-        if num_calc_detrend < 5:
-            raise IOError(("`ftnums_calc_detrend` must have at least 5 images:\n" +
-                           "len(ftnums_calc_detrend) = {num}").format(num=num_calc_detrend))
-        # Extract index and fluxes as numpy.ndarray to use "fancy indexing".
-        ftnums_calc_detrend = lightcurves.loc[ftnums_calc_detrend, 'target_relative_normalized_flux'].index.values
-        fluxes_calc_detrend = lightcurves.loc[ftnums_calc_detrend, 'target_relative_normalized_flux'].values
-        degrees = range(5)
-        models = pd.DataFrame(index=degrees, columns=['model', 'train_err', 'cval_err'])
-        models.index.names = ['degree']
-        models.columns.names = ['quantity']
-        for degree in degrees:
-            # Split data into training set and cross-validation set.
-            for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(num_calc_detrend, n_iter=1, test_size=0.2, random_state=0):
+            if ftnums_calc_detrend == 'all':
+                logger.info("Calculating polynomial to detrend from all images.")
+                ftnums_calc_detrend = lightcurves.index.values
+            else:
+                logger.info(("Calculating polynomial to detrend from images with frame tracking numbers:\n" + 
+                             "{nums}").format(nums=ftnums_calc_detrend))
+            if not set(ftnums_norm) & set(ftnums_calc_detrend):
+                logger.warning("`ftnums_norm` and `ftnums_calc_detrend` do not overlap.")
+            num_calc_detrend = len(ftnums_calc_detrend)
+            if num_calc_detrend < 5:
+                raise IOError(("`ftnums_calc_detrend` must have at least 5 images:\n" +
+                               "len(ftnums_calc_detrend) = {num}").format(num=num_calc_detrend))
+            # Extract index and fluxes as numpy.ndarray to use "fancy indexing".
+            ftnums_calc_detrend = lightcurves.loc[ftnums_calc_detrend, 'target_relative_normalized_flux'].index.values
+            fluxes_calc_detrend = lightcurves.loc[ftnums_calc_detrend, 'target_relative_normalized_flux'].values
+            degrees = range(5)
+            models = pd.DataFrame(index=degrees, columns=['model', 'train_err', 'cval_err'])
+            models.index.names = ['degree']
+            models.columns.names = ['quantity']
+            for degree in degrees:
+                # Split data into training set and cross-validation set.
+                for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(num_calc_detrend, n_iter=1, test_size=0.2, random_state=0):
+                    (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
+                    (ftnums_cval, fluxes_cval) = (ftnums_calc_detrend[idxs_cval], fluxes_calc_detrend[idxs_cval])
+                    model = np.polyfit(ftnums_train, fluxes_train, degree)
+                    models.loc[degree, 'model'] = model
+                    train_err = np.sqrt(np.sum((np.polyval(model, ftnums_train) - fluxes_train)**2.0) / len(fluxes_train))
+                    models.loc[degree, 'train_err'] = train_err
+                    cval_err = np.sqrt(np.sum((np.polyval(model, ftnums_cval) - fluxes_cval)**2.0) / len(fluxes_cval))
+                    models.loc[degree, 'cval_err'] = cval_err
+            # Estimate intrinsic scatter for weighting BIC.
+            scatter_est = models['cval_err'].min()
+            logger.info(("Estimate for intrinsic scatter in lightcurve:\n" +
+                         "scatter_est = {est}").format(est=scatter_est))
+            models['train_BIC'] = (np.sqrt(num_calc_detrend) * np.divide(models['train_err'], scatter_est)) + \
+                np.multiply(degrees, np.log(num_calc_detrend))
+            models['cval_BIC'] = (np.sqrt(num_calc_detrend) * np.divide(models['cval_err'], scatter_est)) + \
+                np.multiply(degrees, np.log(num_calc_detrend))
+            # Calcualte best model with optimized number of degrees.
+            # Do 5 times to mitigate influence of outliers then average.
+            best_degree = models['cval_BIC'].idxmin()
+            logger.info(("Degree of detrending polynomial model:" +
+                         "\nbest_degree = {deg}").format(deg=best_degree))
+            best_models = []
+            for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(len(ftnums_calc_detrend), n_iter=5, test_size=0.2, random_state=0):
                 (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
                 (ftnums_cval, fluxes_cval) = (ftnums_calc_detrend[idxs_cval], fluxes_calc_detrend[idxs_cval])
-                model = np.polyfit(ftnums_train, fluxes_train, degree)
-                model.loc[degree, 'model'] = model
-                train_err = np.sqrt(np.sum((np.polyval(model, ftnums_train) - fluxes_train)**2.0) / len(fluxes_train))
-                models.loc[degree, 'train_err'] = train_err
-                cval_err = np.sqrt(np.sum((np.polyval(model, ftnums_cval) - fluxes_cval)**2.0) / len(fluxes_cval))
-                models.loc[degree, 'cval_err'] = cval_err
-        # Estimate intrinsic scatter for weighting BIC.
-        scatter_est = models['cval_err'].min()
-        logger.info(("Estimate for intrinsic scatter in lightcurve:\n" +
-                     "scatter_est = {est}").format(est=scatter_est))
-        models['train_BIC'] = (np.sqrt(num_calc_detrend) * np.divide(models['train_err'], scatter_est)) + \
-            np.multiply(degrees, np.log(num_calc_detrend))
-        models['cval_BIC'] = (np.sqrt(num_calc_detrend) * np.divide(models['cval_err'], scatter_est)) + \
-            np.multiply(degrees, np.log(num_calc_detrend))
-        # Calcualte best model with optimized number of degrees.
-        # Do 5 times to mitigate influence of outliers then average.
-        best_degree = models['cval_BIC'].idxmin()
-        logger.info(("Degree of detrending polynomial:" +
-                     "\nbest_degree = {deg}").format(deg=best_degree))
-        best_models = []
-        for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(len(ftnums_calc_detrend), n_iter=5, test_size=0.2, random_state=0):
-            (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
-            (ftnums_cval, fluxes_cval) = (ftnums_calc_detrend[idxs_cval], fluxes_calc_detrend[idxs_cval])
-            model = np.polyfit(ftnums_train, fluxes_train, best_degree)
-            best_models.append(model)
-        best_model = np.mean(best_models, axis=0)
-        logger.info(("Coefficients of best model:" +
-                     "\nbest_model = {mod}").format(mod=best_model))
-        # Apply best model to detrend lightcurve.
-        if ftnums_apply_detrend is None:
-            logger.info("Not applying polynomial to detrending.")
-        else:
-            if ftnums_apply_detrend == 'all':
-                logger.info("Applying polynomial to detrend all images.")
-                ftnums_apply_detrend = lightcurves.index.values
+                model = np.polyfit(ftnums_train, fluxes_train, best_degree)
+                best_models.append(model)
+            best_model = np.mean(best_models, axis=0)
+            logger.info(("Coefficients of best polynomial model:" +
+                         "\nbest_model = {mod}").format(mod=best_model))
+            # Apply best model to detrend lightcurve.
+            if ftnums_apply_detrend is None:
+                logger.info("Not applying polynomial to detrend.")
             else:
-                logger.info(("Applying polynomial to detrend images with frame tracking numbers:\n" + 
-                             "{nums}").format(nums=ftnums_apply_detrend))
-            if not set(ftnums_apply_detrend) <= set(ftnums_calc_detrend):
-                logger.warning("`ftnums_apply_detrend` is not a subset of `ftnums_calc_detrend`.")
-            # Extract index and fluxes as numpy.ndarray to use "fancy indexing".
-            ftnums_apply_detrend = lightcurves.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'].index.values
-            fluxes_apply_detrend = lightcurves.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'].values
-            fluxes_fit = np.polyval(best_model, ftnums_apply_detrend)
-            fluxes_residual = fluxes_apply_detrend - fluxes_fit
-            fluxes_detrended = fluxes_residual + 1.0
-            lightcurves['target_relative_normalized_detrended_flux'] = lightcurves['target_relative_normalized_flux']
-            lightcurves.loc[ftnums_apply_detrend, 'target_relative_normalized_detrended_flux'] = fluxes_detrended
+                if ftnums_apply_detrend == 'all':
+                    logger.info("Applying polynomial to detrend all images.")
+                    ftnums_apply_detrend = lightcurves.index.values
+                else:
+                    logger.info(("Applying polynomial to detrend images with frame tracking numbers:\n" + 
+                                 "{nums}").format(nums=ftnums_apply_detrend))
+                if not set(ftnums_apply_detrend) <= set(ftnums_calc_detrend):
+                    logger.warning("`ftnums_apply_detrend` is not a subset of `ftnums_calc_detrend`.")
+                # Extract index and fluxes as numpy.ndarray to use "fancy indexing".
+                ftnums_apply_detrend = lightcurves.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'].index.values
+                fluxes_apply_detrend = lightcurves.loc[ftnums_apply_detrend, 'target_relative_normalized_flux'].values
+                fluxes_fit = np.polyval(best_model, ftnums_apply_detrend)
+                fluxes_residual = fluxes_apply_detrend - fluxes_fit
+                fluxes_detrended = fluxes_residual + 1.0
+                lightcurves['target_relative_normalized_detrended_flux'] = lightcurves['target_relative_normalized_flux']
+                lightcurves.loc[ftnums_apply_detrend, 'target_relative_normalized_detrended_flux'] = fluxes_detrended
     # Show diagnostic plots.
     if show_plots:
-        pd.DataFrame.plot(lightcurves[['target_flux',
-                                       'comparisons_sum_flux',
-                                       'target_relative_flux']],
-                          title="Raw lightcurves",
+        frame_for_plot = lightcurves[['target_flux',
+                                      'comparisons_sum_flux',
+                                      'target_relative_flux']]
+        pd.DataFrame.plot(frame_for_plot,
+                          title="Absolute and relative lightcurves",
                           secondary_y=['target_relative_flux'],
                           marker='o', markersize=2, linestyle='')
         plt.show()
-        pd.DataFrame.plot(lightcurves[['target_normalized_flux',
-                                       'comparisons_sum_normalized_flux',
-                                       'target_relative_normalized_flux']],
-                          title="Normalized lightcurves",
-                          marker='o', markersize=2, linestyle='')
-        plt.show()
+        if ftnums_norm is not None:
+            df_norm = lightcurves.loc[ftnums_norm, ['target_relative_normalized_flux']].copy()
+            df_norm.rename(columns={'target_relative_normalized_flux': 'ftnums_norm'}, inplace=True)
+            df_plot = \
+                pd.concat([lightcurves[['target_normalized_flux',
+                                        'comparisons_sum_normalized_flux',
+                                        'target_relative_normalized_flux']],
+                           df_norm],
+                          axis=1)
+            pd.DataFrame.plot(df_plot,
+                              title="Absolute and relative normalized lightcurves",
+                              marker='o', markersize=2, linestyle='')
+            plt.show()
+        if ftnums_calc_detrend is not None:
         pd.DataFrame.plot(models,
-                          title=("Detrending polynomial selection:\n" +
+                          title=("Detrending polynomial model selection:\n" +
                                  "Training and cross-validation error and Bayesian Info. Crit."),
                           secondary_y=['train_BIC', 'cval_BIC'],
                           marker='o')        
         plt.show()
-        plt.figure()
-        pd.DataFrame.plot(frame=pd.concat(lightcurves.loc[['target_relative_normalized_detrended_flux'], axis=1))
-        .plot(title="Detrended normalized lightcurve",
-                                                                      marker='o', markersize=4, linestyle='', c='blue')
-        plt.scatter(ftnums_apply_detrend, fluxes_apply_detrend, c='blue', s=50)
-        plt.plot(ftnums_apply_detrend, fluxes_fit, c='red', linewidth=5)
-        plt.scatter(ftnums_apply_detrend, fluxes_detrended, c='red', s=20)
-        plt.title("`ftnums_apply_detrend` before, fit,\nand after detrended")
+        df_calc_detrend = lightcurves.loc[ftnums_calc_detrend, ['target_relative_normalized_flux']].copy()
+        df_calc_detrend.rename(columns={'target_relative_normalized_flux': 'ftnums_calc_detrend'}, inplace=True)
+        df_plot = \
+            pd.concat([lightcurves[['target_relative_normalized_flux']],
+                       df_norm,
+                       df_calc_detrend],
+                      axis=1)
+        pd.DataFrame.plot(df_plot,
+                          title="Relative normalized lightcurve with detrending model",
+                          marker='o', markersize=2, linestyle='')
+        fluxes_calc_detrend = np.polyval(best_model, ftnums_calc_detrend)
+        plt.plot(ftnums_calc_detrend, fluxes_calc_detrend, c='red', linewidth=2)
+        # todo: if not none
+        df_apply_detrend = lightcurves.loc[ftnums_apply_detrend, ['target_relative_normalized_flux']].copy()
+        df_apply_detrend.rename(columns={'target_relative_normalized_flux': 'ftnums_apply_detrend'}, inplace=True)
+        df_plot = \
+            pd.concat([lightcurves[['target_relative_normalized_flux']],
+                       df_norm,
+                       df_calc_detrend,
+                       df_apply_detrend,
+                       lightcurves[['target_relative_normalized_detrended_flux']]],
+                      axis=1)
+        pd.DataFrame.plot(df_plot,
+                          title=("Relative normalized uncorrected and corrected\n" +
+                                 "lightcurves with detrending model"),
+                          marker='o', markersize=2, linestyle='')
+        fluxes_calc_detrend = np.polyval(best_model, ftnums_calc_detrend)
+        plt.plot(ftnums_calc_detrend, fluxes_calc_detrend, c='red', linewidth=2)
         plt.show()
     return lightcurves
 
