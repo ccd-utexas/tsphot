@@ -2428,42 +2428,42 @@ def make_lightcurve(timestamps, timeseries, target_idx, comparison_idxs='all', f
                               title="Absolute and relative normalized lightcurves",
                               marker='o', markersize=2, linestyle='')
             plt.show()
-        if ftnums_calc_detrend is not None:
-        pd.DataFrame.plot(models,
-                          title=("Detrending polynomial model selection:\n" +
-                                 "Training and cross-validation error and Bayesian Info. Crit."),
-                          secondary_y=['train_BIC', 'cval_BIC'],
-                          marker='o')        
-        plt.show()
-        df_calc_detrend = lightcurves.loc[ftnums_calc_detrend, ['target_relative_normalized_flux']].copy()
-        df_calc_detrend.rename(columns={'target_relative_normalized_flux': 'ftnums_calc_detrend'}, inplace=True)
-        df_plot = \
-            pd.concat([lightcurves[['target_relative_normalized_flux']],
-                       df_norm,
-                       df_calc_detrend],
-                      axis=1)
-        pd.DataFrame.plot(df_plot,
-                          title="Relative normalized lightcurve with detrending model",
-                          marker='o', markersize=2, linestyle='')
-        fluxes_calc_detrend = np.polyval(best_model, ftnums_calc_detrend)
-        plt.plot(ftnums_calc_detrend, fluxes_calc_detrend, c='red', linewidth=2)
-        # todo: if not none
-        df_apply_detrend = lightcurves.loc[ftnums_apply_detrend, ['target_relative_normalized_flux']].copy()
-        df_apply_detrend.rename(columns={'target_relative_normalized_flux': 'ftnums_apply_detrend'}, inplace=True)
-        df_plot = \
-            pd.concat([lightcurves[['target_relative_normalized_flux']],
-                       df_norm,
-                       df_calc_detrend,
-                       df_apply_detrend,
-                       lightcurves[['target_relative_normalized_detrended_flux']]],
-                      axis=1)
-        pd.DataFrame.plot(df_plot,
-                          title=("Relative normalized uncorrected and corrected\n" +
-                                 "lightcurves with detrending model"),
-                          marker='o', markersize=2, linestyle='')
-        fluxes_calc_detrend = np.polyval(best_model, ftnums_calc_detrend)
-        plt.plot(ftnums_calc_detrend, fluxes_calc_detrend, c='red', linewidth=2)
-        plt.show()
+            if ftnums_calc_detrend is not None:
+                pd.DataFrame.plot(models,
+                                  title=("Detrending polynomial model selection:\n" +
+                                         "Training and cross-validation error and Bayesian Info. Crit."),
+                                  secondary_y=['train_BIC', 'cval_BIC'],
+                                  marker='o')        
+                plt.show()
+                df_calc_detrend = lightcurves.loc[ftnums_calc_detrend, ['target_relative_normalized_flux']].copy()
+                df_calc_detrend.rename(columns={'target_relative_normalized_flux': 'ftnums_calc_detrend'}, inplace=True)
+                df_plot = \
+                    pd.concat([lightcurves[['target_relative_normalized_flux']],
+                               df_norm,
+                               df_calc_detrend],
+                              axis=1)
+                pd.DataFrame.plot(df_plot,
+                                  title="Relative normalized lightcurve with detrending model",
+                                  marker='o', markersize=2, linestyle='')
+                fluxes_calc_detrend = np.polyval(best_model, ftnums_calc_detrend)
+                plt.plot(ftnums_calc_detrend, fluxes_calc_detrend, c='red', linewidth=2)
+                plt.show()
+                if ftnums_apply_detrend is not None:
+                    df_apply_detrend = lightcurves.loc[ftnums_apply_detrend, ['target_relative_normalized_flux']].copy()
+                    df_apply_detrend.rename(columns={'target_relative_normalized_flux': 'ftnums_apply_detrend'}, inplace=True)
+                    df_plot = \
+                        pd.concat([lightcurves[['target_relative_normalized_flux']],
+                                   df_norm,
+                                   df_calc_detrend,
+                                   df_apply_detrend,
+                                   lightcurves[['target_relative_normalized_detrended_flux']]],
+                                  axis=1)
+                    pd.DataFrame.plot(df_plot,
+                                      title=("Relative normalized uncorrected and corrected\n" +
+                                             "lightcurves with detrending model"),
+                                      marker='o', markersize=2, linestyle='')
+                    plt.plot(ftnums_calc_detrend, fluxes_calc_detrend, c='red', linewidth=2)
+                    plt.show()
     return lightcurves
 
 
