@@ -2223,7 +2223,7 @@ def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', 
         If default ``None``, polynomial degree is chosen by cross-validation and Bayesian Info. Crit. (see Notes below).
         Example: fixed_degree=2
     show_plots : {False}, bool, optional
-        ``True``/``False`` flag to show diagnostic plots. 
+        ``True``/``False`` flag to show diagnostic plots.
 
     Returns
     -------
@@ -2501,6 +2501,9 @@ def plot_lightcurve(lightcurves, col_timestamps='exposure_mid_timestamp_UTC', co
         Path to save file. Format can be '.pdf', '.eps', .jpg', '.png', etc. 
     kwargs : keyword arguments, optional
         keywords to pass to ``matplotlib.pyplot``
+        Examples:
+            ylim=(0.0, 1.0)
+            {'ylim': (0.0, 1.0)}
 
     Returns
     -------
