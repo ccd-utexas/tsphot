@@ -2173,7 +2173,7 @@ def plot_positions(timeseries, zoom=None, show_line_plots=True):
 
 
 def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', ftnums_drop=None,
-                    ftnums_norm=None, ftnums_calc_detrend=None, ftnums_apply_detrend=None, degree=None,
+                    ftnums_norm=None, ftnums_calc_detrend=None, ftnums_apply_detrend=None, fixed_degree=None,
                     show_plots=False):
     """Make lightcurves from timestamps and timeseries.
     
@@ -2218,10 +2218,10 @@ def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', 
         If default ``None``, no detrending is applied.
         if 'all', detrending is applied to entire lightcurve.
         Example: See example for `ftnum_drop`.
-    degree : {None, 0, 1, 2, 3, 4}, int, optional
+    fixed_degree : {None, 0, 1, 2, 3, 4}, int, optional
         Override degree of polynomial to fit for detrending.
         If default ``None``, polynomial degree is chosen by cross-validation and Bayesian Info. Crit. (see Notes below).
-        Example: degree=2
+        Example: fixed_degree=2
     show_plots : {False}, bool, optional
         ``True``/``False`` flag to show diagnostic plots. 
 
@@ -2255,9 +2255,9 @@ def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', 
     SEQUENCE_NUMBER : 8.0
     Data is undersampled if FHWM < 1.5 pix. sec 5.4 [1]_.
     Use `ftnums_calc_detrend` and `ftnums_apply_detrend` for correcting differential color extinction as a function
-        of airmass. A polynomial is fit to `target_relative_normalized_flux`. If `degree` is default ``None``,
+        of airmass. A polynomial is fit to `target_relative_normalized_flux`. If `fixed_degree` is default ``None``,
         the polynomial degree from 0 to 4 is selected using cross-validation and Bayesian Information Criterion
-        (adapted from sec 8.11 of [2]_). Use `degree` when the statistical model of the polynomial fit to data
+        (adapted from sec 8.11 of [2]_). Use `fixed_degree` when the statistical model of the polynomial fit to data
         should be informed by prior knowledge of a physical model. Differential photometric extinction is usually
         well-fit by a polynomial of degree 2. The polynomial coefficients are averaged over multiple fits. The data are
         detrended after being normalized by adding 1.0 to the residuals of the fit. 
@@ -2357,20 +2357,20 @@ def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', 
             models = pd.DataFrame(index=degrees, columns=['model', 'train_err', 'cval_err'])
             models.index.names = ['degree']
             models.columns.names = ['quantity']
-            for degree in degrees:
-                logger.debug("degree = {deg}".format(deg=degree))
+            for deg in degrees:
+                logger.debug("deg = {deg}".format(deg=deg))
                 # Split data into training set and cross-validation set.
                 for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(num_calc_detrend, n_iter=1, test_size=0.2, random_state=0):
                     (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
                     (ftnums_cval, fluxes_cval) = (ftnums_calc_detrend[idxs_cval], fluxes_calc_detrend[idxs_cval])
-                    model = np.polyfit(ftnums_train, fluxes_train, degree)
-                    models.loc[degree, 'model'] = model
+                    model = np.polyfit(ftnums_train, fluxes_train, deg)
+                    models.loc[deg, 'model'] = model
                     logger.debug("model = {mod}".format(mod=model))
                     train_err = np.sqrt(np.sum((np.polyval(model, ftnums_train) - fluxes_train)**2.0) / len(fluxes_train))
-                    models.loc[degree, 'train_err'] = train_err
+                    models.loc[deg, 'train_err'] = train_err
                     logger.debug("train_err = {terr}".format(terr=train_err))
                     cval_err = np.sqrt(np.sum((np.polyval(model, ftnums_cval) - fluxes_cval)**2.0) / len(fluxes_cval))
-                    models.loc[degree, 'cval_err'] = cval_err
+                    models.loc[deg, 'cval_err'] = cval_err
                     logger.debug("cval_err = {cerr}".format(cerr=cval_err))
             logger.debug("models =\n{mods}".format(mods=models))
             # Estimate intrinsic scatter for weighting BIC.
@@ -2383,14 +2383,14 @@ def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', 
                 np.multiply(degrees, np.log(num_calc_detrend))
             # Calcualte best model with optimized number of degrees.
             # Do 5 times to mitigate influence of outliers then average.
-            if degree is None:
+            if fixed_degree is None:
                 best_degree = models['cval_BIC'].idxmin()
                 logger.info(("Optimal degree of polynomial model for detrending:\n" +
                              "best_degree = {deg}").format(deg=best_degree))
             else:
-                best_degree = degree
+                best_degree = fixed_degree
                 logger.info(("Fixed degree of polynomial model for detrending:\n" +
-                             "best_degree = `degree` = {deg}").format(deg=best_degree))
+                             "best_degree = `fixed_degree` = {deg}").format(deg=best_degree))
             best_models = []
             for (idxs_train, idxs_cval) in sklearn_cval.ShuffleSplit(len(ftnums_calc_detrend), n_iter=5, test_size=0.2, random_state=0):
                 (ftnums_train, fluxes_train) = (ftnums_calc_detrend[idxs_train], fluxes_calc_detrend[idxs_train])
