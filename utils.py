@@ -2268,6 +2268,8 @@ def make_lightcurves(timestamps, timeseries, target_idx, comparison_idxs='all', 
     .. [2] Ivezic et al, 2014, "Statistics, Data Mining, and Machine Learning in Astronomy"
 
     """
+    # TODO: separate detrending function so that can apply multiple times.
+    # TODO: add point rejection after making target_relative_flux (use method from astroml book, not sigma clipping)
     # Drop frames to be excluded (e.g. due to clouds).
     if ftnums_drop is None:
         logger.info("Not dropping any images.")
@@ -2502,8 +2504,8 @@ def plot_lightcurve(lightcurves, col_timestamps='exposure_mid_timestamp_UTC', co
     kwargs : keyword arguments, optional
         keywords to pass to ``matplotlib.pyplot``
         Examples:
-            ylim=(0.0, 1.0)
-            {'ylim': (0.0, 1.0)}
+            ylim=[0.0, 1.0]
+            {'ylim': [0.0, 1.0]}
 
     Returns
     -------
