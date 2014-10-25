@@ -180,6 +180,7 @@ def main(fconfig, rereduce=False, verbose=False):
     # Reduce and clean object frames using all available master calib. frames.
     # If reduced object file is specified, save reduced and cleaned object frames to file.
     # `reduce_ccddata` handles cases where master calibration frames do not exist.
+    # TODO: use hdf5 instead of spe
     if do_reduction:
         logger.info("Reading raw object data from: {fpath}".format(fpath=rawfpath))
         object_ccddata = utils.spe_to_dict(rawfpath)
@@ -201,39 +202,33 @@ def main(fconfig, rereduce=False, verbose=False):
                                               dark=master_ccddata['dark'], dark_exptime=dark_exptime,
                                               flat=master_ccddata['flat'], flat_exptime=flat_exptime)
         # TODO: calculate gain and readnoise. correct for gain.
-        # TODO: Make a class to track progress.
+        # TODO: Make a closure/class to track progress.
         # TODO: for online analysis, skip cleaning cosmic rays
         logger.info("Cleaning cosmic rays.")
-        key_list = []
-        for key in object_ccddata:
-            if isinstance(object_ccddata[key], ccdproc.CCDData):
-                key_list.append(key)
-        key_sortedlist = sorted(key_list)
-        key_len = len(key_sortedlist)
-        prog_interval = 0.05
-        prog_divs = int(math.ceil(1.0 / prog_interval))
-        key_progress = {}
-        for idx in xrange(0, prog_divs + 1):
-            progress = (idx / prog_divs)
-            key_idx = int(math.ceil((key_len - 1) * progress))
-            key = key_sortedlist[key_idx]
-            key_progress[key] = progress
-        for key in sorted(object_ccddata):
-            if isinstance(object_ccddata[key], ccdproc.CCDData):
-                # TODO: give dict with readnoise, gain
-                # TODO: save ray_mask in ccd_data
-                (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
-                if key in key_progress:
-                    logger.info("Progress (%): {pct}".format(pct=int(key_progress[key] * 100)))
+        print_progress = utils.define_progress(dobj=object_ccddata)
+        sorted_image_keys = sorted([key for key in object_ccddata.keys() if isinstance(object_ccddata[key],
+                                                                                       ccdproc.CCDData)])
+        for key in sorted_image_keys:
+            # TODO: give dict with readnoise, gain
+            # TODO: save ray_mask in ccd_data
+            (object_ccddata[key].data, ray_mask) = utils.remove_cosmic_rays(object_ccddata[key].data)
+            print_progress(key=key)
         if redfpath is not None:
             logger.info("Writing reduced object data to: {fpath}".format(fpath=redfpath))
             with open(redfpath, 'wb') as fp:
                 pickle.dump(object_ccddata, fp)
     if do_reduction is None:
         raise AssertionError("Program error. Not all cases for do_reduction are accounted for.")
-    # TODO: RESUME PIPELINE HERE
+    ################################################################################
+    # Create timeseries.
     # TODO: check programmed/actual exposure times since pulses could have been missed
     # TODO: check default experiments with footer metadata to confirm correct experiment settings for calib. frames
+    # TODO: finish importing code from ipython notebook
+    # logger.info("STAGE: CALCULATE_TIMESERIES")
+    # logger.info("Getting timestamps and calculating timeseries.")
+    # timestamps, timeseries = utils.timestamps_timeseries(dobj=object_ccddata)
+    # logger.info("Making lightcurve.")
+    # lightcurve = utils.make_lightcurve(timestamps=timestamps, timeseries=timeseries, target_index=target_index)
 
     # Clean up.
     if flog is not None:
