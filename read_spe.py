@@ -12,11 +12,11 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 # TODO: make test modules with test_yes/no_footer.spe files
 
-from __future__ import print_function
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 import argparse
 import os
 import sys
+import time
 import numpy as np
 import pandas as pd
 
@@ -96,13 +96,15 @@ class File(object):
         ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
         SPE%203.0%20File%20Format%20Specification.pdf
         """
+        # TODO: don't remake temp file every time header metadata is needed.
         # file_header_ver and xml_footer_offset are
         # the only required header fields for SPE 3.0.
         # Header information from SPE 3.0 File Specification, Appendix A.
         # Read in CSV of header format without comments.
         ffmt = os.path.join(os.path.dirname(__file__), 'spe_30_header_format.csv')
         ffmt_base, ext = os.path.splitext(ffmt)
-        ffmt_nocmts = ffmt_base + '_temp' + ext
+        ts = time.time()
+        ffmt_nocmts = "{base}_temp_{ts}_{ext}".format(base=ffmt_base, ts=ts, ext=ext)
         if not os.path.isfile(ffmt):
             raise IOError("SPE 3.0 header format file does not exist: {fname}".format(fname=ffmt))
         if ext != '.csv':
