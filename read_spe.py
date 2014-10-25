@@ -12,11 +12,11 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 # TODO: make test modules with test_yes/no_footer.spe files
 
-from __future__ import print_function
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 import argparse
 import os
 import sys
+import StringIO
 import numpy as np
 import pandas as pd
 
@@ -96,27 +96,27 @@ class File(object):
         ftp://ftp.princetoninstruments.com/Public/Manuals/Princeton%20Instruments/
         SPE%203.0%20File%20Format%20Specification.pdf
         """
+        # TODO: don't remake temp file every time header metadata is needed.
         # file_header_ver and xml_footer_offset are
         # the only required header fields for SPE 3.0.
         # Header information from SPE 3.0 File Specification, Appendix A.
-        # Read in CSV of header format without comments.
+        # Remove comments from header CSV.
         ffmt = os.path.join(os.path.dirname(__file__), 'spe_30_header_format.csv')
         ffmt_base, ext = os.path.splitext(ffmt)
-        ffmt_nocmts = ffmt_base + '_temp' + ext
         if not os.path.isfile(ffmt):
             raise IOError("SPE 3.0 header format file does not exist: {fname}".format(fname=ffmt))
         if ext != '.csv':
             raise TypeError("SPE 3.0 header format file is not .csv: {fname}".format(fname=ffmt))
-        with open(ffmt) as fcmts:
-            # Make a temporary file without comments.
-            with open(ffmt_nocmts, 'w') as fnocmts:
-                for line in fcmts:
-                    if line.startswith('#'):
-                        continue
-                    else:
-                        fnocmts.write(line)
-        self.header_metadata = pd.read_csv(ffmt_nocmts, sep=',')
-        os.remove(ffmt_nocmts)
+        with open(ffmt, 'rb') as fcmts:
+            header_cmts = fcmts.readlines()
+        header_nocmts = []
+        for line in header_cmts:
+            if line.startswith('#'):
+                continue
+            else:
+                header_nocmts.append(line)
+        header_nocmts_str = StringIO.StringIO(''.join(header_nocmts))
+        self.header_metadata = pd.read_csv(header_nocmts_str, sep=',')
         # TODO: Efficiently read values and create column following
         # http://pandas.pydata.org/pandas-docs/version/0.13.1/cookbook.html
         # Index values by offset byte position.
