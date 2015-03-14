@@ -12,15 +12,20 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
 # TODO: make pytest modules with test_yes/no_footer.spe files
 # TODO: fix docstrings to match numpy style: https://github.com/numpy/numpy/blob/master/doc/example.py
+# TODO: remove pandas dependency. use builtin csv module.
+# TODO: Use logging levels instead of print.
+
 
 from __future__ import absolute_import, division, print_function
 import argparse
+import copy
 import os
 import sys
 import StringIO
 import numpy as np
 import pandas as pd
 import pdb
+
 
 class File(object):
     """
@@ -161,21 +166,32 @@ class File(object):
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
         xml_offset = int(self.header_metadata[tf_mask]["Value"].values[0])
+        pdb.set_trace()
         if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
         else:
-            self._fid.seek(xml_offset)
             # All XML footer metadata is contained within one line.
             # Strip anything before '<SpeFormat' or after 'SpeFormat>'
-            xml = self._fid.read()
-            pieces = xml.partition('<SpeFormat')
-            xml = ''.join(pieces[1:])
-            pieces = xml.rpartition('SpeFormat>')
-            xml = ''.join(pieces[:-1])
+            # The byte offset for the start of the XML file can be off if the file
+            # is not begun/ended correctly. Search for the beginning of the XML
+            # footer 1KB before the byte offset and trim the excess.
+            self._fid.seek(xml_offset - 1024)
+            xml_orig = self._fid.read()
+            xml_trim = copy.copy(xml_orig)
+            pieces = xml_trim.partition('<SpeFormat')
+            xml_trim = ''.join(pieces[1:])
+            pieces = xml_trim.rpartition('SpeFormat>')
+            xml_trim = ''.join(pieces[:-1])
+            if xml_trim == '':
+                print(("WARNING: XML footer was not partitioned correctly\n" +
+                       "and may need to be reformatted."), file=sys.stderr)
+                xml = xml_orig
+            else:
+                xml = xml_trim
             self.footer_metadata = xml
-        pdb.set_trace()
         return None
+
 
     def _get_start_offset(self):
         """
