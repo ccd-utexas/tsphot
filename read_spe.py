@@ -10,7 +10,8 @@ ftp://ftp.princetoninstruments.com/public/Manuals/Princeton%20Instruments/Experi
 
 Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 """
-# TODO: make test modules with test_yes/no_footer.spe files
+# TODO: make pytest modules with test_yes/no_footer.spe files
+# TODO: fix docstrings to match numpy style: https://github.com/numpy/numpy/blob/master/doc/example.py
 
 from __future__ import absolute_import, division, print_function
 import argparse
@@ -19,11 +20,13 @@ import sys
 import StringIO
 import numpy as np
 import pandas as pd
+import pdb
 
 class File(object):
     """
     Handle an SPE file.
     """
+    # TODO: Don't use protected keyword 'file' as class name.
     # Class-wide variables.
     _bits_per_byte = 8
     # TODO: don't hardcode number of metadata, get from user or footer if it exists
@@ -171,6 +174,7 @@ class File(object):
             pieces = xml.rpartition('SpeFormat>')
             xml = ''.join(pieces[:-1])
             self.footer_metadata = xml
+        pdb.set_trace()
         return None
 
     def _get_start_offset(self):
