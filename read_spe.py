@@ -13,7 +13,7 @@ Note: Use with SPE 3.0. Not backwards compatible with SPE 2.X.
 # TODO: make pytest modules with test_yes/no_footer.spe files
 # TODO: fix docstrings to match numpy style: https://github.com/numpy/numpy/blob/master/doc/example.py
 # TODO: remove pandas dependency. use builtin csv module.
-# TODO: Use logging levels instead of print.
+# TODO: Use logging levels (and warnings.warn) instead of print.
 
 
 from __future__ import absolute_import, division, print_function
@@ -24,7 +24,6 @@ import sys
 import StringIO
 import numpy as np
 import pandas as pd
-import pdb
 
 
 class File(object):
@@ -166,7 +165,6 @@ class File(object):
         """
         tf_mask = (self.header_metadata["Type_Name"] == "XMLOffset")
         xml_offset = int(self.header_metadata[tf_mask]["Value"].values[0])
-        pdb.set_trace()
         if xml_offset == 0:
             print(("INFO: XML footer metadata is empty for:\n"
                   +" {fname}").format(fname=self._fname))
