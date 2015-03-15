@@ -3,7 +3,6 @@
 """pytest style tests for tsphot/read_spe.py
 
 """
-# TODO: move data files to separate subdir
 
 
 from __future__ import absolute_import, division, print_function
